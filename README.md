@@ -154,17 +154,19 @@ Full request/response examples live in [`server/API_DOCUMENTATION.md`](server/AP
 
 ---
 
-## Roadmap (later phases)
+## Roadmap (next phases)
 
-- [ ] Task labels / categories and priority levels
-- [ ] Calendar / due-date board views
-- [ ] Pagination and server-side search
-- [ ] Automated tests (frontend + API)
-- [ ] Deployment (frontend on Vercel, API + MongoDB Atlas)
+- [ ] **Admin panel** — manage users and tasks, view app-wide activity
+- [ ] **AI integration** — smarter task creation and management (natural-language
+      task capture, suggested breakdowns, prioritization)
+- [ ] **Web push notifications** — real-time reminders in the browser alongside
+      the existing daily email reminders
 
 ---
 
 ## Status
 
-**Draft — lab phase.** The core auth and task flows are working end to end;
-polish, tests, and deployment are planned for the following phases.
+**Complete and deployed** for this phase — signup, email verification,
+Google OAuth, task CRUD with owner scoping, avatar uploads, and daily email
+reminders all work end to end in production. The features above are the planned
+next phases.
