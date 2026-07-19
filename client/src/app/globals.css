@@ -1,0 +1,215 @@
+@import "tailwindcss";
+
+/* Afritask palette refresh
+   Light mode before -> after
+   --paper: #F7F4EC -> #F6F0E7
+   --paper-raised: #FFFFFF -> #FFF9F2
+   --ink: #24251F -> #2A2019
+   --ink-soft: #5C5D52 -> #6A5B4C
+   --line: #E3DECF -> #E6D7C7
+   --line-soft: #ECE8DB -> #F1E9DE
+   --moss: #4B6650 -> #49644B
+   --moss-light: #DCE6DA -> #DDE8D8
+   --moss-dark: #364A39 -> #314535
+   --clay: #B5602F -> #B55E32
+   --clay-tint: #F3DFCE -> #F4E0D3
+   --gold: #A1812F -> #B1872E
+   --gold-tint: #EFE3C2 -> #F4E7BF
+   --stone: #8A8C7E -> #8E8278
+   --stone-tint: #E7E5DA -> #ECE3D7
+   --error: #A33B2E -> #B24A3C
+   --error-tint: #F4DCD7 -> #F6DCD8
+   --success: #3F6B4A -> #4C7A52
+   --success-tint: #DCEADB -> #DCEAD9
+
+   Dark mode after
+   --paper: #201814
+   --paper-raised: #2B211A
+   --ink: #F4EBDD
+   --ink-soft: #C7B8A7
+   --line: #4A3A2F
+   --line-soft: #3A2D24
+   --moss: #8DA96E
+   --moss-light: #334236
+   --moss-dark: #B7C9A4
+   --clay: #D38A5B
+   --clay-tint: #4B2F22
+   --gold: #D1A24E
+   --gold-tint: #4A3920
+   --stone: #A99A8F
+   --stone-tint: #3C3028
+   --error: #E07A67
+   --error-tint: #4A2B26
+   --success: #83B089
+   --success-tint: #304539
+*/
+
+:root {
+  /* === Color tokens === */
+  --paper: #F6F0E7;          /* warm off-white background, like notebook paper */
+  --paper-raised: #FFF9F2;   /* card surfaces */
+  --ink: #2A2019;            /* warm dark text */
+  --ink-soft: #6A5B4C;       /* secondary text */
+  --line: #E6D7C7;           /* hairline borders */
+  --line-soft: #F1E9DE;
+
+  --moss: #49644B;           /* primary accent - deep sage */
+  --moss-light: #DDE8D8;     /* accent tint for backgrounds */
+  --moss-dark: #314535;      /* hover state */
+
+  --clay: #B55E32;           /* high priority */
+  --clay-tint: #F4E0D3;
+  --gold: #B1872E;           /* medium priority */
+  --gold-tint: #F4E7BF;
+  --stone: #8E8278;          /* low priority */
+  --stone-tint: #ECE3D7;
+
+  --error: #B24A3C;
+  --error-tint: #F6DCD8;
+  --success: #4C7A52;
+  --success-tint: #DCEAD9;
+
+  /* === Type === */
+  --font-display: var(--font-fraunces);
+  --font-body: var(--font-inter);
+}
+
+html[data-theme="dark"] {
+  --paper: #201814;
+  --paper-raised: #2B211A;
+  --ink: #F4EBDD;
+  --ink-soft: #C7B8A7;
+  --line: #4A3A2F;
+  --line-soft: #3A2D24;
+
+  --moss: #8DA96E;
+  --moss-light: #334236;
+  --moss-dark: #B7C9A4;
+
+  --clay: #D38A5B;
+  --clay-tint: #4B2F22;
+  --gold: #D1A24E;
+  --gold-tint: #4A3920;
+  --stone: #A99A8F;
+  --stone-tint: #3C3028;
+
+  --error: #E07A67;
+  --error-tint: #4A2B26;
+  --success: #83B089;
+  --success-tint: #304539;
+}
+
+html {
+  color-scheme: light;
+}
+
+html[data-theme="dark"] {
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html, body {
+  background: var(--paper);
+  color: var(--ink);
+}
+
+body {
+  font-family: var(--font-body), ui-sans-serif, system-ui, sans-serif;
+}
+
+h1, h2, h3, .font-display {
+  font-family: var(--font-display), Georgia, serif;
+}
+
+input,
+textarea,
+select {
+  font-size: 16px !important;
+}
+
+/* subtle paper grain texture for atmosphere, very low opacity */
+.paper-grain {
+  position: relative;
+}
+.paper-grain::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.025;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='80' height='80'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  z-index: 0;
+}
+
+.theme-toggle .theme-toggle-sun {
+  display: none;
+}
+
+html[data-theme="dark"] .theme-toggle .theme-toggle-moon {
+  display: none;
+}
+
+html[data-theme="dark"] .theme-toggle .theme-toggle-sun {
+  display: inline-flex;
+}
+
+/* Focus visibility - accessibility floor */
+:focus-visible {
+  outline: 2px solid var(--moss);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Custom checkbox - signature element */
+.task-check {
+  appearance: none;
+  width: 22px;
+  height: 22px;
+  border: 1.5px solid var(--ink-soft);
+  border-radius: 6px;
+  cursor: pointer;
+  position: relative;
+  flex-shrink: 0;
+  transition: all 0.15s ease;
+  background: var(--paper-raised);
+}
+.task-check:hover {
+  border-color: var(--moss);
+}
+.task-check:checked {
+  background: var(--moss);
+  border-color: var(--moss);
+}
+.task-check:checked::after {
+  content: "";
+  position: absolute;
+  left: 6px;
+  top: 2px;
+  width: 6px;
+  height: 11px;
+  border: solid var(--paper);
+  border-width: 0 2px 2px 0;
+  transform: rotate(40deg);
+}
+
+/* scrollbar - subtle */
+::-webkit-scrollbar {
+  width: 10px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--line);
+  border-radius: 8px;
+}
