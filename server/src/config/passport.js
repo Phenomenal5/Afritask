@@ -3,17 +3,10 @@ import googleOauth from "passport-google-oauth20";
 import User from "../models/User.js";
 import logger from "../utils/logger.js";
 
-// Serialize the user: store only the user ID in the session cookie
-passport.serializeUser((user, done) => {
-  done(null, user.id); // only store MongoDB _id in session
-});
-
-// Deserialize the user: retrieve full user object from DB using stored ID
-passport.deserializeUser((id, done) => {
-  User.findById(id)
-    .then((user) => done(null, user)) // attach user to req.user
-    .catch((err) => done(err, null));
-});
+// NOTE: no serializeUser/deserializeUser here on purpose. This app is fully
+// stateless — every passport.authenticate() call uses { session: false } and
+// there's no express-session/passport.session() middleware. Session
+// serializers would be dead code; auth state lives entirely in the JWT.
 
 // Google Oauth Strategy
 const { Strategy: GoogleStrategy } = googleOauth;
@@ -32,7 +25,7 @@ if (hasGoogleCredentials) {
 
       async (accessToken, refreshToken, profile, done) => {
         try {
-          const email = profile.emails && profile.emails[0].value;
+          const email = profile.emails?.[0]?.value;
 
           if (!email) {
             logger.warn("Google OAuth failed: account has no email");

@@ -11,6 +11,7 @@ import morgan from "morgan";
 import logger from "./utils/logger.js";
 import globalErrorHandler from "./middlewares/error.Middleware.js";
 import connectDB from "./config/db.js";
+import CLIENT_URL from "./config/clientUrl.js";
 import startTaskReminderJob from "./jobs/taskReminder.js";
 
 
@@ -24,10 +25,9 @@ app.use(helmet({
   crossOriginResourcePolicy: { policy: 'cross-origin' },
 }));
 
+// Same origin the OAuth flow redirects back to — see config/clientUrl.js.
 const corsOptions = {
-  origin: process.env.NODE_ENV === 'production'
-    ? 'https://afritask.netlify.app'
-    : 'http://localhost:3001',
+  origin: CLIENT_URL,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
 };

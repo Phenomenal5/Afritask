@@ -90,6 +90,31 @@ export function AuthProvider({ children }) {
     [router]
   );
 
+  // Finish a Google sign-in. The backend completed OAuth server-side and handed
+  // us a JWT via the /auth/callback URL — store it, hydrate the user from
+  // /auth/me, and land on the dashboard. Same end state as a credential login.
+  const completeOAuthLogin = useCallback(
+    async (token) => {
+      try {
+        localStorage.setItem(TOKEN_KEY, token);
+        const res = await getMe();
+        setUser(res.data.user);
+        // /auth/me refreshes the token when applicable — keep the newest one.
+        if (res.data.token) localStorage.setItem(TOKEN_KEY, res.data.token);
+        toast.success(`Welcome, ${res.data.user.name.split(" ")[0]}`);
+        router.push("/dashboard");
+        return { success: true };
+      } catch (err) {
+        localStorage.removeItem(TOKEN_KEY);
+        const message = err.response?.data?.message || "Google sign-in failed";
+        toast.error(message);
+        router.push("/login");
+        return { success: false, message };
+      }
+    },
+    [router]
+  );
+
   const forgotPassword = useCallback(async (email) => {
     try {
       const res = await forgotPasswordRequest(email);
@@ -133,6 +158,7 @@ export function AuthProvider({ children }) {
     signup,
     verifyEmail,
     login,
+    completeOAuthLogin,
     logout,
     forgotPassword,
     resetPassword,

@@ -1,8 +1,9 @@
 "use client";
 
 // Login page handles credential sign-in and the Google OAuth entry point.
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
+import toast from "react-hot-toast";
 import { useAuth } from "@/context/AuthContext";
 import AuthLayout from "@/components/AuthLayout";
 import FormField from "@/components/FormField";
@@ -15,6 +16,16 @@ export default function LoginPage() {
   const [form, setForm] = useState({ email: "", password: "" });
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+
+  // Passport bounces a failed/cancelled Google sign-in back here with
+  // ?error=google. Surface it once, then strip the flag so a refresh is quiet.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("error") === "google") {
+      toast.error("Google sign-in was cancelled or failed. Please try again.");
+      window.history.replaceState(null, "", "/login");
+    }
+  }, []);
 
   const handleChange = (e) =>
     setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }));

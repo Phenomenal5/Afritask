@@ -11,6 +11,7 @@ import {
   // verifyForgetPasswordEmailToken
 } from "../controllers/auth.controller.js";
 import protect from "../middlewares/auth.middleware.js";
+import CLIENT_URL from "../config/clientUrl.js";
 
 
 const router = express.Router();
@@ -45,19 +46,18 @@ router.get(
 );
 
 // Google redirects here after login; Passport attaches the user to req.user.
+// On failure (denied consent, no email, etc.) Passport redirects the browser
+// straight back to the frontend login with an error flag — never to a JSON
+// endpoint on the API domain, which the user would be stranded on.
 router.get(
   "/google/callback",
   googleCredentialsReady,
-  passport.authenticate("google", { session: false, failureRedirect: "/api/auth/google/failure" }),
+  passport.authenticate("google", {
+    session: false,
+    failureRedirect: `${CLIENT_URL}/login?error=google`
+  }),
   googleCallback
 );
-
-router.get("/google/failure", (req, res) => {
-  res.status(401).json({
-    status: "fail",
-    message: "Google authentication failed"
-  });
-});
 
 
 

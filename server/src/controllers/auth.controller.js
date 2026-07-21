@@ -10,6 +10,7 @@ import {
 } from '../utils/email.js';
 import generateToken from '../utils/jwt.js';
 import logger from '../utils/logger.js';
+import CLIENT_URL from '../config/clientUrl.js';
 
 const VERIFY_EMAIL_TOKEN_EXPIRES = process.env.VERIFY_EMAIL_TOKEN_EXPIRES_MS
     ? Number(process.env.VERIFY_EMAIL_TOKEN_EXPIRES_MS)
@@ -262,12 +263,20 @@ export const logout = catchAsync(async (req, res, next) => {
 })
 
 // Handle Google login/signup after Passport has attached the user to req.user.
+// NOTE: OAuth arrives here as a top-level browser redirect, NOT an XHR — so we
+// must NOT return JSON (the browser would just render it on the API domain and
+// the token would never reach the app). Instead we mint the JWT and redirect
+// back to the frontend /auth/callback, which stores it exactly like a normal
+// login. Keep this route in sync with the client callback page.
 export const googleCallback = catchAsync(async (req, res, next) => {
     if (!req.user) {
         logger.warn(`Google authentication failed: req.user missing`);
-        return next(new AppError("Google authentication failed", 401));
+        return res.redirect(`${CLIENT_URL}/login?error=google`);
     }
 
+    const token = generateToken(req.user);
     logger.info(`Google OAuth login successful for user ${req.user.email}`);
-    sendAuthResponse(req.user, 200, res);
+    // Token travels in the query string; the callback page reads it once and
+    // moves it into localStorage, then cleans the URL by routing to /dashboard.
+    res.redirect(`${CLIENT_URL}/auth/callback?token=${token}`);
 })

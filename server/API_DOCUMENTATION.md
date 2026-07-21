@@ -211,42 +211,28 @@ http://localhost:<PORT>/api/auth/google/callback
 
 ### Google Callback
 
-Google redirects to this route after successful login.
+Google redirects to this route after login. Because the whole flow is a
+top-level browser redirect (not an XHR), this route does **not** return JSON —
+it mints the JWT and redirects the browser back to the frontend, which stores
+the token and hydrates the session (same end state as a credential login).
 
 ```http
 GET /api/auth/google/callback
 ```
 
-Success response:
+Success — redirects to the frontend callback with the token in the query string:
 
-```json
-{
-  "status": "success",
-  "token": "jwt_token_here",
-  "user": {
-    "_id": "user_id",
-    "name": "Google User",
-    "email": "user@gmail.com",
-    "provider": "google",
-    "providerId": "google_profile_id",
-    "isVerified": true
-  }
-}
+```txt
+302 Found
+Location: <CLIENT_URL>/auth/callback?token=<jwt_token_here>
 ```
 
-Failure route:
+Failure (denied consent, no email, missing user) — redirects to the frontend
+login with an error flag:
 
-```http
-GET /api/auth/google/failure
-```
-
-Failure response:
-
-```json
-{
-  "status": "fail",
-  "message": "Google authentication failed"
-}
+```txt
+302 Found
+Location: <CLIENT_URL>/login?error=google
 ```
 
 If Google credentials are missing:
