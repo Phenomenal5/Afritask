@@ -1,0 +1,22 @@
+# Netlify build config for the AfriTask monorepo.
+#
+# The frontend (Next.js) lives in client/, NOT the repo root. Without base =
+# "client" Netlify builds the repo root, finds no Next app, publishes nothing,
+# and every route 404s — which is exactly what happened after the repo was
+# switched to this monorepo.
+#
+# NOTE: this is a hybrid/SSR Next app (no output: "export" in next.config.mjs),
+# so it cannot be served as static files — it needs the Netlify Next.js runtime
+# (@netlify/plugin-nextjs) to serve the App Router routes. Do NOT set a manual
+# publish directory; the plugin configures it.
+
+[build]
+  base = "client"
+  command = "npm run build"
+
+[build.environment]
+  # Next 16 requires a modern Node; pin it so builds don't fail on an old default.
+  NODE_VERSION = "20"
+
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
