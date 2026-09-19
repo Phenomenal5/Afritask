@@ -1,6 +1,7 @@
 import { BrevoClient } from "@getbrevo/brevo";
 import { emailTemplate, escapeHtml } from "./emailTemplates.js";
 import logger from "./logger.js";
+import CLIENT_URL from "../config/clientUrl.js";
 
 const brevo = new BrevoClient({
   apiKey: process.env.BREVO_API_KEY,
@@ -93,7 +94,7 @@ const buildTaskReminderMessage = (task) => {
 };
 
 export const sendPasswordResetEmail = async (to, token) => {
-  const resetUrl = `${process.env.FRONTEND_URL}/reset-password?token=${token}`;
+  const resetUrl = `${CLIENT_URL}/reset-password?token=${token}`;
 
   await emailService.sendEmail({
     to,
@@ -110,7 +111,7 @@ export const sendPasswordResetEmail = async (to, token) => {
 };
 
 export const sendEmailVerificationCode = async (to, token) => {
-  const verificationUrl = `${process.env.FRONTEND_URL}/verify-email/${token}`;
+  const verificationUrl = `${CLIENT_URL}/verify-email/${token}`;
 
   await emailService.sendEmail({
     to,
@@ -127,7 +128,7 @@ export const sendEmailVerificationCode = async (to, token) => {
 };
 
 export const sendWelcomeEmail = async (to, name = "there") => {
-  const dashboardUrl = `${process.env.FRONTEND_URL}`;
+  const dashboardUrl = CLIENT_URL;
 
   await emailService.sendEmail({
     to,
@@ -143,8 +144,24 @@ export const sendWelcomeEmail = async (to, name = "there") => {
   });
 };
 
+// ─── One-time welcome email, shared by every signup path ──────────────────
+// Both signup routes funnel through here so the greeting can never be
+// implemented twice and drift: local signups call it once the email is
+// verified, Google signups call it the moment the account is created.
+// NOTE: it deliberately swallows delivery errors. A welcome email is a
+// courtesy, never a gate — letting a Brevo outage bubble up would 500 the
+// email-verification request or abort an otherwise successful Google
+// sign-in, which is a far worse failure than a missing greeting.
+export const deliverWelcomeEmail = async (to, name) => {
+  try {
+    await sendWelcomeEmail(to, name);
+  } catch (error) {
+    logger.error(`Welcome email could not be delivered to ${to}: ${error.message}`);
+  }
+};
+
 export const sendPasswordChangedEmail = async (to) => {
-  const dashboardUrl = `${process.env.FRONTEND_URL}`;
+  const dashboardUrl = CLIENT_URL;
 
   await emailService.sendEmail({
     to,
@@ -163,7 +180,7 @@ export const sendPasswordChangedEmail = async (to) => {
 export const sendTaskReminderEmail = async (to, task) => {
   const deadline = formatTaskDeadline(task?.deadline);
   const taskTitle = task?.title || "Untitled task";
-  const dashboardUrl = `${process.env.FRONTEND_URL}`;
+  const dashboardUrl = CLIENT_URL;
 
   await emailService.sendEmail({
     to,

@@ -1,0 +1,13 @@
+# Debian-slim (not alpine) so bcrypt's prebuilt binary works without build tools.
+FROM node:22-slim
+
+WORKDIR /app
+
+COPY package*.json ./
+RUN npm ci --omit=dev
+
+COPY . .
+
+EXPOSE 3000
+
+CMD ["node", "./src/server.js"]

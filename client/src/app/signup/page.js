@@ -101,6 +101,14 @@ export default function SignupPage() {
         <Button type="submit" full loading={loading} size="lg">
           Create account
         </Button>
+
+        <p className="text-xs text-center" style={{ color: "var(--ink-soft)" }}>
+          By creating an account, you agree to how we handle your data in our{" "}
+          <Link href="/privacy" className="font-medium hover:underline" style={{ color: "var(--moss)" }}>
+            Privacy Policy
+          </Link>
+          .
+        </p>
       </form>
 
       <p className="text-sm text-center mt-8" style={{ color: "var(--ink-soft)" }}>

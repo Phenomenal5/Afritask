@@ -1,4 +1,6 @@
 // AuthLayout frames the sign-in and sign-up flows with Afritask's brand voice.
+import Link from "next/link";
+
 const currentYear = 2026;
 
 export default function AuthLayout({ eyebrow, title, subtitle, children }) {
@@ -66,7 +68,10 @@ export default function AuthLayout({ eyebrow, title, subtitle, children }) {
           className="relative z-10 text-xs"
           style={{ color: "color-mix(in srgb, var(--paper) 40%, transparent)" }}
         >
-          &copy; {currentYear} Afritask
+          &copy; {currentYear} Afritask &middot;{" "}
+          <Link href="/privacy" className="hover:underline">
+            Privacy Policy
+          </Link>
         </p>
       </div>
 
@@ -95,6 +100,15 @@ export default function AuthLayout({ eyebrow, title, subtitle, children }) {
             </p>
           )}
           {children}
+
+          {/* The brand panel (and its footer) is hidden below lg, so mobile
+              needs its own route to the privacy policy. */}
+          <p className="lg:hidden text-xs text-center mt-10" style={{ color: "var(--ink-soft)" }}>
+            &copy; {currentYear} Afritask &middot;{" "}
+            <Link href="/privacy" className="hover:underline">
+              Privacy Policy
+            </Link>
+          </p>
         </div>
       </div>
     </div>

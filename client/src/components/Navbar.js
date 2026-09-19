@@ -89,6 +89,14 @@ export default function Navbar() {
                 >
                   Profile
                 </Link>
+                <Link
+                  href="/privacy"
+                  className="block px-3.5 py-2 text-sm hover:bg-[var(--line-soft)]"
+                  style={{ color: "var(--ink)" }}
+                  onClick={() => setMenuOpen(false)}
+                >
+                  Privacy Policy
+                </Link>
                 <button
                   onClick={logout}
                   className="block w-full text-left px-3.5 py-2 text-sm hover:bg-[var(--line-soft)] cursor-pointer"

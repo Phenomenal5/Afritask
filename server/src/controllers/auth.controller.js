@@ -3,10 +3,10 @@ import User from '../models/User.js';
 import AppError from '../utils/AppError.js';
 import catchAsync from '../utils/catchAsync.js';
 import {
+    deliverWelcomeEmail,
     sendEmailVerificationCode,
     sendPasswordChangedEmail,
-    sendPasswordResetEmail,
-    sendWelcomeEmail
+    sendPasswordResetEmail
 } from '../utils/email.js';
 import generateToken from '../utils/jwt.js';
 import logger from '../utils/logger.js';
@@ -15,6 +15,10 @@ import CLIENT_URL from '../config/clientUrl.js';
 const VERIFY_EMAIL_TOKEN_EXPIRES = process.env.VERIFY_EMAIL_TOKEN_EXPIRES_MS
     ? Number(process.env.VERIFY_EMAIL_TOKEN_EXPIRES_MS)
     : 60 * 60 * 1000; // 1 hour
+
+const RESET_PASSWORD_TOKEN_EXPIRES = process.env.RESET_PASSWORD_TOKEN_EXPIRES_MS
+    ? Number(process.env.RESET_PASSWORD_TOKEN_EXPIRES_MS)
+    : 15 * 60 * 1000; // 15 minutes
 
 const createAndSendVerificationToken = async (user) => {
     const token = randomBytes(32).toString("hex");
@@ -59,7 +63,21 @@ export const signup = catchAsync(async (req, res, next) => {
         });
 
         logger.info(`New user signup: ${email}`);
-        await createAndSendVerificationToken(user);
+
+        // NOTE: the account is unusable until the verification email lands, so a
+        // send failure must not leave a half-created user behind. It used to:
+        // the row survived, a retry answered "Email already in use", and logging
+        // in answered "verify your email" — a dead end with no way out.
+        try {
+            await createAndSendVerificationToken(user);
+        } catch (emailError) {
+            await User.deleteOne({ _id: user._id });
+            logger.error(`Signup rolled back for ${email}: verification email failed — ${emailError.message}`);
+            return next(new AppError(
+                "We couldn't send your verification email. Please try again in a moment.",
+                502
+            ));
+        }
 
         return res.status(201).json({
             status: "success",
@@ -164,7 +182,7 @@ export const verifyEmail = catchAsync(async (req, res, next) => {
             return next(new AppError("Invalid or expired verification token", 400));
         }
 
-        if (user.verifyEmailExpires && user.verifyEmailExpires < Date.now()) {
+        if (user.verifyEmailExpires && user.verifyEmailExpires < Date.now() && !user.isVerified) {
             await createAndSendVerificationToken(user);
             logger.warn(`Expired verification token used for user ${user.email}. New token sent.`);
 
@@ -174,14 +192,34 @@ export const verifyEmail = catchAsync(async (req, res, next) => {
             ));
         }
 
-        user.isVerified = true;
-        user.verifyEmailToken = undefined;
-        user.verifyEmailExpires = undefined;
-        await user.save();
+        // NOTE: verification is deliberately IDEMPOTENT, and the token is left
+        // in place rather than cleared. The same link legitimately arrives more
+        // than once — React StrictMode runs the verify effect twice in dev, and
+        // mail scanners (Outlook Safe Links & co) pre-fetch links before anyone
+        // clicks. Clearing the token on first use made the second request 400,
+        // which surfaced in the UI as "invalid or expired" on a verification
+        // that had in fact just succeeded. The token grants nothing by itself —
+        // this route issues no JWT — and it stops working once it expires.
+        const claimed = await User.findOneAndUpdate(
+            { _id: user._id, isVerified: false },
+            { $set: { isVerified: true } },
+            { new: true }
+        );
 
-        logger.info(`Email verified successfully for user ${user.email}`);
-        // Send a welcome email only after the account has been verified.
-        await sendWelcomeEmail(user.email, user.name);
+        // findOneAndUpdate is atomic so the duplicate request can't also think
+        // it was first — otherwise both would fire off a welcome email.
+        if (!claimed) {
+            logger.info(`Email already verified for user ${user.email}`);
+            return res.status(200).json({
+                status: "success",
+                message: "Email already verified"
+            });
+        }
+
+        logger.info(`Email verified successfully for user ${claimed.email}`);
+        // Local signups only earn the welcome once the address is proven.
+        // Google signups get theirs in config/passport.js instead.
+        await deliverWelcomeEmail(claimed.email, claimed.name);
 
         res.status(200).json({
             status: "success",
@@ -229,20 +267,31 @@ export const forgotPassword = catchAsync(async (req, res, next) => {
             return next(new AppError("User not found", 404));
         }
 
+        // NOTE: mint a fresh token and PERSIST it *before* emailing. The old
+        // version emailed a token it never saved, so resetPassword could never
+        // match it and every reset link died with "Invalid or expired token".
+        // (It also had a branch that re-sent the previous, already-expired
+        // token — dropped: a new request always earns a new token.)
         const token = randomBytes(32).toString("hex");
+        user.resetPasswordToken = token;
+        user.resetPasswordExpires = Date.now() + RESET_PASSWORD_TOKEN_EXPIRES;
+        await user.save({ validateBeforeSave: false });
 
+        try {
+            await sendPasswordResetEmail(email, token);
+        } catch (emailError) {
+            // Don't leave a live reset token behind for a link nobody received.
+            user.resetPasswordToken = undefined;
+            user.resetPasswordExpires = undefined;
+            await user.save({ validateBeforeSave: false });
 
-        if (user.resetPasswordToken && user.resetPasswordExpires < Date.now()) {
-            await user.updateOne({ resetPasswordExpires: Date.now() + 15 * 60 * 1000 }); // 15 minutes
-            await sendPasswordResetEmail(email, user.resetPasswordToken);
-            logger.info(`Existing expired reset token refreshed for user ${email}`);
-            return res.status(200).json({
-                status: "success",
-                message: "Password reset link has been sent to your email"
-            });
+            logger.error(`Password reset email failed for ${email}: ${emailError.message}`);
+            return next(new AppError(
+                "We couldn't send your password reset email. Please try again in a moment.",
+                502
+            ));
         }
 
-        await sendPasswordResetEmail(email, token);
         logger.info(`Password reset email sent to ${email}`);
         res.status(200).json({
             status: "success",

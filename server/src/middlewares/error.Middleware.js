@@ -30,12 +30,17 @@ const globalErrorHandler = (error, req, res, next) => {
   if (error.name === "JsonWebTokenError") err = handleJwtError();
   if (error.name === "TokenExpiredError") err = handleJwtExpiredError();
 
-  const statusCode = err.statusCode || 500;
-  const status = err.status || "error";
+  // NOTE: only our own AppErrors get to choose the status code. Third-party SDK
+  // errors carry their own `statusCode` and the spread above copies it straight
+  // through — a Brevo "unauthorised IP" rejection therefore answered
+  // POST /signup with 401 Unauthorized, which reads to the client as a broken
+  // session rather than a failed email. Anything non-operational is a 500.
+  const isOperational = Boolean(err.isOperational);
+  const statusCode = isOperational ? err.statusCode || 500 : 500;
 
   res.status(statusCode).json({
-    status,
-    message: err.isOperational ? err.message : "Something went wrong",
+    status: isOperational ? err.status || "error" : "error",
+    message: isOperational ? err.message : "Something went wrong",
   });
 };
 

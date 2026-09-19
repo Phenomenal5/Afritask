@@ -36,6 +36,7 @@ src/
     verify-email/[token]/page.js
     dashboard/page.js
     profile/page.js
+    privacy/page.js
   components/
     AuthLayout.js
     Avatar.js
@@ -72,6 +73,7 @@ src/
 - `/verify-email/[token]` verify an email token
 - `/dashboard` protected task dashboard
 - `/profile` protected account settings page
+- `/privacy` public privacy policy (linked from the auth screens, signup form, and account menu)
 
 ## Setup
 
@@ -91,6 +93,8 @@ NEXT_PUBLIC_API_URL=http://localhost:<backend-port>
 ```
 
 `NEXT_PUBLIC_API_URL` should point to your backend origin without `/api`. Make sure it matches the port your server is actually listening on.
+
+Optionally set `NEXT_PUBLIC_CONTACT_EMAIL` to show a contact address on the privacy policy page. Without it, the page tells users to reply to any Afritask email instead.
 
 ## Scripts
 

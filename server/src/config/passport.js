@@ -1,6 +1,7 @@
 import passport from "passport";
 import googleOauth from "passport-google-oauth20";
 import User from "../models/User.js";
+import { deliverWelcomeEmail } from "../utils/email.js";
 import logger from "../utils/logger.js";
 
 // NOTE: no serializeUser/deserializeUser here on purpose. This app is fully
@@ -41,20 +42,41 @@ if (hasGoogleCredentials) {
           });
 
           if (existingUser) {
+            // A returning sign-in, not a signup — no welcome email here, or
+            // every Google login would re-send it.
             logger.info(`Google OAuth login for existing provider user ${email}`);
             return done(null, existingUser);
           }
 
-          const userWithEmail = await User.findOne({ email });
+          // The verification token fields are select: false, but the linking
+          // branch below has to clear them — so pull them in explicitly.
+          const userWithEmail = await User.findOne({ email }).select(
+            "+verifyEmailToken +verifyEmailExpires"
+          );
 
           if (userWithEmail) {
             // Link Google to an existing account with the same verified email.
+            // NOTE: for local signups the welcome email only goes out in
+            // verifyEmail, so an account still sitting unverified has never
+            // received one — Google finishing the signup is its welcome moment.
+            const isFirstActivation = !userWithEmail.isVerified;
+
             userWithEmail.provider = "google";
             userWithEmail.providerId = profile.id;
             userWithEmail.isVerified = true;
+            // Google already proved ownership of the address, so retire the
+            // pending token. Leaving it live would let the old verification
+            // link run verifyEmail later and fire a SECOND welcome email.
+            userWithEmail.verifyEmailToken = undefined;
+            userWithEmail.verifyEmailExpires = undefined;
             await userWithEmail.save();
 
             logger.info(`Google OAuth linked existing user ${email} with provider account`);
+
+            if (isFirstActivation) {
+              await deliverWelcomeEmail(userWithEmail.email, userWithEmail.name);
+            }
+
             return done(null, userWithEmail);
           }
 
@@ -69,6 +91,11 @@ if (hasGoogleCredentials) {
 
           await newUser.save();
           logger.info(`Google OAuth created new user ${email}`);
+
+          // Google signups never touch the verify-email flow, so this is the
+          // only place their welcome email can be sent.
+          await deliverWelcomeEmail(newUser.email, newUser.name);
+
           return done(null, newUser);
         } catch (error) {
           return done(error, null);
@@ -77,5 +104,3 @@ if (hasGoogleCredentials) {
     ),
   );
 }
-
-

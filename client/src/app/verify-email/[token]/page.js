@@ -1,7 +1,7 @@
 "use client";
 
 // Email verification confirms the signup token and guides the user forward.
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import AuthLayout from "@/components/AuthLayout";
@@ -14,9 +14,18 @@ export default function VerifyEmailPage() {
   const router = useRouter();
   const [status, setStatus] = useState("verifying"); // verifying | success | error
 
+  // NOTE: React StrictMode mounts effects twice in dev, so this fired two
+  // verification requests for the same token. The first succeeded and the
+  // second one's response overwrote the status — which is why a perfectly
+  // good link reported "invalid or expired". One request per token only.
+  const requestedTokenRef = useRef(null);
+
   // Re-run verification when the token changes so deep links continue to work.
   useEffect(() => {
     if (!token) return;
+    if (requestedTokenRef.current === token) return;
+    requestedTokenRef.current = token;
+
     verifyEmail(token).then((res) => {
       setStatus(res.success ? "success" : "error");
     });
