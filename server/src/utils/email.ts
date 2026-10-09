@@ -2,7 +2,7 @@ import { BrevoClient } from "@getbrevo/brevo";
 import { emailTemplate, escapeHtml } from "./emailTemplates.js";
 import logger, { errorMessage } from "./logger.js";
 import env from "../config/env.js";
-import type { ITask } from "../models/Task.js";
+import type { Task } from "../generated/prisma/client.js";
 import CLIENT_URL from "../config/clientUrl.js";
 
 const brevo = new BrevoClient({
@@ -17,7 +17,7 @@ interface OutgoingEmail {
 }
 
 // Only the fields a reminder email shows.
-type ReminderTask = Pick<ITask, "title" | "description" | "deadline">;
+type ReminderTask = Pick<Task, "title" | "description" | "deadline">;
 
 const emailService = {
   sendEmail: async ({ to, subject, text, html }: OutgoingEmail) => {

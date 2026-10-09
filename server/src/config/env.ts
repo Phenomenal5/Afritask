@@ -6,7 +6,7 @@
 // Keep .env.example in sync with this file.
 
 const ALWAYS_REQUIRED = [
-  "MONGO_URL",
+  "DATABASE_URL",
   "JWT_SECRET",
   "REDIS_URL",
   "BREVO_API_KEY",
@@ -29,7 +29,8 @@ const env = {
   // 5000 matches the client's NEXT_PUBLIC_API_URL fallback.
   port: Number(process.env.PORT ?? 5000),
 
-  mongoUrl: requiredValue("MONGO_URL"),
+  // Pooled URL for the app. Migrations use DIRECT_DATABASE_URL (prisma.config.ts).
+  databaseUrl: requiredValue("DATABASE_URL"),
   redisUrl: requiredValue("REDIS_URL"),
 
   jwtSecret: requiredValue("JWT_SECRET"),

@@ -1,3 +1,5 @@
+# Local dev: `docker compose up -d postgres redis` then `npm run dev` on the host.
+# Full stack:  `docker compose up -d --build`
 services:
   server:
     build: .
@@ -5,12 +7,32 @@ services:
       - "3000:3000"
     env_file: .env
     environment:
-      # Point at the redis service below instead of whatever .env says.
+      # Inside compose, reach the other containers by service name, not localhost.
+      DATABASE_URL: postgresql://afritask:afritask@postgres:5432/afritask
       REDIS_URL: redis://redis:6379
     depends_on:
+      - postgres
       - redis
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: afritask
+      POSTGRES_PASSWORD: afritask
+      POSTGRES_DB: afritask
+    ports:
+      - "5432:5432"
+    volumes:
+      # Named volume so data survives `docker compose down` (only `down -v` wipes it).
+      - postgres-data:/var/lib/postgresql/data
     restart: unless-stopped
 
   redis:
     image: redis:7-alpine
+    ports:
+      - "6379:6379"
     restart: unless-stopped
+
+volumes:
+  postgres-data:

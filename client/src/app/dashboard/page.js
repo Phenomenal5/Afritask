@@ -14,7 +14,7 @@ import Button from "@/components/Button";
 const FILTERS = [
   { key: "all", label: "All" },
   { key: "pending", label: "Pending" },
-  { key: "in progress", label: "In progress" },
+  { key: "in_progress", label: "In progress" },
   { key: "completed", label: "Completed" },
 ];
 
@@ -143,7 +143,7 @@ function DashboardContent() {
           <div className="flex flex-col gap-3">
             {filteredTasks.map((task) => (
               <TaskCard
-                key={task._id}
+                key={task.id}
                 task={task}
                 onToggleComplete={updateTaskStatus}
                 onEdit={handleOpenEdit}

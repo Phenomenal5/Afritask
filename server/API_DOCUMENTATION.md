@@ -33,7 +33,7 @@ Common error response:
 
 ```env
 PORT=<backend-port>
-MONGO_URL=your_mongodb_connection_string
+DATABASE_URL=postgresql://user:password@host/db
 JWT_SECRET=your_jwt_secret
 JWT_EXPIRES_IN=7d
 VERIFY_EMAIL_TOKEN_EXPIRES_MS=3600000
@@ -158,7 +158,7 @@ Success response:
   "status": "success",
   "token": "jwt_token_here",
   "user": {
-    "_id": "user_id",
+    "id": "user_uuid",
     "name": "Abdul",
     "email": "abdul@example.com",
     "age": 25,
@@ -360,7 +360,7 @@ Success response:
   "status": "success",
   "token": "jwt_token_here",
   "user": {
-    "_id": "user_id",
+    "id": "user_uuid",
     "name": "Abdul",
     "email": "abdul@example.com",
     "isVerified": true
@@ -403,7 +403,7 @@ Success response:
 {
   "status": "success",
   "user": {
-    "_id": "user_id",
+    "id": "user_uuid",
     "name": "Abdul Updated",
     "email": "abdul@example.com",
     "age": 26
@@ -466,12 +466,12 @@ Task fields:
 ```txt
 title: required string
 description: optional string
-status: "pending" | "in progress" | "completed"
+status: "pending" | "in_progress" | "completed"
 priority: "low" | "medium" | "high"
 deadline: optional date
 ```
 
-The API also accepts `in-progress` and stores it as `in progress`.
+Stored and returned as `in_progress`. For older clients the API also accepts `in progress` and `in-progress`.
 
 ### Create Task
 
@@ -506,8 +506,8 @@ Success response:
   "status": "success",
   "data": {
     "task": {
-      "_id": "task_id",
-      "user": "user_id",
+      "id": "task_uuid",
+      "userId": "user_uuid",
       "title": "Finish API docs",
       "description": "Write documentation for all endpoints",
       "status": "pending",
@@ -562,8 +562,8 @@ Success response:
   "data": {
     "tasks": [
       {
-        "_id": "task_id",
-        "user": "user_id",
+        "id": "task_uuid",
+        "userId": "user_uuid",
         "title": "Finish API docs",
         "description": "Write documentation for all endpoints",
         "status": "pending",
@@ -598,8 +598,8 @@ Success response:
   "status": "success",
   "data": {
     "task": {
-      "_id": "task_id",
-      "user": "user_id",
+      "id": "task_uuid",
+      "userId": "user_uuid",
       "title": "Finish API docs",
       "status": "pending",
       "priority": "medium"
@@ -630,7 +630,7 @@ Request body:
 {
   "title": "Finish full API docs",
   "description": "Update all endpoint docs",
-  "status": "in progress",
+  "status": "in_progress",
   "priority": "high",
   "deadline": "2026-07-01"
 }
@@ -645,10 +645,10 @@ Success response:
   "status": "success",
   "data": {
     "task": {
-      "_id": "task_id",
-      "user": "user_id",
+      "id": "task_uuid",
+      "userId": "user_uuid",
       "title": "Finish full API docs",
-      "status": "in progress",
+      "status": "in_progress",
       "priority": "high"
     }
   }
@@ -683,8 +683,9 @@ Allowed statuses:
 
 ```txt
 pending
-in progress
-in-progress
+in_progress
+in progress  (legacy, accepted)
+in-progress  (legacy, accepted)
 completed
 ```
 
@@ -695,7 +696,7 @@ Success response:
   "status": "success",
   "data": {
     "task": {
-      "_id": "task_id",
+      "id": "task_uuid",
       "status": "completed"
     }
   }
@@ -777,10 +778,10 @@ sendTaskReminderEmail
 
 ```json
 {
-  "user": "ObjectId, required",
+  "userId": "UUID, required",
   "title": "String, required",
   "description": "String, optional",
-  "status": "pending | in progress | completed",
+  "status": "pending | in_progress | completed",
   "priority": "low | medium | high",
   "deadline": "Date, optional"
 }
@@ -848,7 +849,7 @@ Success response:
 {
   "status": "success",
   "user": {
-    "_id": "user_id",
+    "id": "user_uuid",
     "name": "Abdul Updated",
     "email": "abdul@example.com",
     "age": 26
@@ -911,12 +912,12 @@ Task fields:
 ```txt
 title: required string
 description: optional string
-status: "pending" | "in progress" | "completed"
+status: "pending" | "in_progress" | "completed"
 priority: "low" | "medium" | "high"
 deadline: optional date
 ```
 
-The API also accepts `in-progress` and stores it as `in progress`.
+Stored and returned as `in_progress`. For older clients the API also accepts `in progress` and `in-progress`.
 
 ### Create Task
 
@@ -951,8 +952,8 @@ Success response:
   "status": "success",
   "data": {
     "task": {
-      "_id": "task_id",
-      "user": "user_id",
+      "id": "task_uuid",
+      "userId": "user_uuid",
       "title": "Finish API docs",
       "description": "Write documentation for all endpoints",
       "status": "pending",
@@ -1007,8 +1008,8 @@ Success response:
   "data": {
     "tasks": [
       {
-        "_id": "task_id",
-        "user": "user_id",
+        "id": "task_uuid",
+        "userId": "user_uuid",
         "title": "Finish API docs",
         "description": "Write documentation for all endpoints",
         "status": "pending",
@@ -1043,8 +1044,8 @@ Success response:
   "status": "success",
   "data": {
     "task": {
-      "_id": "task_id",
-      "user": "user_id",
+      "id": "task_uuid",
+      "userId": "user_uuid",
       "title": "Finish API docs",
       "status": "pending",
       "priority": "medium"
@@ -1075,7 +1076,7 @@ Request body:
 {
   "title": "Finish full API docs",
   "description": "Update all endpoint docs",
-  "status": "in progress",
+  "status": "in_progress",
   "priority": "high",
   "deadline": "2026-07-01"
 }
@@ -1090,10 +1091,10 @@ Success response:
   "status": "success",
   "data": {
     "task": {
-      "_id": "task_id",
-      "user": "user_id",
+      "id": "task_uuid",
+      "userId": "user_uuid",
       "title": "Finish full API docs",
-      "status": "in progress",
+      "status": "in_progress",
       "priority": "high"
     }
   }
@@ -1128,8 +1129,9 @@ Allowed statuses:
 
 ```txt
 pending
-in progress
-in-progress
+in_progress
+in progress  (legacy, accepted)
+in-progress  (legacy, accepted)
 completed
 ```
 
@@ -1140,7 +1142,7 @@ Success response:
   "status": "success",
   "data": {
     "task": {
-      "_id": "task_id",
+      "id": "task_uuid",
       "status": "completed"
     }
   }
@@ -1220,10 +1222,10 @@ sendTaskReminderEmail
 
 ```json
 {
-  "user": "ObjectId, required",
+  "userId": "UUID, required",
   "title": "String, required",
   "description": "String, optional",
-  "status": "pending | in progress | completed",
+  "status": "pending | in_progress | completed",
   "priority": "low | medium | high",
   "deadline": "Date, optional"
 }

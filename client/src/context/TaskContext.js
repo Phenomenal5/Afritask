@@ -59,7 +59,7 @@ export function TaskProvider({ children, logoutVersion = 0 }) {
       const res = await updateTaskRequest(id, data);
       const updated = res.data.data.task;
       setTasks((prev) =>
-        prev.map((t) => (t._id === id ? { ...t, ...updated } : t))
+        prev.map((t) => (t.id === id ? { ...t, ...updated } : t))
       );
       toast.success("Task updated");
       return { success: true };
@@ -75,7 +75,7 @@ export function TaskProvider({ children, logoutVersion = 0 }) {
     let previous;
     setTasks((prev) => {
       previous = prev;
-      return prev.map((t) => (t._id === id ? { ...t, status } : t));
+      return prev.map((t) => (t.id === id ? { ...t, status } : t));
     });
     try {
       await updateTaskStatusRequest(id, status);
@@ -92,7 +92,7 @@ export function TaskProvider({ children, logoutVersion = 0 }) {
     let previous;
     setTasks((prev) => {
       previous = prev;
-      return prev.filter((t) => t._id !== id);
+      return prev.filter((t) => t.id !== id);
     });
     try {
       await deleteTaskRequest(id);

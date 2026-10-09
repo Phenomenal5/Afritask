@@ -1,6 +1,7 @@
 import type { NextFunction, Request, Response } from "express";
 import jwt, { type JwtPayload } from "jsonwebtoken";
-import User, { type UserDocument } from "../models/User.js";
+import validator from "validator";
+import prisma, { type PublicUser } from "../config/prisma.js";
 import AppError from "../utils/AppError.js";
 import logger, { describeError } from "../utils/logger.js";
 import env from "../config/env.js";
@@ -29,7 +30,15 @@ const protect = async (req: Request, res: Response, next: NextFunction) => {
             return res.status(401).json({ status: "fail", message: "Unauthorized" });
         }
 
-        const user = await User.findById(userId);
+        // NOTE: tokens issued before the Postgres move carry a Mongo ObjectId, not a
+        // UUID. They're still validly signed, so reject them here (forcing a fresh
+        // login) instead of letting Postgres throw on the malformed id.
+        if (!validator.isUUID(userId)) {
+            logger.warn(`Unauthorized access attempt: pre-migration token userId=${userId}`);
+            return res.status(401).json({ status: "fail", message: "Unauthorized" });
+        }
+
+        const user = await prisma.user.findUnique({ where: { id: userId } });
         if (!user) {
             logger.warn(`Unauthorized access attempt: user not found userId=${userId}`);
             return res.status(401).json({ status: "fail", message: "Unauthorized" });
@@ -45,7 +54,7 @@ const protect = async (req: Request, res: Response, next: NextFunction) => {
 
 // Typed access to the user `protect` attached. Only call this behind `protect`;
 // if it ever runs without it, fail loudly as a 401 instead of crashing on undefined.
-export const requireUser = (req: Request): UserDocument => {
+export const requireUser = (req: Request): PublicUser => {
     if (!req.user) throw new AppError("Unauthorized", 401);
     return req.user;
 };

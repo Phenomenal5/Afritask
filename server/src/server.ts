@@ -10,7 +10,7 @@ import taskRoute from "./routes/taskRoute.js"
 import morgan from "morgan";
 import logger from "./utils/logger.js";
 import globalErrorHandler from "./middlewares/error.Middleware.js";
-import connectDB from "./config/db.js";
+import { connectDatabase } from "./config/prisma.js";
 import CLIENT_URL from "./config/clientUrl.js";
 import startTaskReminderJob from "./jobs/taskReminder.js";
 import env from "./config/env.js";
@@ -20,7 +20,7 @@ import env from "./config/env.js";
 const app = express();
 
 
-connectDB();
+connectDatabase();
 
 app.use(helmet({
   crossOriginResourcePolicy: { policy: 'cross-origin' },

@@ -1,6 +1,6 @@
 import passport from "passport";
 import googleOauth, { type Profile, type VerifyCallback } from "passport-google-oauth20";
-import User from "../models/User.js";
+import prisma from "./prisma.js";
 import { deliverWelcomeEmail } from "../utils/email.js";
 import logger from "../utils/logger.js";
 import env from "./env.js";
@@ -36,9 +36,8 @@ if (googleClientId && googleClientSecret) {
           }
 
           // Check if this Google account is already linked to a user.
-          const existingUser = await User.findOne({
-            provider: "google",
-            providerId: profile.id,
+          const existingUser = await prisma.user.findFirst({
+            where: { provider: "google", providerId: profile.id },
           });
 
           if (existingUser) {
@@ -48,11 +47,7 @@ if (googleClientId && googleClientSecret) {
             return done(null, existingUser);
           }
 
-          // The verification token fields are select: false, but the linking
-          // branch below has to clear them — so pull them in explicitly.
-          const userWithEmail = await User.findOne({ email }).select(
-            "+verifyEmailToken +verifyEmailExpires"
-          );
+          const userWithEmail = await prisma.user.findUnique({ where: { email } });
 
           if (userWithEmail) {
             // Link Google to an existing account with the same verified email.
@@ -61,35 +56,39 @@ if (googleClientId && googleClientSecret) {
             // received one — Google finishing the signup is its welcome moment.
             const isFirstActivation = !userWithEmail.isVerified;
 
-            userWithEmail.provider = "google";
-            userWithEmail.providerId = profile.id;
-            userWithEmail.isVerified = true;
-            // Google already proved ownership of the address, so retire the
-            // pending token. Leaving it live would let the old verification
-            // link run verifyEmail later and fire a SECOND welcome email.
-            userWithEmail.verifyEmailToken = undefined;
-            userWithEmail.verifyEmailExpires = undefined;
-            await userWithEmail.save();
+            const linkedUser = await prisma.user.update({
+              where: { id: userWithEmail.id },
+              data: {
+                provider: "google",
+                providerId: profile.id,
+                isVerified: true,
+                // Google already proved ownership of the address, so retire the
+                // pending token. Leaving it live would let the old verification
+                // link run verifyEmail later and fire a SECOND welcome email.
+                verifyEmailToken: null,
+                verifyEmailExpires: null,
+              },
+            });
 
             logger.info(`Google OAuth linked existing user ${email} with provider account`);
 
             if (isFirstActivation) {
-              await deliverWelcomeEmail(userWithEmail.email, userWithEmail.name);
+              await deliverWelcomeEmail(linkedUser.email, linkedUser.name);
             }
 
-            return done(null, userWithEmail);
+            return done(null, linkedUser);
           }
 
           // If not, create a new user using the data from Google.
-          const newUser = new User({
-            provider: "google",
-            providerId: profile.id,
-            name: profile.displayName,
-            email,
-            isVerified: true,
+          const newUser = await prisma.user.create({
+            data: {
+              provider: "google",
+              providerId: profile.id,
+              name: profile.displayName,
+              email,
+              isVerified: true,
+            },
           });
-
-          await newUser.save();
           logger.info(`Google OAuth created new user ${email}`);
 
           // Google signups never touch the verify-email flow, so this is the

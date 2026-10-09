@@ -1,6 +1,6 @@
 import { randomBytes } from 'crypto';
 import type { Response } from 'express';
-import User, { type UserDocument } from '../models/User.js';
+import prisma, { type PublicUser } from '../config/prisma.js';
 import AppError from '../utils/AppError.js';
 import catchAsync from '../utils/catchAsync.js';
 import {
@@ -11,8 +11,11 @@ import {
 } from '../utils/email.js';
 import generateToken from '../utils/jwt.js';
 import logger, { errorMessage } from '../utils/logger.js';
+import { comparePassword, hashPassword } from '../utils/password.js';
+import { assertValidEmail, assertValidPassword, normalizeName, parseAge } from '../utils/userValidation.js';
 import { requireUser } from '../middlewares/auth.middleware.js';
 import CLIENT_URL from '../config/clientUrl.js';
+import routeParam from '../utils/routeParam.js';
 
 const VERIFY_EMAIL_TOKEN_EXPIRES = process.env.VERIFY_EMAIL_TOKEN_EXPIRES_MS
     ? Number(process.env.VERIFY_EMAIL_TOKEN_EXPIRES_MS)
@@ -22,12 +25,16 @@ const RESET_PASSWORD_TOKEN_EXPIRES = process.env.RESET_PASSWORD_TOKEN_EXPIRES_MS
     ? Number(process.env.RESET_PASSWORD_TOKEN_EXPIRES_MS)
     : 15 * 60 * 1000; // 15 minutes
 
-const createAndSendVerificationToken = async (user: UserDocument) => {
+const createAndSendVerificationToken = async (user: PublicUser) => {
     const token = randomBytes(32).toString("hex");
 
-    user.verifyEmailToken = token;
-    user.verifyEmailExpires = new Date(Date.now() + VERIFY_EMAIL_TOKEN_EXPIRES);
-    await user.save({ validateBeforeSave: false });
+    await prisma.user.update({
+        where: { id: user.id },
+        data: {
+            verifyEmailToken: token,
+            verifyEmailExpires: new Date(Date.now() + VERIFY_EMAIL_TOKEN_EXPIRES),
+        },
+    });
 
     logger.info(`Verification token generated for user ${user.email}`);
     await sendEmailVerificationCode(user.email, token);
@@ -35,7 +42,7 @@ const createAndSendVerificationToken = async (user: UserDocument) => {
     return token;
 };
 
-const sendAuthResponse = (user: UserDocument, statusCode: number, res: Response) => {
+const sendAuthResponse = (user: PublicUser, statusCode: number, res: Response) => {
     const token = generateToken(user);
 
     res.status(statusCode).json({
@@ -52,16 +59,22 @@ export const signup = catchAsync(async (req, res, next) => {
             return next(new AppError("Please provide all required fields", 400));
         }
 
-        const existingUser = await User.findOne({ email });
+        // NOTE: body values go straight into Prisma `where` clauses below. A non-string
+        // (e.g. { "not": "" }) would be read as a filter operator — reject it up front.
+        assertValidEmail(email);
+
+        const existingUser = await prisma.user.findUnique({ where: { email } });
         if (existingUser) {
             return next(new AppError("Email already in use", 400));
         }
 
-        const user = await User.create({
-            name,
-            email,
-            password,
-            age
+        const user = await prisma.user.create({
+            data: {
+                name: normalizeName(name),
+                email: assertValidEmail(email),
+                password: await hashPassword(assertValidPassword(password)),
+                age: parseAge(age),
+            },
         });
 
         logger.info(`New user signup: ${email}`);
@@ -73,7 +86,7 @@ export const signup = catchAsync(async (req, res, next) => {
         try {
             await createAndSendVerificationToken(user);
         } catch (emailError) {
-            await User.deleteOne({ _id: user._id });
+            await prisma.user.delete({ where: { id: user.id } });
             logger.error(`Signup rolled back for ${email}: verification email failed — ${errorMessage(emailError)}`);
             return next(new AppError(
                 "We couldn't send your verification email. Please try again in a moment.",
@@ -92,7 +105,7 @@ export const signup = catchAsync(async (req, res, next) => {
 
 
 export const resetPassword = catchAsync(async (req, res, next) => {
-    const { token } = req.params;
+    const token = routeParam(req, "token");
     const { password } = req.body;
 
     try {
@@ -104,10 +117,12 @@ export const resetPassword = catchAsync(async (req, res, next) => {
             return next(new AppError("Please provide a new password", 400));
         }
 
-        const user = await User.findOne({
-            resetPasswordToken: token,
-            resetPasswordExpires: { $gt: Date.now() }
-        }).select("+resetPasswordToken +resetPasswordExpires");
+        const user = await prisma.user.findFirst({
+            where: {
+                resetPasswordToken: token,
+                resetPasswordExpires: { gt: new Date() }
+            }
+        });
 
 
         if (!user) {
@@ -115,10 +130,14 @@ export const resetPassword = catchAsync(async (req, res, next) => {
             return next(new AppError("Invalid or expired password reset token", 400));
         }
 
-        user.password = password;
-        user.resetPasswordToken = undefined;
-        user.resetPasswordExpires = undefined;
-        await user.save();
+        await prisma.user.update({
+            where: { id: user.id },
+            data: {
+                password: await hashPassword(assertValidPassword(password)),
+                resetPasswordToken: null,
+                resetPasswordExpires: null,
+            },
+        });
 
         logger.info(`Password reset successfully for user ${user.email}`);
         await sendPasswordChangedEmail(user.email);
@@ -136,22 +155,26 @@ export const resetPassword = catchAsync(async (req, res, next) => {
 export const login = catchAsync(async (req, res, next) => {
     const { email, password } = req.body;
     try {
-        if (!email || !password) {
+        // typeof checks: a non-string email would act as a Prisma filter operator.
+        if (typeof email !== "string" || typeof password !== "string" || !email || !password) {
             logger.warn(`Login attempt with missing credentials: email=${email || 'none'}`);
             return next(new AppError("Please provide email and password", 400));
         }
 
-        // select the password field explicitly since it's set to select: false in the schema
-        const user = await User.findOne({ email }).select("+password +isVerified");
+        // password is omitted by default (config/prisma.ts) — opt back in for this one check
+        const userWithPassword = await prisma.user.findUnique({
+            where: { email },
+            omit: { password: false },
+        });
 
 
-        if (!user) {
+        if (!userWithPassword) {
             logger.warn(`Invalid login attempt for email: ${email}`);
             return next(new AppError("Invalid email or password", 401));
         }
 
-        if (!user.isVerified) {
-            await createAndSendVerificationToken(user);
+        if (!userWithPassword.isVerified) {
+            await createAndSendVerificationToken(userWithPassword);
             logger.warn(`Unverified user login blocked for email: ${email}`);
             return next(new AppError(
                 "Please verify your email before logging in. A verification email has been sent.",
@@ -160,11 +183,14 @@ export const login = catchAsync(async (req, res, next) => {
         }
 
         // check if user exists and password is correct
-        const isMatch = await user.comparePassword(password);
+        const isMatch = await comparePassword(password, userWithPassword.password);
         if (!isMatch) {
             logger.warn(`Invalid password attempt for email: ${email}`);
             return next(new AppError("Invalid email or password", 401));
         }
+
+        // Never echo the hash back, even though we fetched it.
+        const { password: _passwordHash, ...user } = userWithPassword;
 
         logger.info(`User logged in: ${email}`);
         sendAuthResponse(user, 200, res);
@@ -174,10 +200,18 @@ export const login = catchAsync(async (req, res, next) => {
 })
 
 export const verifyEmail = catchAsync(async (req, res, next) => {
-    const { token } = req.params;
+    const token = routeParam(req, "token");
     try {
-        const user = await User.findOne({ verifyEmailToken: token })
-            .select("+verifyEmailToken +verifyEmailExpires");
+        // NOTE: Prisma treats `where: { verifyEmailToken: undefined }` as NO filter and
+        // would match the first user in the table — never query with a missing token.
+        if (!token) {
+            return next(new AppError("Invalid or expired verification token", 400));
+        }
+
+        const user = await prisma.user.findFirst({
+            where: { verifyEmailToken: token },
+            omit: { verifyEmailExpires: false },
+        });
 
         if (!user) {
             logger.warn(`Invalid email verification attempt with token: ${token}`);
@@ -202,15 +236,14 @@ export const verifyEmail = catchAsync(async (req, res, next) => {
         // which surfaced in the UI as "invalid or expired" on a verification
         // that had in fact just succeeded. The token grants nothing by itself —
         // this route issues no JWT — and it stops working once it expires.
-        const claimed = await User.findOneAndUpdate(
-            { _id: user._id, isVerified: false },
-            { $set: { isVerified: true } },
-            { new: true }
-        );
+        const claimed = await prisma.user.updateMany({
+            where: { id: user.id, isVerified: false },
+            data: { isVerified: true },
+        });
 
-        // findOneAndUpdate is atomic so the duplicate request can't also think
+        // The conditional update is atomic so the duplicate request can't also think
         // it was first — otherwise both would fire off a welcome email.
-        if (!claimed) {
+        if (claimed.count === 0) {
             logger.info(`Email already verified for user ${user.email}`);
             return res.status(200).json({
                 status: "success",
@@ -218,10 +251,10 @@ export const verifyEmail = catchAsync(async (req, res, next) => {
             });
         }
 
-        logger.info(`Email verified successfully for user ${claimed.email}`);
+        logger.info(`Email verified successfully for user ${user.email}`);
         // Local signups only earn the welcome once the address is proven.
-        // Google signups get theirs in config/passport.js instead.
-        await deliverWelcomeEmail(claimed.email, claimed.name);
+        // Google signups get theirs in config/passport.ts instead.
+        await deliverWelcomeEmail(user.email, user.name);
 
         res.status(200).json({
             status: "success",
@@ -237,7 +270,7 @@ export const me = catchAsync(async (req, res, next) => {
     const userId = requireUser(req).id;
 
     try {
-        const user = await User.findById(userId);
+        const user = await prisma.user.findUnique({ where: { id: userId } });
         if (!user) {
             logger.warn(`Authenticated user not found: ${userId}`);
             return next(new AppError("User not found", 404));
@@ -259,11 +292,12 @@ export const me = catchAsync(async (req, res, next) => {
 export const forgotPassword = catchAsync(async (req, res, next) => {
     const { email } = req.body;
     try {
-        if (!email) {
+        // typeof check: a non-string email would act as a Prisma filter operator.
+        if (typeof email !== "string" || !email) {
             logger.warn(`Forgot password requested without email`);
             return next(new AppError("Please provide your email", 400));
         }
-        const user = await User.findOne({ email }).select("+resetPasswordToken +resetPasswordExpires");
+        const user = await prisma.user.findUnique({ where: { email } });
         if (!user) {
             logger.warn(`Forgot password requested for missing user: ${email}`);
             return next(new AppError("User not found", 404));
@@ -275,17 +309,22 @@ export const forgotPassword = catchAsync(async (req, res, next) => {
         // (It also had a branch that re-sent the previous, already-expired
         // token — dropped: a new request always earns a new token.)
         const token = randomBytes(32).toString("hex");
-        user.resetPasswordToken = token;
-        user.resetPasswordExpires = new Date(Date.now() + RESET_PASSWORD_TOKEN_EXPIRES);
-        await user.save({ validateBeforeSave: false });
+        await prisma.user.update({
+            where: { id: user.id },
+            data: {
+                resetPasswordToken: token,
+                resetPasswordExpires: new Date(Date.now() + RESET_PASSWORD_TOKEN_EXPIRES),
+            },
+        });
 
         try {
             await sendPasswordResetEmail(email, token);
         } catch (emailError) {
             // Don't leave a live reset token behind for a link nobody received.
-            user.resetPasswordToken = undefined;
-            user.resetPasswordExpires = undefined;
-            await user.save({ validateBeforeSave: false });
+            await prisma.user.update({
+                where: { id: user.id },
+                data: { resetPasswordToken: null, resetPasswordExpires: null },
+            });
 
             logger.error(`Password reset email failed for ${email}: ${errorMessage(emailError)}`);
             return next(new AppError(

@@ -1,12 +1,12 @@
 # Afritask Task Manager Backend
 
-Afritask is an Express + MongoDB API for authentication, user settings, task management, and scheduled reminder emails.
+Afritask is an Express + PostgreSQL (Prisma) API for authentication, user settings, task management, and scheduled reminder emails.
 
 ## Tech Stack
 
 - Node.js + TypeScript
 - Express
-- MongoDB + Mongoose
+- PostgreSQL + Prisma 7
 - Passport Google OAuth
 - Brevo for transactional email
 - Redis + BullMQ for scheduled task reminders
@@ -22,18 +22,23 @@ Afritask is an Express + MongoDB API for authentication, user settings, task man
 ## Setup
 
 ```bash
-cp .env.example .env      # then fill in the (required) values
-docker compose up -d redis   # or point REDIS_URL at a hosted Redis
+cp .env.example .env              # then fill in the (required) values
+docker compose up -d postgres redis  # or use Neon / a hosted Redis instead
 npm install
-npm run dev               # tsx watch — runs src/*.ts directly, restarts on change
+npm run db:deploy                 # create the tables (applies prisma/migrations)
+npm run dev                       # tsx watch — runs src/*.ts directly, restarts on change
 ```
 
 | Script | What it does |
 | --- | --- |
-| `npm run dev` | Dev server with reload (`tsx watch`) |
+| `npm run dev` | Dev server with reload (`tsx watch`); regenerates the Prisma client first |
 | `npm run typecheck` | `tsc --noEmit` — run before committing |
-| `npm run build` | Compile `src/` to `dist/` |
+| `npm run build` | `prisma generate` + compile `src/` to `dist/` |
 | `npm start` | Run the compiled `dist/server.js` (production) |
+| `npm run db:migrate -- --name <change>` | After editing `prisma/schema.prisma`: create + apply a migration (dev) |
+| `npm run db:deploy` | Apply committed migrations (production, before `npm start`) |
+| `npm run db:studio` | Browse the database |
+| `npm run db:import-mongo [-- --dry-run]` | One-off copy of the old MongoDB data into Postgres (re-runnable) |
 
 Keep the backend `PORT`, the frontend `NEXT_PUBLIC_API_URL`, and `CLIENT_URL` aligned.
 

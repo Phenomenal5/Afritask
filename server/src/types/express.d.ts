@@ -1,10 +1,10 @@
-// Passport types req.user as an empty Express.User — widen it to our user document
-// so protected handlers get real fields (id, email, role…).
-import type { UserDocument } from "../models/User.js";
+// Passport types req.user as an empty Express.User — widen it to our public user
+// so protected handlers get real fields (id, email, role…), never the secrets.
+import type { PublicUser } from "../config/prisma.js";
 
 declare global {
   namespace Express {
-    interface User extends UserDocument {}
+    interface User extends PublicUser {}
   }
 }
 

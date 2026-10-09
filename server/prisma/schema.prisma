@@ -1,0 +1,82 @@
+// ─── Afritask database schema (PostgreSQL) ─────────────────────
+// Mirrors the old Mongoose User/Task models 1:1 so this migration changes no
+// behaviour. Workspaces, sessions, etc. arrive in later branches per the
+// Database Design doc. Apply changes with `npm run db:migrate`.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+// Connection URL lives in prisma.config.ts (Prisma 7 no longer reads it here).
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  user
+  admin
+}
+
+enum AuthProvider {
+  local
+  google
+}
+
+enum TaskStatus {
+  pending
+  // Stored and sent as "in_progress"; the API still accepts the legacy "in progress" / "in-progress".
+  in_progress
+  completed
+}
+
+enum TaskPriority {
+  low
+  medium
+  high
+}
+
+model User {
+  id                   String       @id @default(uuid(7)) @db.Uuid
+  name                 String
+  email                String       @unique
+  age                  Int?
+  photo                String?
+  // Null for Google-only accounts. Never returned by default — see the global omit in config/prisma.ts.
+  password             String?
+  // NOTE: legacy customer role from Mongo. Does NOT grant platform Superadmin (that's a separate grant later).
+  role                 Role         @default(user)
+  provider             AuthProvider @default(local)
+  providerId           String?      @unique
+  isVerified           Boolean      @default(false)
+  verifyEmailToken     String?
+  verifyEmailExpires   DateTime?    @db.Timestamptz(3)
+  resetPasswordToken   String?
+  resetPasswordExpires DateTime?    @db.Timestamptz(3)
+  // Source Mongo _id, so the import script can be re-run without duplicating rows.
+  legacyMongoId        String?      @unique
+  createdAt            DateTime     @default(now()) @db.Timestamptz(3)
+  updatedAt            DateTime     @updatedAt @db.Timestamptz(3)
+
+  tasks Task[]
+}
+
+model Task {
+  id            String       @id @default(uuid(7)) @db.Uuid
+  userId        String       @db.Uuid
+  title         String
+  description   String       @default("")
+  status        TaskStatus   @default(pending)
+  priority      TaskPriority @default(medium)
+  deadline      DateTime?    @db.Timestamptz(3)
+  legacyMongoId String?      @unique
+  createdAt     DateTime     @default(now()) @db.Timestamptz(3)
+  updatedAt     DateTime     @updatedAt @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Every task query is owner-scoped, newest first.
+  @@index([userId, createdAt])
+  // Daily reminder scan: incomplete tasks by deadline.
+  @@index([deadline, status])
+}

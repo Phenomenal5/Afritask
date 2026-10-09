@@ -1,0 +1,49 @@
+// ─── Shared Prisma client (PostgreSQL via the pg driver adapter) ─────────────────────
+import { PrismaPg } from "@prisma/adapter-pg";
+import { PrismaClient, type User } from "../generated/prisma/client.js";
+import logger, { describeError } from "../utils/logger.js";
+import env from "./env.js";
+
+const adapter = new PrismaPg({ connectionString: env.databaseUrl });
+
+// Columns that must never leave the server. Drives both the global omit below
+// and the PublicUser type, so the two can't drift apart.
+const USER_SECRET_FIELDS = {
+  password: true,
+  verifyEmailToken: true,
+  verifyEmailExpires: true,
+  resetPasswordToken: true,
+  resetPasswordExpires: true,
+  legacyMongoId: true,
+} as const;
+
+// What a default user query returns (and what `protect` puts on req.user).
+export type PublicUser = Omit<User, keyof typeof USER_SECRET_FIELDS>;
+
+// NOTE: secrets are omitted from EVERY query result by default — the replacement for
+// Mongoose's `select: false`. A response can therefore never leak them by accident;
+// code that genuinely needs one opts back in per query, e.g.
+// `prisma.user.findUnique({ where, omit: { password: false } })`.
+const prisma = new PrismaClient({
+  adapter,
+  omit: {
+    user: USER_SECRET_FIELDS,
+    task: {
+      legacyMongoId: true,
+    },
+  },
+});
+
+// Fail fast at boot: an unreachable database should stop the server, not 500 every request.
+export const connectDatabase = async () => {
+  try {
+    await prisma.$connect();
+    await prisma.$queryRaw`SELECT 1`;
+    logger.info("PostgreSQL connected successfully");
+  } catch (error) {
+    logger.error(describeError(error));
+    process.exit(1);
+  }
+};
+
+export default prisma;

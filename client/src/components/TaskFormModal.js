@@ -56,7 +56,7 @@ export default function TaskFormModal({ open, onClose, task }) {
     if (!payload.deadline) delete payload.deadline;
 
     const res = isEditing
-      ? await updateTask(task._id, payload)
+      ? await updateTask(task.id, payload)
       : await createTask(payload);
 
     setLoading(false);
@@ -149,7 +149,7 @@ export default function TaskFormModal({ open, onClose, task }) {
                 style={{ background: "var(--paper-raised)", border: "1px solid var(--line)", color: "var(--ink)" }}
               >
                 <option value="pending">Pending</option>
-                <option value="in progress">In progress</option>
+                <option value="in_progress">In progress</option>
                 <option value="completed">Completed</option>
               </select>
             </div>

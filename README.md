@@ -34,7 +34,7 @@ REST API.
 | Layer      | Technology                                                        |
 | ---------- | ----------------------------------------------------------------- |
 | Frontend   | Next.js 16 (App Router), React 19, Tailwind CSS 4, axios, react-hot-toast |
-| Backend    | Node.js, Express 5, TypeScript, Mongoose 9 (MongoDB)              |
+| Backend    | Node.js, Express 5, TypeScript, Prisma 7 (PostgreSQL)             |
 | Auth       | JWT + Passport Google OAuth 2.0, bcrypt password hashing          |
 | Email      | Brevo transactional email, Redis + BullMQ for scheduled reminders    |
 | Uploads    | Multer (avatar images)                                            |
@@ -53,11 +53,11 @@ labphase/
 │       ├── context/    # AuthContext, TaskContext, UserContext
 │       └── lib/        # axios instance + feature services
 │
-└── server/          # Express + MongoDB REST API
+└── server/          # Express + PostgreSQL (Prisma) REST API
     └── src/
         ├── config/       # db, passport, mailer, env
         ├── controllers/  # request handlers (business logic)
-        ├── models/       # Mongoose schemas (User, Task)
+        ├── generated/    # Prisma client (generated from server/prisma/schema.prisma)
         ├── routes/       # thin route wiring
         ├── middlewares/  # auth, roles, error handler, uploads
         ├── jobs/         # daily reminder job (BullMQ)

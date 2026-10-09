@@ -11,7 +11,7 @@ const PRIORITY_STYLES = {
 
 const STATUS_LABELS = {
   pending: "Pending",
-  "in progress": "In progress",
+  in_progress: "In progress",
   completed: "Completed",
 };
 
@@ -52,7 +52,7 @@ export default function TaskCard({ task, onToggleComplete, onEdit, onDelete }) {
 
   const handleDelete = async () => {
     setDeleting(true);
-    await onDelete(task._id);
+    await onDelete(task.id);
     // no need to reset deleting — card will unmount on success
   };
 
@@ -76,7 +76,7 @@ export default function TaskCard({ task, onToggleComplete, onEdit, onDelete }) {
         className="task-check mt-0.5 ml-1"
         checked={isCompleted}
         onChange={() =>
-          onToggleComplete(task._id, isCompleted ? "pending" : "completed")
+          onToggleComplete(task.id, isCompleted ? "pending" : "completed")
         }
         aria-label={`Mark "${task.title}" as ${isCompleted ? "pending" : "completed"}`}
       />
