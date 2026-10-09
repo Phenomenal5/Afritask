@@ -19,8 +19,26 @@ interface OutgoingEmail {
 // Only the fields a reminder email shows.
 type ReminderTask = Pick<Task, "title" | "description" | "dueAt">;
 
+// ─── Test mailbox ─────────────────────
+// NOTE: test seam. Under NODE_ENV=test nothing goes to Brevo: messages are captured here so
+// the suite can follow real verification/reset/invitation links, and `failNextSend`
+// simulates a provider outage. It is never consulted outside tests.
+export const testMailbox = {
+  sent: [] as OutgoingEmail[],
+  failNextSend: false,
+};
+
 const emailService = {
   sendEmail: async ({ to, subject, text, html }: OutgoingEmail) => {
+    if (env.isTest) {
+      if (testMailbox.failNextSend) {
+        testMailbox.failNextSend = false;
+        throw new Error("Simulated email provider failure");
+      }
+      testMailbox.sent.push({ to, subject, text, html });
+      return;
+    }
+
     await brevo.transactionalEmails.sendTransacEmail({
       to: [{ email: to }],
       sender: {

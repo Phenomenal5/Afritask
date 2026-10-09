@@ -8,7 +8,8 @@ const QUEUE_NAME = "task-reminders"
 
 
 // ─── Send reminder emails for tasks due tomorrow ─────────────────────
-const sendDueTomorrowReminders = async () => {
+// Exported for tests: the BullMQ worker calls exactly this.
+export const sendDueTomorrowReminders = async () => {
     let emailsSent = 0;
 
     const tomorrow = new Date();
@@ -51,6 +52,7 @@ const sendDueTomorrowReminders = async () => {
     }
 
     logger.info(`Task reminder job completed. Emails sent: ${emailsSent}`);
+    return emailsSent;
 }
 
 

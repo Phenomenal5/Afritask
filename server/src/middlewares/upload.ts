@@ -1,6 +1,8 @@
 import multer, { type Options } from 'multer'
 import path from 'path'
 import fs from 'fs'
+import { randomUUID } from 'crypto'
+import AppError from '../utils/AppError.js'
 
 
 const uploadDir = path.resolve('public/uploads/profile');
@@ -13,7 +15,8 @@ const storage = multer.diskStorage({
     destination: uploadDir,
     filename: (req, file, cb) => {
         const uniqueExt = path.extname(file.originalname).toLowerCase();
-        cb(null, `user-${Date.now()}${uniqueExt}`);
+        // NOTE: was `user-${Date.now()}` — two uploads in the same millisecond overwrote each other.
+        cb(null, `user-${randomUUID()}${uniqueExt}`);
     }
 });
 
@@ -21,7 +24,8 @@ const imageFileFilter: Options['fileFilter'] = (req, file, cb) => {
     const allowedExt = ['.png', '.jpg', '.jpeg', '.gif'];
     const ext = path.extname(file.originalname).toLowerCase();
     if (!allowedExt.includes(ext) || !file.mimetype.startsWith('image/')) {
-        return cb(new Error('Only image files (png, jpg, jpeg, gif) are allowed'));
+        // AppError (400), not a bare Error — the error handler turned that into a generic 500.
+        return cb(new AppError('Only image files (png, jpg, jpeg, gif) are allowed', 400));
     }
     cb(null, true);
 };

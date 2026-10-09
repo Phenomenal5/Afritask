@@ -11,6 +11,8 @@ if (!fs.existsSync(logsDir)) {
 
 const logger = winston.createLogger({
     level: "info",
+    // Test runs would otherwise print every request's log lines.
+    silent: process.env.NODE_ENV === "test" && process.env.LOG_IN_TESTS !== "on",
     format: winston.format.combine(
         winston.format.timestamp({ format: "YYYY-MM-DD HH:MM:ss" }),
         winston.format.errors({ stack: true }),

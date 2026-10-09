@@ -1,0 +1,12 @@
+{
+  // Type settings for the test suite (src + tests). The build keeps using tsconfig.json.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "rootDir": ".",
+    "noEmit": true,
+    "isolatedModules": true,
+    "allowJs": true,
+    "types": ["node", "jest"]
+  },
+  "include": ["src", "tests"]
+}

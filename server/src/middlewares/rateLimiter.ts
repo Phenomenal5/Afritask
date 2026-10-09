@@ -10,12 +10,18 @@ import { rateLimit } from "express-rate-limit";
 
 const limitReachedResponse = (message: string) => ({ status: "fail", message });
 
+// The test suite makes hundreds of requests from one IP; limits would turn unrelated tests
+// into 429s. They're skipped under NODE_ENV=test unless RATE_LIMITS_IN_TESTS=on, which the
+// rate-limit tests set. Checked per request, so a test can flip it at runtime.
+const skipInTests = () => process.env.NODE_ENV === "test" && process.env.RATE_LIMITS_IN_TESTS !== "on";
+
 // Password guessing, token probing, account takeover attempts: 10 per 15 minutes.
 export const credentialLimiter = () => rateLimit({
     windowMs: 15 * 60 * 1000,
     limit: 10,
     standardHeaders: "draft-8",
     legacyHeaders: false,
+    skip: skipInTests,
     message: limitReachedResponse("Too many attempts. Please wait 15 minutes and try again."),
 });
 
@@ -25,6 +31,7 @@ export const emailActionLimiter = () => rateLimit({
     limit: 5,
     standardHeaders: "draft-8",
     legacyHeaders: false,
+    skip: skipInTests,
     message: limitReachedResponse("Too many requests. Please wait 15 minutes and try again."),
 });
 
@@ -35,5 +42,6 @@ export const invitationLimiter = () => rateLimit({
     limit: 30,
     standardHeaders: "draft-8",
     legacyHeaders: false,
+    skip: skipInTests,
     message: limitReachedResponse("Too many invitations sent. Please wait 15 minutes and try again."),
 });
