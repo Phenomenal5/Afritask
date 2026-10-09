@@ -9,6 +9,7 @@ import authRoutes from "./routes/authRoute.js";
 import userRoute from "./routes/userRoute.js";
 import taskRoute from "./routes/taskRoute.js"
 import workspaceRoute from "./routes/workspaceRoute.js";
+import invitationRoute from "./routes/invitationRoute.js";
 import morgan from "morgan";
 import logger from "./utils/logger.js";
 import globalErrorHandler from "./middlewares/error.Middleware.js";
@@ -72,6 +73,9 @@ app.use("/api/workspaces", workspaceRoute);
 
 // Single-task routes
 app.use("/api/tasks", taskRoute);
+
+// Invitation preview / accept / decline / resend / revoke
+app.use("/api/invitations", invitationRoute);
 
 
 

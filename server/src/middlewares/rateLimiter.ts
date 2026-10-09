@@ -27,3 +27,13 @@ export const emailActionLimiter = () => rateLimit({
     legacyHeaders: false,
     message: limitReachedResponse("Too many requests. Please wait 15 minutes and try again."),
 });
+
+// Sending invitations: an Owner onboarding a whole team needs more headroom than a
+// signup form, but the cap still stops the endpoint being used to spam inboxes.
+export const invitationLimiter = () => rateLimit({
+    windowMs: 15 * 60 * 1000,
+    limit: 30,
+    standardHeaders: "draft-8",
+    legacyHeaders: false,
+    message: limitReachedResponse("Too many invitations sent. Please wait 15 minutes and try again."),
+});

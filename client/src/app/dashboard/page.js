@@ -7,6 +7,7 @@ import { useAuth } from "@/context/AuthContext";
 import { useTasks } from "@/context/TaskContext";
 import { useWorkspaces } from "@/context/WorkspaceContext";
 import LoadingScreen from "@/components/LoadingScreen";
+import PendingInvitations from "@/components/PendingInvitations";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import Navbar from "@/components/Navbar";
 import TaskCard from "@/components/TaskCard";
@@ -96,6 +97,8 @@ function DashboardContent() {
             ? "Start with one clear win."
             : `${stats.completed} of ${stats.total} tasks done. Keep the rhythm going.`}
         </p>
+
+        <PendingInvitations />
 
         <div className="flex flex-col sm:flex-row gap-3 mb-6">
           <div className="relative flex-1">

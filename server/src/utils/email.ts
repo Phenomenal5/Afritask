@@ -200,6 +200,37 @@ export const deliverPasswordChangedEmail = async (to: string) => {
   }
 };
 
+interface InvitationEmailDetails {
+  workspaceName: string;
+  inviterName: string;
+  role: "admin" | "member";
+  token: string;
+}
+
+// Sent for every new invitation and every resend. The link opens the client's /invite page,
+// which works for people with or without an account (PRD journeys J2/J3).
+export const sendInvitationEmail = async (to: string, { workspaceName, inviterName, role, token }: InvitationEmailDetails) => {
+  const inviteUrl = `${CLIENT_URL}/invite/${token}`;
+  const roleLabel = role === "admin" ? "an Admin" : "a Member";
+
+  await emailService.sendEmail({
+    to,
+    subject: `${inviterName} invited you to ${workspaceName} on AfriTask`,
+    text: `${inviterName} invited you to join ${workspaceName} on AfriTask as ${roleLabel}. Open this link to accept or decline: ${inviteUrl}. The invitation expires in 7 days. If you weren't expecting it, you can ignore this email.`,
+    html: emailTemplate({
+      title: `Join ${workspaceName}`,
+      badge: "🤝 Invitation",
+      message: `
+        <p>${escapeHtml(inviterName)} invited you to join <strong>${escapeHtml(workspaceName)}</strong> on AfriTask as ${roleLabel}.</p>
+        <p>You'll be able to see the workspace's projects and tasks once you accept. If you don't have an AfriTask account yet, you can create one with this email address.</p>
+        <p style="margin:24px 0 0; color:#6A5B4C;">The invitation expires in 7 days. If you weren't expecting it, you can safely ignore this email.</p>
+      `,
+      buttonText: "View invitation",
+      buttonUrl: inviteUrl,
+    }),
+  });
+};
+
 export const sendTaskReminderEmail = async (to: string, task: ReminderTask) => {
   const deadline = formatTaskDeadline(task?.deadline);
   const taskTitle = task?.title || "Untitled task";

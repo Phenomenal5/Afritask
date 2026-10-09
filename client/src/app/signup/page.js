@@ -1,7 +1,7 @@
 "use client";
 
 // Signup page collects the details needed to create a new Afritask account.
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
@@ -16,6 +16,13 @@ export default function SignupPage() {
   const [form, setForm] = useState({ name: "", email: "", password: "", age: "" });
   const [loading, setLoading] = useState(false);
   const [done, setDone] = useState(false);
+
+  // Arriving from an invitation (/invite/... → "Create an account") pre-fills the
+  // invited email — accepting later only works with that exact address.
+  useEffect(() => {
+    const invitedEmail = new URLSearchParams(window.location.search).get("email");
+    if (invitedEmail) setForm((prev) => ({ ...prev, email: invitedEmail }));
+  }, []);
 
   const handleChange = (e) =>
     setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }));

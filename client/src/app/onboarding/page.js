@@ -14,6 +14,7 @@ import FormField from "@/components/FormField";
 import TimezoneSelect from "@/components/TimezoneSelect";
 import Button from "@/components/Button";
 import { detectTimezone } from "@/utils/timezones";
+import PendingInvitations from "@/components/PendingInvitations";
 
 function OnboardingForm() {
   const router = useRouter();
@@ -39,6 +40,9 @@ function OnboardingForm() {
   };
 
   return (
+    <>
+    {/* Invited by a team? Joining it can replace creating your own (PRD J2). */}
+    <PendingInvitations onAccepted={() => router.replace("/dashboard")} />
     <form onSubmit={handleSubmit} className="flex flex-col gap-4">
       <FormField
         label="Workspace name"
@@ -60,6 +64,7 @@ function OnboardingForm() {
         You can invite people whenever you&apos;re ready.
       </p>
     </form>
+    </>
   );
 }
 

@@ -499,6 +499,28 @@ Single-task routes use the task id: `GET/PUT/DELETE /api/tasks/:id`,
 `PATCH /api/tasks/:id/status`. Owners and Admins can edit or delete any task in
 the workspace; Members only the tasks they created (`403` otherwise).
 
+## Invitations
+
+Invite people by email, whether or not they have an account (PRD J2/J3). An
+invitation grants nothing until a signed-in account **with the invited email**
+accepts it. Links expire after 7 days; resending replaces the link (older emails
+stop working).
+
+| Method | Path | Who | Purpose |
+| --- | --- | --- | --- |
+| `POST` | `/api/workspaces/:workspaceId/invitations` | owner, admin | `{ email, role }` — Owner may offer `admin`/`member`, Admin only `member`. `409` if already a member or already invited. |
+| `GET` | `/api/workspaces/:workspaceId/invitations` | owner, admin | Pending invitations with `status` (`pending`/`expired`) and `deliveryStatus` (`sent`/`failed`) |
+| `POST` | `/api/invitations/:invitationId/resend` | owner, admin* | New link + email |
+| `POST` | `/api/invitations/:invitationId/revoke` | owner, admin* | Withdraw it |
+| `GET` | `/api/invitations/preview/:token` | public | Workspace name, inviter, role, invited email, status |
+| `GET` | `/api/invitations/mine` | signed in | Pending invitations addressed to my email |
+| `POST` | `/api/invitations/accept` | invited account | `{ token }` or `{ invitationId }` → `{ workspaceId, role }` |
+| `POST` | `/api/invitations/decline` | invited account | Same body |
+
+\* Admins manage Member invitations only. Accepting twice (or two tabs at once)
+creates exactly one membership; the second request gets `409`. Wrong account →
+`403`, expired → `410`, already accepted/declined/revoked → `409`.
+
 ## Tasks
 
 Task ownership rule:

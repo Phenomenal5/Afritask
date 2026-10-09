@@ -151,6 +151,13 @@ export default function PrivacyPage() {
               Gmail, Drive, contacts, or calendar.
             </li>
             <li>
+              <strong>Invitations.</strong> When a workspace Owner or Admin invites
+              someone, we store the invited email address, the role offered, and who
+              sent it, and email that address an invitation link. If you received an
+              invitation, that&apos;s how we have your address; if you never accept,
+              you never become a member.
+            </li>
+            <li>
               <strong>Sign-in sessions.</strong> Each time you sign in we record
               when the session started, when it expires, and your browser type, so
               it can be ended when you sign out or reset your password.

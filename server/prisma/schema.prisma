@@ -50,6 +50,21 @@ enum MembershipStatus {
   removed
 }
 
+// "Expired" isn't stored — it's derived from expiresAt, so it can never drift.
+enum InvitationStatus {
+  pending
+  accepted
+  declined
+  revoked
+}
+
+// Email delivery state, shown to managers so a failed send can be resent (PRD FR03).
+enum InvitationDelivery {
+  pending
+  sent
+  failed
+}
+
 enum AccountTokenPurpose {
   verify_email
   reset_password
@@ -79,6 +94,7 @@ model User {
 
   createdTasks  Task[]       @relation("TaskCreator")
   memberships   Membership[]
+  sentInvites   Invitation[] @relation("InvitationInviter")
   sessions      Session[]
   accountTokens AccountToken[]
 }
@@ -124,7 +140,37 @@ model Workspace {
   updatedAt DateTime @updatedAt @db.Timestamptz(3)
 
   memberships Membership[]
+  invitations Invitation[]
   tasks       Task[]
+}
+
+// A pending offer to join a workspace by email (SRS SR03). It grants NOTHING until a
+// verified account with the same email explicitly accepts it; acceptance creates the
+// Membership. The emailed link carries a raw token — only its SHA-256 hash is stored.
+model Invitation {
+  id             String             @id @default(uuid(7)) @db.Uuid
+  workspaceId    String             @db.Uuid
+  // Stored lower-cased; matched case-insensitively against the account email.
+  email          String
+  // admin or member only — ownership is never granted by invitation.
+  role           WorkspaceRole
+  inviterId      String             @db.Uuid
+  tokenHash      String             @unique
+  expiresAt      DateTime           @db.Timestamptz(3)
+  status         InvitationStatus   @default(pending)
+  deliveryStatus InvitationDelivery @default(pending)
+  respondedAt    DateTime?          @db.Timestamptz(3)
+  createdAt      DateTime           @default(now()) @db.Timestamptz(3)
+  updatedAt      DateTime           @updatedAt @db.Timestamptz(3)
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  inviter   User      @relation("InvitationInviter", fields: [inviterId], references: [id], onDelete: Restrict)
+
+  // At most one live invitation per email per workspace — "resend" updates it in place.
+  @@unique([workspaceId, email], map: "Invitation_one_pending_per_email", where: raw("status = 'pending'"))
+  // "Invitations waiting for me" for existing accounts.
+  @@index([email, status])
+  @@index([workspaceId, status])
 }
 
 model Membership {

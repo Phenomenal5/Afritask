@@ -19,6 +19,7 @@ import {
 } from "@/lib/services/authService";
 // Sent at signup so due dates show in local time.
 import { detectTimezone } from "@/utils/timezones";
+import { clearPendingInvite, postSignInPath } from "@/utils/pendingInvite";
 
 const AuthContext = createContext(null);
 
@@ -76,7 +77,8 @@ export function AuthProvider({ children }) {
         const res = await loginRequest({ email, password });
         setUser(res.data.user);
         toast.success(`Welcome back, ${res.data.user.name.split(" ")[0]}`);
-        router.push("/dashboard");
+        // Back to a pending invitation first, if the user arrived through one.
+        router.push(postSignInPath());
         return { success: true };
       } catch (err) {
         const message = err.response?.data?.message || "Login failed";
@@ -96,7 +98,7 @@ export function AuthProvider({ children }) {
         const res = await exchangeGoogleCode(code);
         setUser(res.data.user);
         toast.success(`Welcome, ${res.data.user.name.split(" ")[0]}`);
-        router.push("/dashboard");
+        router.push(postSignInPath());
         return { success: true };
       } catch (err) {
         const message = err.response?.data?.message || "Google sign-in failed";
@@ -141,6 +143,9 @@ export function AuthProvider({ children }) {
       // Already signed out server-side (expired session) — clearing local state is all that's left.
     }
     setUser(null);
+    // An invitation link opened in this browser belongs to whoever opened it — don't
+    // carry it into the next account that signs in here.
+    clearPendingInvite();
     setLogoutVersion((count) => count + 1);
     toast.success("Signed out");
     router.push("/login");

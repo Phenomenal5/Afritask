@@ -11,6 +11,7 @@ import FormField from "@/components/FormField";
 import Button from "@/components/Button";
 import LoadingScreen from "@/components/LoadingScreen";
 import { ROLE_LABELS } from "@/utils/roles";
+import WorkspaceInvitations from "@/components/WorkspaceInvitations";
 
 
 const sectionStyle = { background: "var(--paper-raised)", border: "1px solid var(--line)" };
@@ -79,6 +80,10 @@ function WorkspaceSettings() {
               </Button>
             </form>
           </section>
+        )}
+
+        {(workspaceDetails.role === "owner" || workspaceDetails.role === "admin") && (
+          <WorkspaceInvitations workspaceId={workspaceDetails.id} myRole={workspaceDetails.role} />
         )}
 
         <section className="p-5 rounded-xl" style={sectionStyle}>
