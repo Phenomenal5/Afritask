@@ -13,14 +13,23 @@ import { requireMembership } from "../middlewares/workspaceAccess.middleware.js"
 // - Removal/leaving sets status "removed" (the row is kept so history keeps attribution)
 //   and immediately ends workspace access — every request re-checks active membership.
 
-// Runs inside the removal transaction. Kept as one function so assignment cleanup (added
-// with task assignees) can never be skipped by one of the two removal paths.
+// Runs inside the removal transaction — the ONE path for both "remove" and "leave", so the
+// assignment cleanup can never be skipped.
+// NOTE: open tasks assigned to the departing member become unassigned in the same
+// transaction (PRD J6: no inaccessible work left owned by a former member). Completed
+// tasks keep the assignment as history (SRS SR04 proposed default). Each cleared task's
+// version is bumped so a teammate's open edit form can't silently re-save the old assignee.
 const endMembership = async (tx: Prisma.TransactionClient, membershipId: string) => {
     const { count } = await tx.membership.updateMany({
         where: { id: membershipId, status: "active" },
         data: { status: "removed", removedAt: new Date() },
     });
     if (count === 0) throw new AppError("That person is no longer a member", 409);
+
+    await tx.task.updateMany({
+        where: { assigneeMembershipId: membershipId, status: { not: "completed" } },
+        data: { assigneeMembershipId: null, version: { increment: 1 } },
+    });
 };
 
 // The target membership must belong to the SAME workspace as the caller's — a membership id

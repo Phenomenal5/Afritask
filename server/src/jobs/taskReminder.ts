@@ -17,7 +17,7 @@ const sendDueTomorrowReminders = async () => {
 
     const dueTasks = await prisma.task.findMany({
         where: {
-            deadline: {
+            dueAt: {
                 gte: new Date(tomorrowStr),
                 lt: new Date(`${tomorrowStr}T23:59:59`)
             },
@@ -26,6 +26,7 @@ const sendDueTomorrowReminders = async () => {
             OR: [{ projectId: null }, { project: { state: { not: "archived" } } }],
         },
         include: {
+            assignee: { select: { status: true, user: { select: { email: true } } } },
             creator: {
                 select: {
                     email: true,
@@ -36,11 +37,15 @@ const sendDueTomorrowReminders = async () => {
     });
 
     for (const task of dueTasks) {
-        // NOTE: recipient = creator, but ONLY while they're still an active member of the
-        // task's workspace — a removed member must not keep receiving its content (PRD FR10).
+        // NOTE: recipient rule (PRD FR10): the current assignee; if unassigned, the creator —
+        // but ONLY while they're still an active member of the task's workspace, so a
+        // removed member never keeps receiving its content.
         const creatorIsMember = task.creator.memberships.some((membership) => membership.workspaceId === task.workspaceId);
-        if (creatorIsMember && task.creator.email) {
-            await sendTaskReminderEmail(task.creator.email, task);
+        const recipientEmail = task.assignee
+            ? (task.assignee.status === "active" ? task.assignee.user.email : null)
+            : (creatorIsMember ? task.creator.email : null);
+        if (recipientEmail) {
+            await sendTaskReminderEmail(recipientEmail, task);
             emailsSent += 1;
         }
     }

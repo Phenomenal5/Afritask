@@ -73,7 +73,7 @@ const skip = (collection: SkippedRecord["collection"], sourceId: string, reason:
 
 // Mongo stored "in progress" (with a space); Postgres enum values can't contain one.
 const STATUS_MAP: Record<string, TaskStatus> = {
-    pending: TaskStatus.pending,
+    pending: TaskStatus.todo,
     "in progress": TaskStatus.in_progress,
     "in-progress": TaskStatus.in_progress,
     completed: TaskStatus.completed,
@@ -201,6 +201,12 @@ const importUsers = async (mongo: MongoClient, prisma: PrismaClient) => {
     return { sourceCount, importedCount };
 };
 
+const legacyDue = (deadline: Date | null | undefined) => {
+    if (!deadline) return { dueAt: null, dueKind: null, dueTimezone: null };
+    const endOfDayUtc = new Date(Date.UTC(deadline.getUTCFullYear(), deadline.getUTCMonth(), deadline.getUTCDate(), 23, 59));
+    return { dueAt: endOfDayUtc, dueKind: "date" as const, dueTimezone: "UTC" };
+};
+
 // ─── Tasks ─────────────────────
 const importTasks = async (mongo: MongoClient, prisma: PrismaClient) => {
     const tasks = mongo.db().collection<MongoTask>("tasks");
@@ -225,7 +231,7 @@ const importTasks = async (mongo: MongoClient, prisma: PrismaClient) => {
             const sourceId = sourceTask._id.toHexString();
             const ownerLegacyId = sourceTask.user?.toHexString();
             const ownerId = ownerLegacyId ? userIdByLegacyId.get(ownerLegacyId) : undefined;
-            const status = sourceTask.status === undefined ? TaskStatus.pending : STATUS_MAP[sourceTask.status];
+            const status = sourceTask.status === undefined ? TaskStatus.todo : STATUS_MAP[sourceTask.status];
             const priority = enumValue(TaskPriority, sourceTask.priority, TaskPriority.medium);
 
             // In a dry run nothing was written, so owners can't be resolved yet — only check the link exists.
@@ -246,7 +252,9 @@ const importTasks = async (mongo: MongoClient, prisma: PrismaClient) => {
                     description: sourceTask.description ?? "",
                     status,
                     priority,
-                    deadline: sourceTask.deadline ?? null,
+                    // Legacy deadlines were picked as calendar dates (stored midnight UTC):
+                    // per PRD §9 a date means 23:59 that day in the creator's zone (UTC here).
+                    ...legacyDue(sourceTask.deadline),
                     createdAt: sourceTask.createdAt ?? sourceTask._id.getTimestamp(),
                     updatedAt: sourceTask.updatedAt ?? sourceTask.createdAt ?? sourceTask._id.getTimestamp(),
                 };

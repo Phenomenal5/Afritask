@@ -17,8 +17,9 @@ import Button from "@/components/Button";
 
 const FILTERS = [
   { key: "all", label: "All" },
-  { key: "pending", label: "Pending" },
+  { key: "todo", label: "To do" },
   { key: "in_progress", label: "In progress" },
+  { key: "in_review", label: "In review" },
   { key: "completed", label: "Completed" },
 ];
 

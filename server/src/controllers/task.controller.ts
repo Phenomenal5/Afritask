@@ -1,20 +1,26 @@
 import validator from "validator";
 import prisma from "../config/prisma.js";
-import { TaskPriority, TaskStatus, type Prisma } from "../generated/prisma/client.js";
+import { Prisma, TaskPriority, TaskStatus, type Task } from "../generated/prisma/client.js";
 import catchAsync from "../utils/catchAsync.js";
 import AppError from "../utils/AppError.js";
 import logger from "../utils/logger.js";
 import { requireUser } from "../middlewares/auth.middleware.js";
 import { requireActiveMembership, requireMembership } from "../middlewares/workspaceAccess.middleware.js";
-import { canDeleteTask, canEditTask } from "../utils/taskPermissions.js";
+import { canAssignTask, canDeleteTask, canEditTask } from "../utils/taskPermissions.js";
+import { parseDue } from "../utils/dueDate.js";
 import routeParam from "../utils/routeParam.js";
 
-// ─── Input parsing (formerly the Mongoose schema's casting + enum checks) ─────────────────────
+// ─── Input parsing ─────────────────────
 // Each helper throws an operational 400 so bad input never reaches Prisma as a 500.
+// PRD §9 proposed limits: title 1–200 characters, description up to 20,000.
 
-// NOTE: older clients send "in progress" (the Mongo value) or "in-progress";
-// both map to the Postgres enum value "in_progress".
+const TITLE_MAX_LENGTH = 200;
+const DESCRIPTION_MAX_LENGTH = 20_000;
+
+// NOTE: older clients send the Mongo-era values: "pending" (now todo) and
+// "in progress" / "in-progress" (now in_progress).
 const LEGACY_STATUS_ALIASES: Record<string, TaskStatus> = {
+    pending: TaskStatus.todo,
     "in progress": TaskStatus.in_progress,
     "in-progress": TaskStatus.in_progress,
 };
@@ -23,7 +29,7 @@ const parseStatus = (status: unknown): TaskStatus | undefined => {
     if (status === undefined) return undefined;
     const normalizedStatus = typeof status === "string" ? LEGACY_STATUS_ALIASES[status] ?? status : status;
     if (!Object.values(TaskStatus).includes(normalizedStatus as TaskStatus)) {
-        throw new AppError("Please provide a valid status", 400);
+        throw new AppError("Status must be todo, in_progress, in_review or completed", 400);
     }
     return normalizedStatus as TaskStatus;
 };
@@ -31,20 +37,25 @@ const parseStatus = (status: unknown): TaskStatus | undefined => {
 const parsePriority = (priority: unknown): TaskPriority | undefined => {
     if (priority === undefined) return undefined;
     if (!Object.values(TaskPriority).includes(priority as TaskPriority)) {
-        throw new AppError("Please provide a valid priority", 400);
+        throw new AppError("Priority must be low, medium, high or urgent", 400);
     }
     return priority as TaskPriority;
 };
 
-// undefined = leave unchanged, null/"" = clear the deadline.
-const parseDeadline = (deadline: unknown): Date | null | undefined => {
-    if (deadline === undefined) return undefined;
-    if (deadline === null || deadline === "") return null;
-    const parsedDeadline = new Date(deadline as string);
-    if (Number.isNaN(parsedDeadline.getTime())) {
-        throw new AppError("Please provide a valid deadline", 400);
-    }
-    return parsedDeadline;
+const parseTitle = (title: unknown, { required }: { required: boolean }): string | undefined => {
+    if (title === undefined && !required) return undefined;
+    const trimmedTitle = typeof title === "string" ? title.trim() : "";
+    if (!trimmedTitle) throw new AppError("Please provide a task title", 400);
+    if (trimmedTitle.length > TITLE_MAX_LENGTH) throw new AppError(`Title must be ${TITLE_MAX_LENGTH} characters or fewer`, 400);
+    return trimmedTitle;
+};
+
+const parseDescription = (description: unknown): string | undefined => {
+    if (description === undefined) return undefined;
+    if (description === null) return "";
+    if (typeof description !== "string") throw new AppError("Description must be text", 400);
+    if (description.length > DESCRIPTION_MAX_LENGTH) throw new AppError("Description is too long", 400);
+    return description;
 };
 
 // Same message Mongoose's CastError produced for a malformed ObjectId.
@@ -53,20 +64,40 @@ const assertValidTaskId = (id: string | undefined): string => {
     return id;
 };
 
-// ?sort=-createdAt,title  →  [{ createdAt: "desc" }, { title: "asc" }]. Unknown fields are ignored.
-const SORTABLE_FIELDS = ["title", "status", "priority", "deadline", "createdAt", "updatedAt"] as const;
-const parseSort = (sort: unknown): Prisma.TaskOrderByWithRelationInput[] => {
-    if (typeof sort !== "string" || !sort) return [{ createdAt: "desc" }];
-    const orderBy = sort.split(",").flatMap((sortField) => {
-        const direction = sortField.startsWith("-") ? "desc" : "asc";
-        const fieldName = sortField.replace(/^-/, "");
-        return (SORTABLE_FIELDS as readonly string[]).includes(fieldName) ? [{ [fieldName]: direction }] : [];
-    });
-    return orderBy.length > 0 ? orderBy : [{ createdAt: "desc" }];
+// SRS SR06: every write names the version it was based on, so a stale edit can't
+// silently overwrite a newer one.
+const parseExpectedVersion = (version: unknown): number => {
+    const expectedVersion = Number(version);
+    if (!Number.isInteger(expectedVersion) || expectedVersion < 1) {
+        throw new AppError("Please include the task's current version", 400);
+    }
+    return expectedVersion;
 };
 
+// ?sort=-createdAt,title → [{ createdAt: "desc" }, { title: "asc" }]. "deadline" is the
+// legacy name for dueAt. Unknown fields are ignored. id is the stable tie-breaker.
+const SORTABLE_FIELDS: Record<string, keyof Task> = {
+    title: "title",
+    status: "status",
+    priority: "priority",
+    dueAt: "dueAt",
+    deadline: "dueAt",
+    createdAt: "createdAt",
+    updatedAt: "updatedAt",
+};
+const parseSort = (sort: unknown): Prisma.TaskOrderByWithRelationInput[] => {
+    const orderBy = typeof sort === "string" && sort
+        ? sort.split(",").flatMap((sortField) => {
+            const fieldName = SORTABLE_FIELDS[sortField.replace(/^-/, "")];
+            if (!fieldName) return [];
+            return [{ [fieldName]: sortField.startsWith("-") ? "desc" : "asc" } as Prisma.TaskOrderByWithRelationInput];
+        })
+        : [];
+    return [...(orderBy.length > 0 ? orderBy : [{ createdAt: "desc" as const }]), { id: "asc" }];
+};
 
-// ─── Load a task the caller may see ─────────────────────
+// ─── Loading + shared rules ─────────────────────
+
 // Item routes (/api/tasks/:id) carry no workspace id, so access is derived from the
 // task itself: the caller must be an ACTIVE member of the task's workspace. Missing
 // task and "not your workspace" both answer the same 404 (no existence leak).
@@ -79,8 +110,12 @@ const loadTaskForMember = async (taskId: string, userId: string) => {
     return { task, membership };
 };
 
-// Returned with every task so lists can show the project and know it's read-only.
-const taskInclude = { project: { select: { id: true, name: true, state: true } } } as const;
+// Returned with every task: its project (to show it and know it's read-only) and the
+// assignee's public identity.
+const taskInclude = {
+    project: { select: { id: true, name: true, state: true } },
+    assignee: { select: { id: true, user: { select: { id: true, name: true, photo: true } } } },
+} as const;
 
 // NOTE: archived projects are read-only, tasks included (PRD §8 protection rules).
 const assertTaskWritable = async (task: { projectId: string | null }) => {
@@ -103,12 +138,47 @@ const parseProjectId = async (projectId: unknown, workspaceId: string): Promise<
     return projectId;
 };
 
+// The assignee must be an ACTIVE member of the task's workspace (PRD FR06). undefined =
+// unchanged, null/"" = unassigned. Membership ids from other workspaces look missing.
+const parseAssigneeMembershipId = async (assigneeMembershipId: unknown, workspaceId: string): Promise<string | null | undefined> => {
+    if (assigneeMembershipId === undefined) return undefined;
+    if (assigneeMembershipId === null || assigneeMembershipId === "") return null;
+    if (typeof assigneeMembershipId !== "string" || !validator.isUUID(assigneeMembershipId)) {
+        throw new AppError("Assignee must be an active member of this workspace", 400);
+    }
+    const assignee = await prisma.membership.findFirst({
+        where: { id: assigneeMembershipId, workspaceId, status: "active" },
+        select: { id: true },
+    });
+    if (!assignee) throw new AppError("Assignee must be an active member of this workspace", 400);
+    return assigneeMembershipId;
+};
+
+// Entering Completed records the time; leaving it clears it (PRD FR06). Unchanged → no-op.
+const completionChange = (previousStatus: TaskStatus, nextStatus: TaskStatus | undefined) => {
+    if (!nextStatus || nextStatus === previousStatus) return {};
+    if (nextStatus === TaskStatus.completed) return { completedAt: new Date() };
+    if (previousStatus === TaskStatus.completed) return { completedAt: null };
+    return {};
+};
+
+// Apply a versioned update: succeeds only if nobody changed the task since `expectedVersion`.
+const updateWithVersionCheck = async (taskId: string, expectedVersion: number, data: Prisma.TaskUncheckedUpdateManyInput) => {
+    const { count } = await prisma.task.updateMany({
+        where: { id: taskId, version: expectedVersion },
+        data: { ...data, version: { increment: 1 } },
+    });
+    if (count === 0) {
+        throw new AppError("This task was changed by someone else. Refresh to see the latest version and try again.", 409);
+    }
+    return prisma.task.findUnique({ where: { id: taskId }, include: taskInclude });
+};
 
 // ─── Workspace collection: /api/workspaces/:workspaceId/tasks ─────────────────────
 
 export const listWorkspaceTasks = catchAsync(async (req, res) => {
     const membership = requireMembership(req);
-    const { status, priority, sort, projectId } = req.query;
+    const { status, priority, sort, projectId, assignee } = req.query;
 
     // Every active member sees every task in the workspace (PRD §8: all projects are
     // shared in V1). The workspaceId filter is the isolation boundary.
@@ -125,6 +195,9 @@ export const listWorkspaceTasks = catchAsync(async (req, res) => {
     // Query values can arrive as arrays (?status=a&status=b); only a single string is a valid filter.
     if (typeof status === "string" && status) filter.status = parseStatus(status);
     if (typeof priority === "string" && priority) filter.priority = parsePriority(priority);
+    if (assignee === "me") filter.assigneeMembershipId = membership.id;
+    else if (assignee === "none") filter.assigneeMembershipId = null;
+    else if (typeof assignee === "string" && validator.isUUID(assignee)) filter.assigneeMembershipId = assignee;
 
     const tasks = await prisma.task.findMany({
         where: filter,
@@ -140,123 +213,140 @@ export const listWorkspaceTasks = catchAsync(async (req, res) => {
     });
 });
 
-export const createWorkspaceTask = catchAsync(async (req, res, next) => {
+export const createWorkspaceTask = catchAsync(async (req, res) => {
     const membership = requireMembership(req);
-    const { title, description, status, priority, deadline, projectId } = req.body;
+    const user = requireUser(req);
+    const { clientRequestId } = req.body;
 
-    if (!title) {
-        logger.warn(`Create task failed: missing title userId=${membership.userId}`);
-        return next(new AppError("Please provide a task title", 400));
+    if (clientRequestId !== undefined && clientRequestId !== null
+        && (typeof clientRequestId !== "string" || clientRequestId.length > 100)) {
+        throw new AppError("clientRequestId must be a string of up to 100 characters", 400);
     }
 
-    const task = await prisma.task.create({
-        data: {
-            workspaceId: membership.workspaceId,
-            creatorId: membership.userId,
-            projectId: await parseProjectId(projectId, membership.workspaceId),
-            title,
-            description: description ?? undefined,
-            status: parseStatus(status),
-            priority: parsePriority(priority),
-            deadline: parseDeadline(deadline),
-        },
+    const findByRequestId = () => prisma.task.findUnique({
+        where: { workspaceId_clientRequestId: { workspaceId: membership.workspaceId, clientRequestId } },
         include: taskInclude,
     });
 
-    logger.info(`Task created taskId=${task.id} workspaceId=${membership.workspaceId} userId=${membership.userId}`);
-    res.status(201).json({
-        status: "success",
-        data: { task }
-    });
+    // Idempotency (SRS SR06): a repeated submit with the same key returns the first task.
+    if (clientRequestId) {
+        const existingTask = await findByRequestId();
+        if (existingTask) return res.status(200).json({ status: "success", data: { task: existingTask } });
+    }
+
+    const status = parseStatus(req.body.status) ?? TaskStatus.todo;
+    const due = parseDue(req.body, user.timezone);
+
+    try {
+        const task = await prisma.task.create({
+            data: {
+                workspaceId: membership.workspaceId,
+                creatorId: membership.userId,
+                clientRequestId: clientRequestId || null,
+                projectId: await parseProjectId(req.body.projectId, membership.workspaceId),
+                // Anyone may set an assignee on a task they create (they're its creator).
+                assigneeMembershipId: await parseAssigneeMembershipId(req.body.assigneeMembershipId, membership.workspaceId),
+                title: parseTitle(req.body.title, { required: true }) as string,
+                description: parseDescription(req.body.description),
+                status,
+                priority: parsePriority(req.body.priority),
+                ...(due ?? {}),
+                completedAt: status === TaskStatus.completed ? new Date() : null,
+            },
+            include: taskInclude,
+        });
+
+        logger.info(`Task created taskId=${task.id} workspaceId=${membership.workspaceId} userId=${membership.userId}`);
+        res.status(201).json({ status: "success", data: { task } });
+    } catch (error) {
+        // Two identical submits racing past the lookup above: the unique key stops the
+        // second one — answer with the task the first one created.
+        if (clientRequestId && error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+            const existingTask = await findByRequestId();
+            if (existingTask) return res.status(200).json({ status: "success", data: { task: existingTask } });
+        }
+        throw error;
+    }
 });
 
 // ─── Single task: /api/tasks/:id ─────────────────────
 
 export const getTaskById = catchAsync(async (req, res) => {
     const id = assertValidTaskId(routeParam(req, "id"));
-    const { task } = await loadTaskForMember(id, requireUser(req).id);
-    const taskWithProject = await prisma.task.findUnique({ where: { id: task.id }, include: taskInclude });
+    await loadTaskForMember(id, requireUser(req).id);
+    const task = await prisma.task.findUnique({ where: { id }, include: taskInclude });
 
-    res.status(200).json({
-        status: "success",
-        data: { task: taskWithProject }
-    });
+    res.status(200).json({ status: "success", data: { task } });
 });
 
-export const editTask = catchAsync(async (req, res, next) => {
+export const editTask = catchAsync(async (req, res) => {
     const id = assertValidTaskId(routeParam(req, "id"));
-    const { task: existingTask, membership } = await loadTaskForMember(id, requireUser(req).id);
-    const { title, description, status, priority, deadline, projectId } = req.body;
+    const user = requireUser(req);
+    const { task: existingTask, membership } = await loadTaskForMember(id, user.id);
 
     if (!canEditTask(membership, existingTask)) {
-        return next(new AppError("You can only edit tasks you created", 403));
+        throw new AppError("You can only edit tasks you created or are assigned to", 403);
     }
     await assertTaskWritable(existingTask);
-    if (title !== undefined && !title) {
-        return next(new AppError("Title is required", 400));
+    const expectedVersion = parseExpectedVersion(req.body.version);
+
+    const assigneeMembershipId = await parseAssigneeMembershipId(req.body.assigneeMembershipId, existingTask.workspaceId);
+    if (assigneeMembershipId !== undefined && assigneeMembershipId !== existingTask.assigneeMembershipId
+        && !canAssignTask(membership, existingTask)) {
+        throw new AppError("You can't reassign this task", 403);
     }
 
-    const task = await prisma.task.update({
-        where: { id },
-        data: {
-            title,
-            description: description ?? undefined,
-            status: parseStatus(status),
-            priority: parsePriority(priority),
-            deadline: parseDeadline(deadline),
-            // Moving between projects stays inside the task's workspace (PRD FR06).
-            projectId: await parseProjectId(projectId, existingTask.workspaceId),
-        },
-        include: taskInclude,
+    const status = parseStatus(req.body.status);
+    const due = parseDue(req.body, user.timezone);
+
+    const task = await updateWithVersionCheck(id, expectedVersion, {
+        title: parseTitle(req.body.title, { required: false }),
+        description: parseDescription(req.body.description),
+        status,
+        priority: parsePriority(req.body.priority),
+        ...(due ?? {}),
+        ...completionChange(existingTask.status, status),
+        assigneeMembershipId,
+        // Moving between projects stays inside the task's workspace (PRD FR06).
+        projectId: await parseProjectId(req.body.projectId, existingTask.workspaceId),
     });
 
-    logger.info(`Task updated taskId=${id} userId=${membership.userId}`);
-    res.status(200).json({
-        status: "success",
-        data: { task }
-    });
+    logger.info(`Task updated taskId=${id} userId=${membership.userId} version=${task?.version}`);
+    res.status(200).json({ status: "success", data: { task } });
 });
 
-export const updateTaskStatus = catchAsync(async (req, res, next) => {
+export const updateTaskStatus = catchAsync(async (req, res) => {
     const id = assertValidTaskId(routeParam(req, "id"));
     const { task: existingTask, membership } = await loadTaskForMember(id, requireUser(req).id);
-    const { status } = req.body;
 
     if (!canEditTask(membership, existingTask)) {
-        return next(new AppError("You can only update tasks you created", 403));
+        throw new AppError("You can only update tasks you created or are assigned to", 403);
     }
     await assertTaskWritable(existingTask);
-    if (status === undefined) {
-        return next(new AppError("Please provide a valid status", 400));
-    }
+    if (req.body.status === undefined) throw new AppError("Please provide a valid status", 400);
+    const status = parseStatus(req.body.status);
+    const expectedVersion = parseExpectedVersion(req.body.version);
 
-    const task = await prisma.task.update({
-        where: { id },
-        data: { status: parseStatus(status) },
-        include: taskInclude,
+    const task = await updateWithVersionCheck(id, expectedVersion, {
+        status,
+        ...completionChange(existingTask.status, status),
     });
 
-    logger.info(`Task status updated taskId=${id} userId=${membership.userId} status=${task.status}`);
-    res.status(200).json({
-        status: "success",
-        data: { task }
-    });
+    logger.info(`Task status updated taskId=${id} userId=${membership.userId} status=${task?.status}`);
+    res.status(200).json({ status: "success", data: { task } });
 });
 
-export const deleteTask = catchAsync(async (req, res, next) => {
+export const deleteTask = catchAsync(async (req, res) => {
     const id = assertValidTaskId(routeParam(req, "id"));
     const { task, membership } = await loadTaskForMember(id, requireUser(req).id);
 
     if (!canDeleteTask(membership, task)) {
-        return next(new AppError("You can only delete tasks you created", 403));
+        throw new AppError("You can only delete tasks you created", 403);
     }
     await assertTaskWritable(task);
 
     await prisma.task.delete({ where: { id } });
 
     logger.info(`Task deleted taskId=${id} userId=${membership.userId}`);
-    res.status(204).json({
-        status: "success",
-        data: null
-    });
+    res.status(204).json({ status: "success", data: null });
 });

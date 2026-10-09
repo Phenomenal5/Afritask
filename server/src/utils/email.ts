@@ -17,7 +17,7 @@ interface OutgoingEmail {
 }
 
 // Only the fields a reminder email shows.
-type ReminderTask = Pick<Task, "title" | "description" | "deadline">;
+type ReminderTask = Pick<Task, "title" | "description" | "dueAt">;
 
 const emailService = {
   sendEmail: async ({ to, subject, text, html }: OutgoingEmail) => {
@@ -35,12 +35,12 @@ const emailService = {
   },
 };
 
-const formatTaskDeadline = (deadline?: Date | string | null) => {
-  if (!deadline) {
+const formatTaskDeadline = (dueAt?: Date | string | null) => {
+  if (!dueAt) {
     return "No deadline set";
   }
 
-  const parsed = new Date(deadline);
+  const parsed = new Date(dueAt);
   return Number.isNaN(parsed.getTime())
     ? "No deadline set"
     : parsed.toDateString();
@@ -79,7 +79,7 @@ const buildPasswordChangedMessage = () => `
 
 const buildTaskReminderMessage = (task: ReminderTask) => {
   const title = escapeHtml(task?.title || "Untitled task");
-  const deadline = escapeHtml(formatTaskDeadline(task?.deadline));
+  const deadline = escapeHtml(formatTaskDeadline(task?.dueAt));
   const description = task?.description ? escapeHtml(task.description) : "";
 
   return `
@@ -232,7 +232,7 @@ export const sendInvitationEmail = async (to: string, { workspaceName, inviterNa
 };
 
 export const sendTaskReminderEmail = async (to: string, task: ReminderTask) => {
-  const deadline = formatTaskDeadline(task?.deadline);
+  const deadline = formatTaskDeadline(task?.dueAt);
   const taskTitle = task?.title || "Untitled task";
   const dashboardUrl = CLIENT_URL;
 

@@ -24,6 +24,11 @@ export function TaskProvider({ children, logoutVersion = 0, activeWorkspaceId = 
   // the user just switched away from must be discarded, or it would paint workspace A's
   // tasks under workspace B's name (SRS SR02 "clear previous workspace query state").
   const currentWorkspaceRef = useRef(activeWorkspaceId);
+  // Latest list for optimistic updates (to read a task's version and restore on failure).
+  const tasksRef = useRef(tasks);
+  useEffect(() => {
+    tasksRef.current = tasks;
+  }, [tasks]);
 
   // Clear the local task cache after sign-out or a workspace switch.
   useEffect(() => {
@@ -52,7 +57,8 @@ export function TaskProvider({ children, logoutVersion = 0, activeWorkspaceId = 
     try {
       const res = await createTaskRequest(activeWorkspaceId, data);
       const newTask = res.data.data.task;
-      setTasks((prev) => [newTask, ...prev]);
+      // A repeated submit (same clientRequestId) returns the existing task — don't list it twice.
+      setTasks((prev) => [newTask, ...prev.filter((t) => t.id !== newTask.id)]);
       toast.success("Task added");
       return { success: true, task: newTask };
     } catch (err) {
@@ -62,46 +68,59 @@ export function TaskProvider({ children, logoutVersion = 0, activeWorkspaceId = 
     }
   }, [activeWorkspaceId]);
 
+  // NOTE: the server rejects writes based on an old `version` with 409 (someone else
+  // changed the task first). We never retry blindly — reload so the user sees the newer
+  // values, and let them redo their change on top (SRS SR06).
+  const handleConflict = useCallback(
+    (err) => {
+      if (err.response?.status !== 409 || !/changed by someone else/.test(err.response?.data?.message || "")) return false;
+      toast.error("Someone else changed this task. Showing the latest version.");
+      fetchTasks();
+      return true;
+    },
+    [fetchTasks]
+  );
+
   const updateTask = useCallback(async (id, data) => {
     try {
       const res = await updateTaskRequest(id, data);
       const updated = res.data.data.task;
       setTasks((prev) =>
-        prev.map((t) => (t.id === id ? { ...t, ...updated } : t))
+        prev.map((t) => (t.id === id ? updated : t))
       );
       toast.success("Task updated");
       return { success: true };
     } catch (err) {
+      if (handleConflict(err)) return { success: false, conflict: true };
       const message = err.response?.data?.message || "Could not update task";
       toast.error(message);
       return { success: false, message };
     }
-  }, []);
+  }, [handleConflict]);
 
   const updateTaskStatus = useCallback(async (id, status) => {
     // Flip the UI immediately, but remember the old array so we can restore it if the request fails.
-    let previous;
-    setTasks((prev) => {
-      previous = prev;
-      return prev.map((t) => (t.id === id ? { ...t, status } : t));
-    });
+    const previous = tasksRef.current;
+    const currentTask = previous.find((t) => t.id === id);
+    if (!currentTask) return { success: false };
+    setTasks(previous.map((t) => (t.id === id ? { ...t, status } : t)));
     try {
-      await updateTaskStatusRequest(id, status);
+      const res = await updateTaskStatusRequest(id, status, currentTask.version);
+      // Take the server's copy: it carries the new version and completedAt.
+      setTasks((prev) => prev.map((t) => (t.id === id ? res.data.data.task : t)));
       return { success: true };
     } catch (err) {
       setTasks(previous);
+      if (handleConflict(err)) return { success: false, conflict: true };
       toast.error(err.response?.data?.message || "Could not update status");
       return { success: false };
     }
-  }, []);
+  }, [handleConflict]);
 
   const deleteTask = useCallback(async (id) => {
     // Remove the task optimistically so the list feels instant, then restore it if deletion fails.
-    let previous;
-    setTasks((prev) => {
-      previous = prev;
-      return prev.filter((t) => t.id !== id);
-    });
+    const previous = tasksRef.current;
+    setTasks(previous.filter((t) => t.id !== id));
     try {
       await deleteTaskRequest(id);
       toast.success("Task deleted");

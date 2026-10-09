@@ -499,6 +499,28 @@ Single-task routes use the task id: `GET/PUT/DELETE /api/tasks/:id`,
 `PATCH /api/tasks/:id/status`. Owners and Admins can edit or delete any task in
 the workspace; Members only the tasks they created (`403` otherwise).
 
+## Task fields (V1)
+
+| Field | Values / notes |
+| --- | --- |
+| `title` | required, 1–200 chars (trimmed) |
+| `description` | optional, up to 20,000 chars |
+| `status` | `todo` (default), `in_progress`, `in_review`, `completed`. Legacy `pending` / `in progress` are accepted. |
+| `priority` | `low`, `medium` (default), `high`, `urgent` |
+| `assigneeMembershipId` | zero or one assignee — an **active membership id** of the same workspace, or `null` |
+| `projectId` | optional, same workspace, not archived |
+| `dueDate` | `"YYYY-MM-DD"` → due 23:59 that day in `dueTimezone` (default: your profile timezone) |
+| `dueAt` | ISO datetime → that exact instant. Send `dueDate` **or** `dueAt`; `null` clears. Legacy `deadline` still accepted. |
+| `dueKind`, `dueTimezone` | returned: how the deadline was set (`date`/`datetime`) and in which zone |
+| `completedAt` | set when a task enters `completed`, cleared when it's reopened |
+| `version` | **required on every PUT / status PATCH** — the version you last read. A stale one answers `409` (someone else changed it) |
+| `clientRequestId` | optional on create: repeating a create with the same key returns the first task (`200`) instead of a duplicate |
+
+Permissions: Owners/Admins edit and assign any task; Members edit and (re)assign tasks
+they created or are currently assigned to, and delete only tasks they created.
+When a member leaves or is removed, their **open** tasks become unassigned.
+Task lists also filter by `?assignee=me|none|<membershipId>`.
+
 ## Projects
 
 Projects group related tasks inside a workspace. Every active member can view

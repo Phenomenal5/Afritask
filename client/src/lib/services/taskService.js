@@ -20,14 +20,15 @@ export const createTask = (workspaceId, data) => {
   return api.post(`/workspaces/${workspaceId}/tasks`, data);
 };
 
-// Update a task record with edited fields.
+// Update a task record with edited fields. `data.version` must be the version last seen
+// (the server answers 409 if someone changed the task since).
 export const updateTask = (id, data) => {
   return api.put(`/tasks/${id}`, data);
 };
 
-// Update only the status field of a task.
-export const updateTaskStatus = (id, status) => {
-  return api.patch(`/tasks/${id}/status`, { status });
+// Update only the status field of a task. `version` is the one we last saw (stale → 409).
+export const updateTaskStatus = (id, status, version) => {
+  return api.patch(`/tasks/${id}/status`, { status, version });
 };
 
 // Delete a task record by id.

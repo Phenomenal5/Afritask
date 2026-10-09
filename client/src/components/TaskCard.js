@@ -2,55 +2,22 @@
 
 // TaskCard presents one task with status, priority, deadline, and quick actions.
 import { useEffect, useState } from "react";
-
-const PRIORITY_STYLES = {
-  high: { color: "var(--clay)", bg: "var(--clay-tint)", label: "High" },
-  medium: { color: "var(--gold)", bg: "var(--gold-tint)", label: "Medium" },
-  low: { color: "var(--stone)", bg: "var(--stone-tint)", label: "Low" },
-};
-
-const STATUS_LABELS = {
-  pending: "Pending",
-  in_progress: "In progress",
-  completed: "Completed",
-};
-
-// Format a deadline and label relative dates so overdue work is obvious at a glance.
-function formatDeadline(dateStr, todayStr) {
-  if (!dateStr) return null;
-  const date = new Date(dateStr);
-  const formatted = new Intl.DateTimeFormat("en-US", {
-    month: "short",
-    day: "numeric",
-    timeZone: "UTC",
-  }).format(date);
-
-  if (!todayStr) return { text: formatted, overdue: false };
-
-  const today = new Date(todayStr);
-  const diffDays = Math.ceil((date - today) / (1000 * 60 * 60 * 24));
-
-  if (diffDays < 0) return { text: `${formatted} (overdue)`, overdue: true };
-  if (diffDays === 0) return { text: "Today", overdue: false };
-  if (diffDays === 1) return { text: "Tomorrow", overdue: false };
-  return { text: formatted, overdue: false };
-}
+import { PRIORITY_STYLES, STATUS_LABELS, describeDue } from "@/utils/taskMeta";
 
 // Render a task row with optimistic state cues and edit/delete controls.
 // showProject: off on a project's own page, where the badge would just repeat the header.
 export default function TaskCard({ task, onToggleComplete, onEdit, onDelete, showProject = true }) {
   const [deleting, setDeleting] = useState(false);
-  const [todayStr, setTodayStr] = useState("");
+  // "now" is read after mount so server and client render the same markup.
+  const [now, setNow] = useState(null);
   const priority = PRIORITY_STYLES[task.priority] || PRIORITY_STYLES.low;
-  const deadline = formatDeadline(task.deadline, todayStr);
+  const deadline = now ? describeDue(task, now) : null;
   const isCompleted = task.status === "completed";
   // Archived projects are read-only (the server refuses changes) — hide the controls.
   const isReadOnly = task.project?.state === "archived";
 
   useEffect(() => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    setTodayStr(today.toISOString());
+    setNow(new Date());
   }, []);
 
   const handleDelete = async () => {
@@ -80,9 +47,9 @@ export default function TaskCard({ task, onToggleComplete, onEdit, onDelete, sho
         checked={isCompleted}
         disabled={isReadOnly}
         onChange={() =>
-          onToggleComplete(task.id, isCompleted ? "pending" : "completed")
+          onToggleComplete(task.id, isCompleted ? "todo" : "completed")
         }
-        aria-label={`Mark "${task.title}" as ${isCompleted ? "pending" : "completed"}`}
+        aria-label={`Mark "${task.title}" as ${isCompleted ? "to do" : "completed"}`}
       />
 
       <div className="flex-1 min-w-0">
@@ -158,6 +125,19 @@ export default function TaskCard({ task, onToggleComplete, onEdit, onDelete, sho
           >
             {STATUS_LABELS[task.status] || task.status}
           </span>
+
+          {task.assignee && (
+            <span className="text-xs flex items-center gap-1" style={{ color: "var(--ink-soft)" }}>
+              <span
+                aria-hidden="true"
+                className="w-4 h-4 rounded-full inline-flex items-center justify-center text-[9px] font-semibold"
+                style={{ background: "var(--moss-light)", color: "var(--ink)" }}
+              >
+                {task.assignee.user.name.charAt(0).toUpperCase()}
+              </span>
+              {task.assignee.user.name}
+            </span>
+          )}
 
           {showProject && task.project && (
             <span

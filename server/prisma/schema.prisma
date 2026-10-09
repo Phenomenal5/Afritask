@@ -24,10 +24,12 @@ enum AuthProvider {
   google
 }
 
+// Fixed V1 statuses (PRD FR06). The API still accepts legacy "pending" (→ todo) and
+// "in progress" / "in-progress" (→ in_progress) from older clients.
 enum TaskStatus {
-  pending
-  // Stored and sent as "in_progress"; the API still accepts the legacy "in progress" / "in-progress".
+  todo
   in_progress
+  in_review
   completed
 }
 
@@ -35,6 +37,15 @@ enum TaskPriority {
   low
   medium
   high
+  urgent
+}
+
+// How a deadline was set (PRD §9): a calendar date resolves to 23:59 on that date in the
+// chosen timezone; a date-and-time is an exact instant. Kept so the UI can show the
+// intent ("Dec 1") instead of a converted clock time.
+enum DueKind {
+  date
+  datetime
 }
 
 // Roles are per workspace: the same person can be Admin in one and Member in another.
@@ -81,29 +92,29 @@ enum AccountTokenPurpose {
 }
 
 model User {
-  id                   String       @id @default(uuid(7)) @db.Uuid
-  name                 String
-  email                String       @unique
-  age                  Int?
-  photo                String?
+  id            String       @id @default(uuid(7)) @db.Uuid
+  name          String
+  email         String       @unique
+  age           Int?
+  photo         String?
   // Null for Google-only accounts. Never returned by default — see the global omit in config/prisma.ts.
-  password             String?
+  password      String?
   // NOTE: legacy customer role from Mongo. Does NOT grant platform Superadmin (that's a separate grant later).
-  role                 Role         @default(user)
-  provider             AuthProvider @default(local)
-  providerId           String?      @unique
-  isVerified           Boolean      @default(false)
+  role          Role         @default(user)
+  provider      AuthProvider @default(local)
+  providerId    String?      @unique
+  isVerified    Boolean      @default(false)
   // IANA zone, e.g. "Africa/Lagos". Detected from the device at signup, editable in profile.
-  timezone             String       @default("UTC")
+  timezone      String       @default("UTC")
   // Source Mongo _id, so the import script can be re-run without duplicating rows.
-  legacyMongoId        String?      @unique
-  createdAt            DateTime     @default(now()) @db.Timestamptz(3)
-  updatedAt            DateTime     @updatedAt @db.Timestamptz(3)
+  legacyMongoId String?      @unique
+  createdAt     DateTime     @default(now()) @db.Timestamptz(3)
+  updatedAt     DateTime     @updatedAt @db.Timestamptz(3)
 
-  createdTasks  Task[]       @relation("TaskCreator")
+  createdTasks  Task[]         @relation("TaskCreator")
   memberships   Membership[]
-  sentInvites   Invitation[] @relation("InvitationInviter")
-  projects      Project[]    @relation("ProjectCreator")
+  sentInvites   Invitation[]   @relation("InvitationInviter")
+  projects      Project[]      @relation("ProjectCreator")
   sessions      Session[]
   accountTokens AccountToken[]
 }
@@ -215,8 +226,9 @@ model Membership {
   createdAt   DateTime         @default(now()) @db.Timestamptz(3)
   updatedAt   DateTime         @updatedAt @db.Timestamptz(3)
 
-  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspace     Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  assignedTasks Task[]    @relation("TaskAssignee")
 
   // One row per person per workspace — re-joining reactivates it instead of duplicating.
   @@unique([workspaceId, userId])
@@ -229,32 +241,49 @@ model Membership {
 }
 
 model Task {
-  id            String       @id @default(uuid(7)) @db.Uuid
-  workspaceId   String       @db.Uuid
+  id                   String       @id @default(uuid(7)) @db.Uuid
+  workspaceId          String       @db.Uuid
   // Author of the task. Kept even if they later leave the workspace.
-  creatorId     String       @db.Uuid
+  creatorId            String       @db.Uuid
   // Optional: a quick task can live in the workspace without a project (PRD J1).
   // NOTE: same-workspace is enforced in the task controller — Prisma can't express a
   // composite (projectId, workspaceId) FK on an optional relation with a required column.
-  projectId     String?      @db.Uuid
-  title         String
-  description   String       @default("")
-  status        TaskStatus   @default(pending)
-  priority      TaskPriority @default(medium)
-  deadline      DateTime?    @db.Timestamptz(3)
-  legacyMongoId String?      @unique
-  createdAt     DateTime     @default(now()) @db.Timestamptz(3)
-  updatedAt     DateTime     @updatedAt @db.Timestamptz(3)
+  projectId            String?      @db.Uuid
+  // Zero or one accountable assignee: a MEMBERSHIP (not a user), so assignment is tied to
+  // the person's place in this workspace. Cleared when they leave/are removed (open tasks).
+  assigneeMembershipId String?      @db.Uuid
+  title                String
+  description          String       @default("")
+  status               TaskStatus   @default(todo)
+  priority             TaskPriority @default(medium)
+  // The due instant (UTC). dueKind/dueTimezone keep the original intent (PRD §9).
+  dueAt                DateTime?    @db.Timestamptz(3)
+  dueKind              DueKind?
+  dueTimezone          String?
+  // Set on entering Completed, cleared on reopening. Null for legacy completions (unknown time).
+  completedAt          DateTime?    @db.Timestamptz(3)
+  // Optimistic concurrency: every write must name the version it read (SRS SR06).
+  version              Int          @default(1)
+  // Idempotency key from the client: a repeated create with the same key returns the
+  // first task instead of making a duplicate (SRS SR06 acceptance).
+  clientRequestId      String?
+  legacyMongoId        String?      @unique
+  createdAt            DateTime     @default(now()) @db.Timestamptz(3)
+  updatedAt            DateTime     @updatedAt @db.Timestamptz(3)
 
-  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  workspace Workspace   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   // Restrict: deleting a user must never silently delete shared work (DB design §3).
-  creator   User      @relation("TaskCreator", fields: [creatorId], references: [id], onDelete: Restrict)
-  project   Project?  @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  creator   User        @relation("TaskCreator", fields: [creatorId], references: [id], onDelete: Restrict)
+  project   Project?    @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  assignee  Membership? @relation("TaskAssignee", fields: [assigneeMembershipId], references: [id], onDelete: SetNull)
 
+  @@unique([workspaceId, clientRequestId])
   // Every task query is workspace-scoped, newest first.
   @@index([workspaceId, createdAt])
   @@index([creatorId])
   @@index([projectId])
-  // Daily reminder scan: incomplete tasks by deadline.
-  @@index([deadline, status])
+  // My Tasks: a member's assigned work by status and due date (DB design §3).
+  @@index([workspaceId, assigneeMembershipId, status, dueAt])
+  // Daily reminder scan: incomplete tasks by due date.
+  @@index([dueAt, status])
 }
