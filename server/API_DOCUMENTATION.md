@@ -499,6 +499,20 @@ Single-task routes use the task id: `GET/PUT/DELETE /api/tasks/:id`,
 `PATCH /api/tasks/:id/status`. Owners and Admins can edit or delete any task in
 the workspace; Members only the tasks they created (`403` otherwise).
 
+## Members
+
+| Method | Path | Who | Purpose |
+| --- | --- | --- | --- |
+| `PATCH` | `/api/workspaces/:workspaceId/members/:membershipId` | owner | `{ role: "admin" \| "member" }` |
+| `DELETE` | `/api/workspaces/:workspaceId/members/:membershipId` | owner, admin | Remove (Admin: Members only; nobody removes the Owner) |
+| `POST` | `/api/workspaces/:workspaceId/leave` | admin, member | Leave (the Owner gets `409` — transfer first) |
+| `POST` | `/api/workspaces/:workspaceId/transfer-ownership` | owner | `{ membershipId }` → target becomes Owner, caller becomes Admin |
+
+Removal and leaving keep the membership row (status `removed`) so history keeps
+its attribution; access ends immediately. Ownership transfer is one transaction
+and the database allows only one active Owner, so concurrent transfers can't
+produce two Owners or none.
+
 ## Invitations
 
 Invite people by email, whether or not they have an account (PRD J2/J3). An

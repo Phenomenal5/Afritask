@@ -6,12 +6,12 @@ import { useWorkspaces } from "@/context/WorkspaceContext";
 import { getWorkspace } from "@/lib/services/workspaceService";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import Navbar from "@/components/Navbar";
-import Avatar from "@/components/Avatar";
 import FormField from "@/components/FormField";
 import Button from "@/components/Button";
 import LoadingScreen from "@/components/LoadingScreen";
 import { ROLE_LABELS } from "@/utils/roles";
 import WorkspaceInvitations from "@/components/WorkspaceInvitations";
+import WorkspaceMembers from "@/components/WorkspaceMembers";
 
 
 const sectionStyle = { background: "var(--paper-raised)", border: "1px solid var(--line)" };
@@ -86,36 +86,7 @@ function WorkspaceSettings() {
           <WorkspaceInvitations workspaceId={workspaceDetails.id} myRole={workspaceDetails.role} />
         )}
 
-        <section className="p-5 rounded-xl" style={sectionStyle}>
-          <h2 className="font-display text-lg mb-4" style={{ color: "var(--ink)" }}>
-            Members ({workspaceDetails.members.length})
-          </h2>
-          <ul className="flex flex-col">
-            {workspaceDetails.members.map((member) => (
-              <li
-                key={member.id}
-                className="flex items-center gap-3 py-3"
-                style={{ borderTop: "1px solid var(--line-soft)" }}
-              >
-                <Avatar user={member.user} size={34} />
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium truncate" style={{ color: "var(--ink)" }}>
-                    {member.user.name}
-                  </p>
-                  <p className="text-xs truncate" style={{ color: "var(--ink-soft)" }}>
-                    {member.user.email}
-                  </p>
-                </div>
-                <span
-                  className="text-xs font-medium px-2.5 py-1 rounded-full"
-                  style={{ background: "var(--moss-light)", color: "var(--ink)" }}
-                >
-                  {ROLE_LABELS[member.role]}
-                </span>
-              </li>
-            ))}
-          </ul>
-        </section>
+        <WorkspaceMembers workspace={workspaceDetails} onChanged={loadDetails} />
       </main>
     </div>
   );
