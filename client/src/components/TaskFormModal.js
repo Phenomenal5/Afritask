@@ -9,6 +9,9 @@ import { useTasks } from "@/context/TaskContext";
 import { useWorkspaces } from "@/context/WorkspaceContext";
 import { getWorkspaceProjects } from "@/lib/services/projectService";
 import { getWorkspace } from "@/lib/services/workspaceService";
+import { getWorkspaceLabels } from "@/lib/services/labelService";
+import { labelStyle } from "@/utils/labels";
+import TaskSubtasks from "./TaskSubtasks";
 import { PRIORITY_STYLES, STATUS_LABELS, TASK_PRIORITIES, TASK_STATUSES, isoDateInZone, localTimeOf } from "@/utils/taskMeta";
 import FormField from "./FormField";
 import Button from "./Button";
@@ -22,6 +25,7 @@ const EMPTY = {
   dueTime: "",
   projectId: "",
   assigneeMembershipId: "",
+  labelIds: [],
 };
 
 const selectStyle = { background: "var(--paper-raised)", border: "1px solid var(--line)", color: "var(--ink)" };
@@ -46,6 +50,7 @@ export default function TaskFormModal({ open, onClose, task, defaultProjectId = 
   const [form, setForm] = useState(EMPTY);
   const [projects, setProjects] = useState([]);
   const [members, setMembers] = useState([]);
+  const [labels, setLabels] = useState([]);
   const [requestId, setRequestId] = useState(newRequestId);
   const [loading, setLoading] = useState(false);
   const isEditing = !!task;
@@ -60,6 +65,9 @@ export default function TaskFormModal({ open, onClose, task, defaultProjectId = 
     getWorkspace(activeWorkspace.id)
       .then((res) => setMembers(res.data.data.workspace.members))
       .catch(() => setMembers([]));
+    getWorkspaceLabels(activeWorkspace.id)
+      .then((res) => setLabels(res.data.data.labels))
+      .catch(() => setLabels([]));
   }, [open, activeWorkspace?.id]);
 
   // Sync the modal form with the selected task whenever the modal opens or the task changes.
@@ -73,6 +81,7 @@ export default function TaskFormModal({ open, onClose, task, defaultProjectId = 
         ...dueFieldsOf(task),
         projectId: task.projectId || "",
         assigneeMembershipId: task.assigneeMembershipId || "",
+        labelIds: (task.labels || []).map((label) => label.id),
       });
     } else {
       setForm({ ...EMPTY, projectId: defaultProjectId });
@@ -101,6 +110,15 @@ export default function TaskFormModal({ open, onClose, task, defaultProjectId = 
   const handleChange = (e) =>
     setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }));
 
+  const toggleLabel = (labelId) =>
+    setForm((prev) => ({
+      ...prev,
+      labelIds: prev.labelIds.includes(labelId) ? prev.labelIds.filter((id) => id !== labelId) : [...prev.labelIds, labelId],
+    }));
+
+  // A subtask lives in its parent's project — the server refuses moving it on its own.
+  const isSubtask = Boolean(task?.parentTaskId);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
@@ -110,6 +128,7 @@ export default function TaskFormModal({ open, onClose, task, defaultProjectId = 
       projectId: form.projectId || null,
       assigneeMembershipId: form.assigneeMembershipId || null,
     };
+    if (task?.parentTaskId) delete payload.projectId;
 
     // NOTE: untouched due fields are NOT re-sent when editing. Re-sending a date-only due
     // date would re-resolve it in my CURRENT profile timezone and could move a deadline
@@ -247,7 +266,32 @@ export default function TaskFormModal({ open, onClose, task, defaultProjectId = 
             </div>
           )}
 
-          {projects.length > 0 && (
+          {labels.length > 0 && (
+            <div className="flex flex-col gap-1.5">
+              <span className="text-sm font-medium" style={{ color: "var(--ink)" }}>
+                Labels
+              </span>
+              <div className="flex flex-wrap gap-1.5" role="group" aria-label="Labels">
+                {labels.map((label) => {
+                  const selected = form.labelIds.includes(label.id);
+                  return (
+                    <button
+                      key={label.id}
+                      type="button"
+                      aria-pressed={selected}
+                      onClick={() => toggleLabel(label.id)}
+                      className="text-xs font-medium px-2.5 py-1 rounded-full cursor-pointer transition-opacity"
+                      style={{ ...labelStyle(label.color), opacity: selected ? 1 : 0.45, outline: selected ? "1px solid currentColor" : "none" }}
+                    >
+                      {label.name}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {projects.length > 0 && !isSubtask && (
             <div className="flex flex-col gap-1.5">
               <label htmlFor="projectId" className="text-sm font-medium" style={{ color: "var(--ink)" }}>
                 Project
@@ -267,6 +311,8 @@ export default function TaskFormModal({ open, onClose, task, defaultProjectId = 
             <FormField label="Due date (optional)" name="dueDate" type="date" value={form.dueDate} onChange={handleChange} />
             <FormField label="Time (optional)" name="dueTime" type="time" value={form.dueTime} onChange={handleChange} />
           </div>
+          {isEditing && !isSubtask && <TaskSubtasks parentTask={task} members={members} />}
+
           {form.dueDate && !form.dueTime && (
             <p className="text-xs -mt-2" style={{ color: "var(--ink-soft)" }}>
               Due by the end of that day ({(user?.timezone || "UTC").replaceAll("_", " ")}).

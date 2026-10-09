@@ -15,6 +15,7 @@ import taskRoute from "./routes/taskRoute.js";
 import workspaceRoute from "./routes/workspaceRoute.js";
 import invitationRoute from "./routes/invitationRoute.js";
 import projectRoute from "./routes/projectRoute.js";
+import labelRoute from "./routes/labelRoute.js";
 import logger from "./utils/logger.js";
 import globalErrorHandler from "./middlewares/error.Middleware.js";
 import CLIENT_URL from "./config/clientUrl.js";
@@ -101,6 +102,9 @@ app.use("/api/tasks", taskRoute);
 
 // Single-project routes
 app.use("/api/projects", projectRoute);
+
+// Single-label routes
+app.use("/api/labels", labelRoute);
 
 // Invitation preview / accept / decline / resend / revoke
 app.use("/api/invitations", invitationRoute);

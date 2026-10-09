@@ -147,6 +147,7 @@ const schemas = {
             workspaceId: { type: "string", format: "uuid" },
             creatorId: { type: "string", format: "uuid" },
             projectId: { type: ["string", "null"], format: "uuid" },
+            parentTaskId: { type: ["string", "null"], format: "uuid", description: "Set on subtasks (one level only)" },
             assigneeMembershipId: { type: ["string", "null"], format: "uuid" },
             title: { type: "string" },
             description: { type: "string" },
@@ -171,6 +172,19 @@ const schemas = {
                     user: { type: "object", properties: { id: { type: "string" }, name: { type: "string" }, photo: { type: ["string", "null"] } } },
                 },
             },
+            labels: { type: "array", items: ref("Label") },
+            parent: { type: ["object", "null"], description: "On subtasks: the parent's id and title", properties: { id: { type: "string" }, title: { type: "string" } } },
+            subtaskCounts: { type: "object", properties: { total: { type: "integer" }, completed: { type: "integer" } } },
+            subtasks: { type: "array", items: { $ref: "#/components/schemas/Task" }, description: "Only on GET /tasks/{id}" },
+        },
+    },
+    Label: {
+        type: "object",
+        properties: {
+            id: { type: "string", format: "uuid" },
+            name: { type: "string", maxLength: 40 },
+            color: { type: "string", enum: ["gray", "moss", "clay", "gold", "sky", "plum"] },
+            taskCount: { type: "integer", description: "Only on the workspace label list" },
         },
     },
     TaskWrite: {
@@ -187,6 +201,7 @@ const schemas = {
             dueDate: { type: ["string", "null"], format: "date", example: "2026-12-01" },
             dueAt: { type: ["string", "null"], format: "date-time" },
             dueTimezone: { type: "string", example: "Africa/Lagos" },
+            labelIds: { type: "array", items: { type: "string", format: "uuid" }, description: "Replaces the task's labels (same workspace). [] removes all." },
         },
     },
     ProjectState: { type: "string", enum: ["active", "on_hold", "completed", "archived"] },
@@ -459,7 +474,9 @@ const taskPaths = {
                 { name: "status", in: "query", schema: ref("TaskStatus") },
                 { name: "priority", in: "query", schema: ref("TaskPriority") },
                 { name: "projectId", in: "query", schema: { type: "string" }, description: "A project id, or `none`" },
-                { name: "assignee", in: "query", schema: { type: "string" }, description: "`me`, `none`, or a membership id" },
+                { name: "assignee", in: "query", schema: { type: "string" }, description: "`me`, `none`, or a membership id. Filtering by assignee also returns their subtasks (with `parent`)." },
+                { name: "labelId", in: "query", schema: { type: "string" } },
+                { name: "includeSubtasks", in: "query", schema: { type: "boolean" }, description: "Lists show top-level tasks only unless true" },
                 { name: "sort", in: "query", schema: { type: "string", example: "-createdAt,title" } },
             ],
             responses: { 200: jsonResponse("Tasks", listEnvelope("tasks", ref("Task"))), ...errorResponses(400, 401, 404) },
@@ -521,6 +538,54 @@ const taskPaths = {
                 properties: { status: ref("TaskStatus"), version: { type: "integer" } },
             }),
             responses: { 200: jsonResponse("Updated", dataEnvelope("task", ref("Task"))), ...errorResponses(400, 401, 403, 404, 409) },
+        },
+    },
+};
+
+const subtaskPaths = {
+    "/tasks/{id}/subtasks": {
+        parameters: [pathParam("id", "Parent task id (must be top-level)")],
+        post: {
+            tags: ["Tasks"],
+            summary: "Add a subtask (one level only; inherits the parent's workspace and project)",
+            security: signedIn,
+            requestBody: jsonBody({ allOf: [ref("TaskWrite"), { type: "object", required: ["title"] }] }),
+            responses: { 201: jsonResponse("Created", dataEnvelope("task", ref("Task"))), ...errorResponses(400, 401, 404, 409) },
+        },
+    },
+};
+
+const labelPaths = {
+    "/workspaces/{workspaceId}/labels": {
+        parameters: [workspaceIdParam],
+        get: {
+            tags: ["Labels"],
+            summary: "The workspace's labels with how many tasks use each",
+            security: signedIn,
+            responses: { 200: jsonResponse("Labels", listEnvelope("labels", ref("Label"))), ...errorResponses(401, 404) },
+        },
+        post: {
+            tags: ["Labels"],
+            summary: "Create a label (Owner/Admin; names unique per workspace ignoring case)",
+            security: signedIn,
+            requestBody: jsonBody({ type: "object", required: ["name"], properties: { name: { type: "string", maxLength: 40 }, color: { type: "string" } } }),
+            responses: { 201: jsonResponse("Created", dataEnvelope("label", ref("Label"))), ...errorResponses(400, 401, 403, 404, 409) },
+        },
+    },
+    "/labels/{labelId}": {
+        parameters: [pathParam("labelId", "Label id")],
+        patch: {
+            tags: ["Labels"],
+            summary: "Rename or recolor (Owner/Admin)",
+            security: signedIn,
+            requestBody: jsonBody({ type: "object", properties: { name: { type: "string" }, color: { type: "string" } } }),
+            responses: { 200: jsonResponse("Updated", dataEnvelope("label", ref("Label"))), ...errorResponses(400, 401, 403, 404, 409) },
+        },
+        delete: {
+            tags: ["Labels"],
+            summary: "Delete (removes it from tasks; never deletes tasks)",
+            security: signedIn,
+            responses: { 204: { description: "Deleted" }, ...errorResponses(401, 403, 404) },
         },
     },
 };
@@ -721,7 +786,8 @@ const openApiDocument = {
         { name: "Members", description: "Roles, removal, leaving and ownership transfer" },
         { name: "Invitations", description: "Inviting people by email and responding to invitations" },
         { name: "Projects", description: "Groups of related tasks inside a workspace" },
-        { name: "Tasks", description: "Tasks: status, priority, assignee, due dates, versioned updates" },
+        { name: "Tasks", description: "Tasks and subtasks: status, priority, assignee, due dates, labels, versioned updates" },
+        { name: "Labels", description: "Workspace labels for tagging tasks" },
     ],
     security: signedIn,
     components: {
@@ -730,7 +796,7 @@ const openApiDocument = {
         },
         schemas,
     },
-    paths: withOperationIds({ ...authPaths, ...userPaths, ...workspacePaths, ...invitationPaths, ...projectPaths, ...taskPaths }),
+    paths: withOperationIds({ ...authPaths, ...userPaths, ...workspacePaths, ...invitationPaths, ...projectPaths, ...labelPaths, ...taskPaths, ...subtaskPaths }),
 };
 
 export default openApiDocument;

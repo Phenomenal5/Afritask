@@ -110,12 +110,54 @@ const loadTaskForMember = async (taskId: string, userId: string) => {
     return { task, membership };
 };
 
-// Returned with every task: its project (to show it and know it's read-only) and the
-// assignee's public identity.
+// Returned with every task: its project (to show it and know it's read-only), the
+// assignee's public identity, its labels, its parent (for subtasks) and subtask progress.
+const assigneeSelect = { select: { id: true, user: { select: { id: true, name: true, photo: true } } } } as const;
 const taskInclude = {
     project: { select: { id: true, name: true, state: true } },
-    assignee: { select: { id: true, user: { select: { id: true, name: true, photo: true } } } },
-} as const;
+    assignee: assigneeSelect,
+    labels: { select: { label: { select: { id: true, name: true, color: true } } }, orderBy: { label: { name: "asc" } } },
+    parent: { select: { id: true, title: true } },
+    subtasks: { select: { status: true } },
+} as const satisfies Prisma.TaskInclude;
+
+// The include's relations, whatever scalar fields the query returned (the global omit
+// removes some, which Prisma.TaskGetPayload doesn't model — hence a structural type).
+interface TaskRelations {
+    labels: { label: { id: string; name: string; color: string } }[];
+    subtasks: { status: TaskStatus }[];
+}
+
+// API shape: labels flattened, subtask list replaced by counts (the detail route adds the list).
+const toTaskResponse = <TaskRow extends TaskRelations>(task: TaskRow) => {
+    const { labels, subtasks, ...fields } = task;
+    return {
+        ...fields,
+        labels: labels.map((taskLabel) => taskLabel.label),
+        subtaskCounts: {
+            total: subtasks.length,
+            completed: subtasks.filter((subtask) => subtask.status === TaskStatus.completed).length,
+        },
+    };
+};
+
+const findTaskResponse = async (taskId: string) => {
+    const task = await prisma.task.findUnique({ where: { id: taskId }, include: taskInclude });
+    return task ? toTaskResponse(task) : null;
+};
+
+// Label ids must all belong to the task's workspace. undefined = leave labels unchanged,
+// [] = remove all. Duplicates are ignored.
+const parseLabelIds = async (labelIds: unknown, workspaceId: string): Promise<string[] | undefined> => {
+    if (labelIds === undefined) return undefined;
+    if (!Array.isArray(labelIds) || !labelIds.every((labelId) => typeof labelId === "string" && validator.isUUID(labelId))) {
+        throw new AppError("labelIds must be a list of label ids", 400);
+    }
+    const uniqueLabelIds = [...new Set(labelIds as string[])];
+    const found = await prisma.label.count({ where: { id: { in: uniqueLabelIds }, workspaceId } });
+    if (found !== uniqueLabelIds.length) throw new AppError("Label not found", 400);
+    return uniqueLabelIds;
+};
 
 // NOTE: archived projects are read-only, tasks included (PRD §8 protection rules).
 const assertTaskWritable = async (task: { projectId: string | null }) => {
@@ -163,22 +205,37 @@ const completionChange = (previousStatus: TaskStatus, nextStatus: TaskStatus | u
 };
 
 // Apply a versioned update: succeeds only if nobody changed the task since `expectedVersion`.
-const updateWithVersionCheck = async (taskId: string, expectedVersion: number, data: Prisma.TaskUncheckedUpdateManyInput) => {
-    const { count } = await prisma.task.updateMany({
-        where: { id: taskId, version: expectedVersion },
-        data: { ...data, version: { increment: 1 } },
+// `alsoInTransaction` runs related writes (labels, subtasks following a project move) in the
+// SAME transaction, so a version conflict rolls them back too.
+const updateWithVersionCheck = async (
+    taskId: string,
+    expectedVersion: number,
+    data: Prisma.TaskUncheckedUpdateManyInput,
+    alsoInTransaction?: (tx: Prisma.TransactionClient) => Promise<unknown>
+) => {
+    await prisma.$transaction(async (tx) => {
+        const { count } = await tx.task.updateMany({
+            where: { id: taskId, version: expectedVersion },
+            data: { ...data, version: { increment: 1 } },
+        });
+        if (count === 0) {
+            throw new AppError("This task was changed by someone else. Refresh to see the latest version and try again.", 409);
+        }
+        if (alsoInTransaction) await alsoInTransaction(tx);
     });
-    if (count === 0) {
-        throw new AppError("This task was changed by someone else. Refresh to see the latest version and try again.", 409);
-    }
-    return prisma.task.findUnique({ where: { id: taskId }, include: taskInclude });
+    return findTaskResponse(taskId);
 };
+
+const replaceLabels = (tx: Prisma.TransactionClient, taskId: string, labelIds: string[]) =>
+    tx.taskLabel.deleteMany({ where: { taskId } }).then(() =>
+        labelIds.length > 0 ? tx.taskLabel.createMany({ data: labelIds.map((labelId) => ({ taskId, labelId })) }) : null
+    );
 
 // ─── Workspace collection: /api/workspaces/:workspaceId/tasks ─────────────────────
 
 export const listWorkspaceTasks = catchAsync(async (req, res) => {
     const membership = requireMembership(req);
-    const { status, priority, sort, projectId, assignee } = req.query;
+    const { status, priority, sort, projectId, assignee, labelId, includeSubtasks } = req.query;
 
     // Every active member sees every task in the workspace (PRD §8: all projects are
     // shared in V1). The workspaceId filter is the isolation boundary.
@@ -198,6 +255,13 @@ export const listWorkspaceTasks = catchAsync(async (req, res) => {
     if (assignee === "me") filter.assigneeMembershipId = membership.id;
     else if (assignee === "none") filter.assigneeMembershipId = null;
     else if (typeof assignee === "string" && validator.isUUID(assignee)) filter.assigneeMembershipId = assignee;
+    if (typeof labelId === "string" && validator.isUUID(labelId)) filter.labels = { some: { labelId } };
+
+    // Lists and boards show TOP-LEVEL tasks; subtasks live inside their parent (PRD FR12).
+    // Asking "what's assigned to someone" includes separately assigned subtasks (PRD FR11),
+    // which carry `parent` for context.
+    const wantsSubtasks = includeSubtasks === "true" || (typeof assignee === "string" && assignee !== "none");
+    if (!wantsSubtasks) filter.parentTaskId = null;
 
     const tasks = await prisma.task.findMany({
         where: filter,
@@ -209,7 +273,7 @@ export const listWorkspaceTasks = catchAsync(async (req, res) => {
     res.status(200).json({
         status: "success",
         results: tasks.length,
-        data: { tasks }
+        data: { tasks: tasks.map(toTaskResponse) }
     });
 });
 
@@ -223,10 +287,13 @@ export const createWorkspaceTask = catchAsync(async (req, res) => {
         throw new AppError("clientRequestId must be a string of up to 100 characters", 400);
     }
 
-    const findByRequestId = () => prisma.task.findUnique({
-        where: { workspaceId_clientRequestId: { workspaceId: membership.workspaceId, clientRequestId } },
-        include: taskInclude,
-    });
+    const findByRequestId = async () => {
+        const task = await prisma.task.findUnique({
+            where: { workspaceId_clientRequestId: { workspaceId: membership.workspaceId, clientRequestId } },
+            include: taskInclude,
+        });
+        return task ? toTaskResponse(task) : null;
+    };
 
     // Idempotency (SRS SR06): a repeated submit with the same key returns the first task.
     if (clientRequestId) {
@@ -236,6 +303,7 @@ export const createWorkspaceTask = catchAsync(async (req, res) => {
 
     const status = parseStatus(req.body.status) ?? TaskStatus.todo;
     const due = parseDue(req.body, user.timezone);
+    const labelIds = await parseLabelIds(req.body.labelIds, membership.workspaceId);
 
     try {
         const task = await prisma.task.create({
@@ -244,6 +312,7 @@ export const createWorkspaceTask = catchAsync(async (req, res) => {
                 creatorId: membership.userId,
                 clientRequestId: clientRequestId || null,
                 projectId: await parseProjectId(req.body.projectId, membership.workspaceId),
+                ...(labelIds && { labels: { create: labelIds.map((labelId) => ({ labelId })) } }),
                 // Anyone may set an assignee on a task they create (they're its creator).
                 assigneeMembershipId: await parseAssigneeMembershipId(req.body.assigneeMembershipId, membership.workspaceId),
                 title: parseTitle(req.body.title, { required: true }) as string,
@@ -257,7 +326,7 @@ export const createWorkspaceTask = catchAsync(async (req, res) => {
         });
 
         logger.info(`Task created taskId=${task.id} workspaceId=${membership.workspaceId} userId=${membership.userId}`);
-        res.status(201).json({ status: "success", data: { task } });
+        res.status(201).json({ status: "success", data: { task: toTaskResponse(task) } });
     } catch (error) {
         // Two identical submits racing past the lookup above: the unique key stops the
         // second one — answer with the task the first one created.
@@ -274,9 +343,15 @@ export const createWorkspaceTask = catchAsync(async (req, res) => {
 export const getTaskById = catchAsync(async (req, res) => {
     const id = assertValidTaskId(routeParam(req, "id"));
     await loadTaskForMember(id, requireUser(req).id);
-    const task = await prisma.task.findUnique({ where: { id }, include: taskInclude });
+    const task = await findTaskResponse(id);
+    // The detail view lists subtasks themselves (each with its own assignee and status).
+    const subtasks = await prisma.task.findMany({
+        where: { parentTaskId: id },
+        orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+        include: taskInclude,
+    });
 
-    res.status(200).json({ status: "success", data: { task } });
+    res.status(200).json({ status: "success", data: { task: { ...task, subtasks: subtasks.map(toTaskResponse) } } });
 });
 
 export const editTask = catchAsync(async (req, res) => {
@@ -298,18 +373,37 @@ export const editTask = catchAsync(async (req, res) => {
 
     const status = parseStatus(req.body.status);
     const due = parseDue(req.body, user.timezone);
+    const labelIds = await parseLabelIds(req.body.labelIds, existingTask.workspaceId);
+    // Moving between projects stays inside the task's workspace (PRD FR06).
+    const projectId = await parseProjectId(req.body.projectId, existingTask.workspaceId);
 
-    const task = await updateWithVersionCheck(id, expectedVersion, {
-        title: parseTitle(req.body.title, { required: false }),
-        description: parseDescription(req.body.description),
-        status,
-        priority: parsePriority(req.body.priority),
-        ...(due ?? {}),
-        ...completionChange(existingTask.status, status),
-        assigneeMembershipId,
-        // Moving between projects stays inside the task's workspace (PRD FR06).
-        projectId: await parseProjectId(req.body.projectId, existingTask.workspaceId),
-    });
+    // A subtask always lives in its parent's project (PRD FR07) — it can't move on its own.
+    if (existingTask.parentTaskId && projectId !== undefined && projectId !== existingTask.projectId) {
+        throw new AppError("A subtask follows its parent's project — move the parent instead", 400);
+    }
+    const movesProject = !existingTask.parentTaskId && projectId !== undefined && projectId !== existingTask.projectId;
+
+    const task = await updateWithVersionCheck(
+        id,
+        expectedVersion,
+        {
+            title: parseTitle(req.body.title, { required: false }),
+            description: parseDescription(req.body.description),
+            status,
+            priority: parsePriority(req.body.priority),
+            ...(due ?? {}),
+            ...completionChange(existingTask.status, status),
+            assigneeMembershipId,
+            projectId,
+        },
+        async (tx) => {
+            if (labelIds) await replaceLabels(tx, id, labelIds);
+            // NOTE: changing the parent's project moves its subtasks with it (PRD FR07).
+            if (movesProject) {
+                await tx.task.updateMany({ where: { parentTaskId: id }, data: { projectId, version: { increment: 1 } } });
+            }
+        }
+    );
 
     logger.info(`Task updated taskId=${id} userId=${membership.userId} version=${task?.version}`);
     res.status(200).json({ status: "success", data: { task } });
@@ -331,6 +425,8 @@ export const updateTaskStatus = catchAsync(async (req, res) => {
         status,
         ...completionChange(existingTask.status, status),
     });
+    // Completing a parent never completes its subtasks (PRD FR07); the response's
+    // subtaskCounts lets the client warn about unfinished ones.
 
     logger.info(`Task status updated taskId=${id} userId=${membership.userId} status=${task?.status}`);
     res.status(200).json({ status: "success", data: { task } });
@@ -349,4 +445,39 @@ export const deleteTask = catchAsync(async (req, res) => {
 
     logger.info(`Task deleted taskId=${id} userId=${membership.userId}`);
     res.status(204).json({ status: "success", data: null });
+});
+
+// ─── Subtasks: POST /api/tasks/:id/subtasks ─────────────────────
+// One level only (PRD FR07). Any member can add one (PRD §8: "Create tasks and subtasks");
+// it inherits the parent's workspace and project and has its own assignee, status and
+// due date. Its permissions are its own: the parent's assignee doesn't get to edit it.
+export const createSubtask = catchAsync(async (req, res) => {
+    const parentId = assertValidTaskId(routeParam(req, "id"));
+    const user = requireUser(req);
+    const { task: parent, membership } = await loadTaskForMember(parentId, user.id);
+
+    if (parent.parentTaskId) throw new AppError("Subtasks can't have their own subtasks", 400);
+    await assertTaskWritable(parent);
+
+    const status = parseStatus(req.body.status) ?? TaskStatus.todo;
+    const due = parseDue(req.body, user.timezone);
+    const subtask = await prisma.task.create({
+        data: {
+            workspaceId: parent.workspaceId,
+            projectId: parent.projectId,
+            parentTaskId: parent.id,
+            creatorId: membership.userId,
+            assigneeMembershipId: await parseAssigneeMembershipId(req.body.assigneeMembershipId, parent.workspaceId),
+            title: parseTitle(req.body.title, { required: true }) as string,
+            description: parseDescription(req.body.description),
+            status,
+            priority: parsePriority(req.body.priority),
+            ...(due ?? {}),
+            completedAt: status === TaskStatus.completed ? new Date() : null,
+        },
+        include: taskInclude,
+    });
+
+    logger.info(`Subtask created taskId=${subtask.id} parentId=${parent.id} userId=${membership.userId}`);
+    res.status(201).json({ status: "success", data: { task: toTaskResponse(subtask) } });
 });

@@ -162,7 +162,37 @@ model Workspace {
   memberships Membership[]
   invitations Invitation[]
   projects    Project[]
+  labels      Label[]
   tasks       Task[]
+}
+
+// Workspace-scoped tags for tasks (PRD FR07). Owners/Admins manage them; anyone who can
+// edit a task can apply existing ones. Deleting a label removes it from tasks, never the tasks.
+model Label {
+  id          String   @id @default(uuid(7)) @db.Uuid
+  workspaceId String   @db.Uuid
+  // 1–40 characters; unique per workspace ignoring case (enforced in the controller).
+  name        String
+  color       String   @default("gray")
+  createdAt   DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt   DateTime @updatedAt @db.Timestamptz(3)
+
+  workspace Workspace   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  tasks     TaskLabel[]
+
+  @@unique([workspaceId, name])
+}
+
+model TaskLabel {
+  taskId    String   @db.Uuid
+  labelId   String   @db.Uuid
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+
+  task  Task  @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  label Label @relation(fields: [labelId], references: [id], onDelete: Cascade)
+
+  @@id([taskId, labelId])
+  @@index([labelId])
 }
 
 // A group of related tasks inside one workspace. All projects are visible to every active
@@ -249,6 +279,10 @@ model Task {
   // NOTE: same-workspace is enforced in the task controller — Prisma can't express a
   // composite (projectId, workspaceId) FK on an optional relation with a required column.
   projectId            String?      @db.Uuid
+  // Set for a subtask: its top-level parent. ONE level only (PRD FR07) — a subtask's
+  // parent is never itself a subtask (enforced in the controller). Subtasks inherit the
+  // parent's workspace and project, and are deleted with it.
+  parentTaskId         String?      @db.Uuid
   // Zero or one accountable assignee: a MEMBERSHIP (not a user), so assignment is tied to
   // the person's place in this workspace. Cleared when they leave/are removed (open tasks).
   assigneeMembershipId String?      @db.Uuid
@@ -276,12 +310,16 @@ model Task {
   creator   User        @relation("TaskCreator", fields: [creatorId], references: [id], onDelete: Restrict)
   project   Project?    @relation(fields: [projectId], references: [id], onDelete: Restrict)
   assignee  Membership? @relation("TaskAssignee", fields: [assigneeMembershipId], references: [id], onDelete: SetNull)
+  parent    Task?       @relation("Subtasks", fields: [parentTaskId], references: [id], onDelete: Cascade)
+  subtasks  Task[]      @relation("Subtasks")
+  labels    TaskLabel[]
 
   @@unique([workspaceId, clientRequestId])
   // Every task query is workspace-scoped, newest first.
   @@index([workspaceId, createdAt])
   @@index([creatorId])
   @@index([projectId])
+  @@index([parentTaskId])
   // My Tasks: a member's assigned work by status and due date (DB design §3).
   @@index([workspaceId, assigneeMembershipId, status, dueAt])
   // Daily reminder scan: incomplete tasks by due date.

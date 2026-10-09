@@ -69,6 +69,12 @@
   --success: #4C7A52;
   --success-tint: #DCEAD9;
 
+  /* Extra label colors (task labels can be gray/moss/clay/gold/sky/plum) */
+  --sky: #3F6E8C;
+  --sky-tint: #DCE8F0;
+  --plum: #7A4E78;
+  --plum-tint: #EEDFEC;
+
   /* === Type === */
   --font-display: var(--font-fraunces);
   --font-body: var(--font-inter);
@@ -97,6 +103,11 @@ html[data-theme="dark"] {
   --error-tint: #4A2B26;
   --success: #83B089;
   --success-tint: #304539;
+
+  --sky: #8DB6D2;
+  --sky-tint: #26343E;
+  --plum: #C59AC2;
+  --plum-tint: #3B2A3A;
 }
 
 html {

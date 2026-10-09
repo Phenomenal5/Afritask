@@ -523,6 +523,23 @@ they created or are currently assigned to, and delete only tasks they created.
 When a member leaves or is removed, their **open** tasks become unassigned.
 Task lists also filter by `?assignee=me|none|<membershipId>`.
 
+## Subtasks and labels
+
+**Subtasks** (one level only): `POST /api/tasks/:id/subtasks` with the usual task fields.
+A subtask inherits its parent's workspace and project, has its own assignee/status/due date
+and its own permissions, and is deleted with its parent. Workspace task lists show
+top-level tasks only (`?includeSubtasks=true` to include them); filtering by `assignee`
+includes that person's subtasks, each with `parent: { id, title }`. `GET /api/tasks/:id`
+returns a `subtasks` list; every task carries `subtaskCounts { total, completed }`.
+Moving a parent to another project moves its subtasks; a subtask can't move on its own.
+Completing a parent never completes its subtasks.
+
+**Labels**: `GET/POST /api/workspaces/:workspaceId/labels` (create = Owner/Admin; name
+1–40 chars, unique per workspace ignoring case; `color` one of gray, moss, clay, gold,
+sky, plum), `PATCH/DELETE /api/labels/:labelId` (Owner/Admin). Apply with
+`labelIds: [...]` on task create/edit (replaces the set; anyone who can edit the task).
+Filter lists with `?labelId=`. Deleting a label removes it from tasks; tasks stay.
+
 ## Projects
 
 Projects group related tasks inside a workspace. Every active member can view

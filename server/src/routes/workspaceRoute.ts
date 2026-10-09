@@ -6,6 +6,7 @@ import { createWorkspaceTask, listWorkspaceTasks } from "../controllers/task.con
 import { createInvitation, listWorkspaceInvitations } from "../controllers/invitation.controller.js";
 import { invitationLimiter } from "../middlewares/rateLimiter.js";
 import { createProject, listWorkspaceProjects } from "../controllers/project.controller.js";
+import { createLabel, listLabels } from "../controllers/label.controller.js";
 import { changeMemberRole, leaveWorkspace, removeMember, transferOwnership } from "../controllers/member.controller.js";
 
 
@@ -31,6 +32,10 @@ router.post("/:workspaceId/invitations", requireWorkspaceMember, requireWorkspac
 // Projects: everyone views, Owner/Admin create.
 router.get("/:workspaceId/projects", requireWorkspaceMember, listWorkspaceProjects);
 router.post("/:workspaceId/projects", requireWorkspaceMember, requireWorkspaceRole("owner", "admin"), createProject);
+
+// Labels: everyone sees them, Owner/Admin create.
+router.get("/:workspaceId/labels", requireWorkspaceMember, listLabels);
+router.post("/:workspaceId/labels", requireWorkspaceMember, requireWorkspaceRole("owner", "admin"), createLabel);
 
 // Members (role rules beyond these gates live in member.controller.ts).
 router.patch("/:workspaceId/members/:membershipId", requireWorkspaceMember, requireWorkspaceRole("owner"), changeMemberRole);

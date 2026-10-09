@@ -35,3 +35,8 @@ export const updateTaskStatus = (id, status, version) => {
 export const deleteTask = (id) => {
   return api.delete(`/tasks/${id}`);
 };
+
+// Add a subtask under a top-level task (one level only).
+export const createSubtask = (parentId, data) => {
+  return api.post(`/tasks/${parentId}/subtasks`, data);
+};

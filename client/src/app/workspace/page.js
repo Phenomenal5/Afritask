@@ -12,6 +12,7 @@ import LoadingScreen from "@/components/LoadingScreen";
 import { ROLE_LABELS } from "@/utils/roles";
 import WorkspaceInvitations from "@/components/WorkspaceInvitations";
 import WorkspaceMembers from "@/components/WorkspaceMembers";
+import WorkspaceLabels from "@/components/WorkspaceLabels";
 
 
 const sectionStyle = { background: "var(--paper-raised)", border: "1px solid var(--line)" };
@@ -85,6 +86,11 @@ function WorkspaceSettings() {
         {(workspaceDetails.role === "owner" || workspaceDetails.role === "admin") && (
           <WorkspaceInvitations workspaceId={workspaceDetails.id} myRole={workspaceDetails.role} />
         )}
+
+        <WorkspaceLabels
+          workspaceId={workspaceDetails.id}
+          canManage={workspaceDetails.role === "owner" || workspaceDetails.role === "admin"}
+        />
 
         <WorkspaceMembers workspace={workspaceDetails} onChanged={loadDetails} />
       </main>

@@ -3,6 +3,7 @@
 // TaskCard presents one task with status, priority, deadline, and quick actions.
 import { useEffect, useState } from "react";
 import { PRIORITY_STYLES, STATUS_LABELS, describeDue } from "@/utils/taskMeta";
+import { labelStyle } from "@/utils/labels";
 
 // Render a task row with optimistic state cues and edit/delete controls.
 // showProject: off on a project's own page, where the badge would just repeat the header.
@@ -46,13 +47,22 @@ export default function TaskCard({ task, onToggleComplete, onEdit, onDelete, sho
         className="task-check mt-0.5 ml-1"
         checked={isCompleted}
         disabled={isReadOnly}
-        onChange={() =>
-          onToggleComplete(task.id, isCompleted ? "todo" : "completed")
-        }
+        onChange={() => {
+          // NOTE: completing a parent never completes its subtasks (PRD FR07) — say so first.
+          const openSubtasks = (task.subtaskCounts?.total ?? 0) - (task.subtaskCounts?.completed ?? 0);
+          if (!isCompleted && openSubtasks > 0 &&
+            !window.confirm(`${openSubtasks} subtask(s) are still open. Mark "${task.title}" completed anyway? The subtasks stay open.`)) return;
+          onToggleComplete(task.id, isCompleted ? "todo" : "completed");
+        }}
         aria-label={`Mark "${task.title}" as ${isCompleted ? "to do" : "completed"}`}
       />
 
       <div className="flex-1 min-w-0">
+        {task.parent && (
+          <p className="text-xs mb-0.5 truncate" style={{ color: "var(--ink-soft)" }}>
+            ↳ Subtask of {task.parent.title}
+          </p>
+        )}
         <div className="flex items-start justify-between gap-2">
           <h3
             className="text-[15px] font-medium leading-snug"
@@ -125,6 +135,18 @@ export default function TaskCard({ task, onToggleComplete, onEdit, onDelete, sho
           >
             {STATUS_LABELS[task.status] || task.status}
           </span>
+
+          {task.subtaskCounts?.total > 0 && (
+            <span className="text-xs" style={{ color: "var(--ink-soft)" }} title="Subtasks completed">
+              ☑ {task.subtaskCounts.completed}/{task.subtaskCounts.total}
+            </span>
+          )}
+
+          {(task.labels || []).map((label) => (
+            <span key={label.id} className="text-xs font-medium px-2 py-0.5 rounded-full" style={labelStyle(label.color)}>
+              {label.name}
+            </span>
+          ))}
 
           {task.assignee && (
             <span className="text-xs flex items-center gap-1" style={{ color: "var(--ink-soft)" }}>

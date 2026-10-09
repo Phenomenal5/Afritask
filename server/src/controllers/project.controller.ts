@@ -30,12 +30,12 @@ const parseDescription = (description: unknown): string | undefined => {
 };
 
 // Task counts that drive the "completing leaves N open tasks" warning and the project list.
-// Top-level tasks only by default (PRD FR14) — subtasks don't exist yet; revisit with them.
+// Top-level tasks only (PRD FR14): subtasks show progress inside their parent instead.
 const withTaskCounts = async (projects: Project[]) => {
     if (projects.length === 0) return [];
     const grouped = await prisma.task.groupBy({
         by: ["projectId", "status"],
-        where: { projectId: { in: projects.map((project) => project.id) } },
+        where: { projectId: { in: projects.map((project) => project.id) }, parentTaskId: null },
         _count: { _all: true },
     });
     return projects.map((project) => {
