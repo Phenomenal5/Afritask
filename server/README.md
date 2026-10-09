@@ -42,6 +42,10 @@ npm run dev                       # tsx watch — runs src/*.ts directly, restar
 
 Keep the backend `PORT`, the frontend `NEXT_PUBLIC_API_URL`, and `CLIENT_URL` aligned.
 
+## API docs (Swagger)
+
+With the server running, open **http://localhost:5000/api/docs** for interactive docs of every endpoint (raw spec: `/api/docs.json`). Sign in with `POST /auth/login` on that page — the session cookie is then sent with every "Try it out", and the page adds the `X-Requested-With` header writes need. The spec lives in `src/docs/openapi.ts`; update it with every route change. Disabled in production unless `API_DOCS=on`.
+
 ## Environment Variables
 
 Every variable is listed and explained in [`.env.example`](.env.example). The server refuses to boot if a required one is missing — see `src/config/env.ts`.

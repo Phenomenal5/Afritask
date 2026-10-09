@@ -25,6 +25,7 @@ const requiredValue = (key: (typeof ALWAYS_REQUIRED)[number]): string => process
 const env = {
   nodeEnv: process.env.NODE_ENV ?? "development",
   isProduction: process.env.NODE_ENV === "production",
+  isTest: process.env.NODE_ENV === "test",
   // 5000 matches the client's NEXT_PUBLIC_API_URL fallback.
   port: Number(process.env.PORT ?? 5000),
 
@@ -46,6 +47,12 @@ const env = {
   googleClientId: process.env.GOOGLE_CLIENT_ID,
   googleClientSecret: process.env.GOOGLE_CLIENT_SECRET,
   googleCallbackUrl: process.env.GOOGLE_CALLBACK_URL ?? "/api/auth/google/callback",
+
+  // Swagger UI at /api/docs. On by default except in production (set API_DOCS=on there
+  // to expose it, or API_DOCS=off anywhere to hide it).
+  apiDocsEnabled: process.env.API_DOCS
+    ? process.env.API_DOCS === "on"
+    : process.env.NODE_ENV !== "production",
 };
 
 export default env;

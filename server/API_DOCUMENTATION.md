@@ -1,5 +1,7 @@
 # Task Manager API Documentation
 
+> **The interactive, always-current reference is Swagger UI at `/api/docs`** (spec in `src/docs/openapi.ts`). This file keeps longer explanations and examples.
+
 Base URL:
 
 ```txt

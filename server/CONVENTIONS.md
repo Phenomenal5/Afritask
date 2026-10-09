@@ -24,7 +24,9 @@ server/
 ├── README.md
 ├── public/uploads/profile/   # static-served user upload assets
 └── src/
-    ├── server.ts             # app entry: middleware + route mounting + listen
+    ├── app.ts                # Express app: middleware, routes, Swagger, error handler (no side effects)
+    ├── server.ts             # boot: dotenv → connect DB → listen → start jobs
+    ├── docs/openapi.ts       # OpenAPI spec served at /api/docs — update with every route change
     ├── config/
     │   ├── env.ts            # validated, typed env config — boot fails on missing required vars
     │   ├── prisma.ts         # shared PrismaClient (global omit of secrets), PublicUser type, connectDatabase()
