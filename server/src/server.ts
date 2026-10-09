@@ -8,6 +8,7 @@ import "./config/passport.js";
 import authRoutes from "./routes/authRoute.js";
 import userRoute from "./routes/userRoute.js";
 import taskRoute from "./routes/taskRoute.js"
+import workspaceRoute from "./routes/workspaceRoute.js";
 import morgan from "morgan";
 import logger from "./utils/logger.js";
 import globalErrorHandler from "./middlewares/error.Middleware.js";
@@ -66,8 +67,11 @@ app.use("/api/auth", authRoutes);
 app.use("/api/users", userRoute);
 
 
-// Task routes
-app.use("/api/task", taskRoute);
+// Workspace routes (incl. a workspace's task list/create)
+app.use("/api/workspaces", workspaceRoute);
+
+// Single-task routes
+app.use("/api/tasks", taskRoute);
 
 
 

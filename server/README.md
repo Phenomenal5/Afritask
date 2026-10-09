@@ -70,21 +70,14 @@ Every variable is listed and explained in [`.env.example`](.env.example). The se
 
 `PUT /api/users/profile` accepts multipart form data and stores uploaded avatars from the `photo` field.
 
-### Task routes
+### Workspace & task routes
 
-- `GET /api/task`
-- `POST /api/task`
-- `GET /api/task/:id`
-- `PUT /api/task/:id`
-- `PATCH /api/task/:id/status`
-- `DELETE /api/task/:id`
+- `GET /api/workspaces`, `POST /api/workspaces`
+- `GET /api/workspaces/:workspaceId`, `PATCH /api/workspaces/:workspaceId` (owner)
+- `GET /api/workspaces/:workspaceId/tasks`, `POST /api/workspaces/:workspaceId/tasks`
+- `GET /api/tasks/:id`, `PUT /api/tasks/:id`, `PATCH /api/tasks/:id/status`, `DELETE /api/tasks/:id`
 
-Legacy aliases are also available for some task endpoints:
-
-- `POST /api/task/addTask`
-- `GET /api/task/getTask/:id`
-- `PUT /api/task/editTask/:id`
-- `DELETE /api/task/deleteTask/:id`
+Every workspace-owned route checks the caller's active membership; non-members get `404`.
 
 ## Reminder Job
 

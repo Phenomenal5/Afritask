@@ -1,21 +1,34 @@
 /**
  * AppProviders composes the feature contexts used by the app shell.
- * It keeps auth, profile, and task state in the correct dependency order.
+ * Order matters: auth → workspaces (needs the session) → profile → tasks (need the active workspace).
  */
 "use client";
 
 import { AuthProvider, useAuth } from "@/context/AuthContext";
 import { TaskProvider } from "@/context/TaskContext";
 import { UserProvider } from "@/context/UserContext";
+import { WorkspaceProvider, useWorkspaces } from "@/context/WorkspaceContext";
 
-// Bridge auth state into the profile and task providers without coupling the contexts directly.
+// Tasks follow whichever workspace is active.
+function WorkspaceScopedProviders({ children, logoutVersion }) {
+  const { activeWorkspace } = useWorkspaces();
+  return (
+    <TaskProvider logoutVersion={logoutVersion} activeWorkspaceId={activeWorkspace?.id ?? null}>
+      {children}
+    </TaskProvider>
+  );
+}
+
+// Bridge auth state into the workspace, profile and task providers without coupling the contexts directly.
 function SessionProviders({ children }) {
-  const { setUser, logoutVersion } = useAuth();
+  const { setUser, logoutVersion, isAuthenticated } = useAuth();
 
   return (
-    <UserProvider setUser={setUser}>
-      <TaskProvider logoutVersion={logoutVersion}>{children}</TaskProvider>
-    </UserProvider>
+    <WorkspaceProvider isAuthenticated={isAuthenticated}>
+      <UserProvider setUser={setUser}>
+        <WorkspaceScopedProviders logoutVersion={logoutVersion}>{children}</WorkspaceScopedProviders>
+      </UserProvider>
+    </WorkspaceProvider>
   );
 }
 

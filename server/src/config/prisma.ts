@@ -4,7 +4,15 @@ import { PrismaClient, type Prisma, type User } from "../generated/prisma/client
 import logger, { describeError } from "../utils/logger.js";
 import env from "./env.js";
 
-const adapter = new PrismaPg({ connectionString: env.databaseUrl });
+// NOTE: Neon suspends idle compute (scale-to-zero) and its pooler drops idle client
+// connections. A pooled connection kept past that fails on next use with "Server has
+// closed the connection" — that surfaced as random 401s. Releasing idle connections
+// quickly means the pool reconnects instead of reusing a dead socket.
+const adapter = new PrismaPg({
+  connectionString: env.databaseUrl,
+  idleTimeoutMillis: 10_000,
+  connectionTimeoutMillis: 15_000,
+});
 
 // Columns that must never leave the server. Drives both the global omit below
 // and the PublicUser type, so the two can't drift apart.

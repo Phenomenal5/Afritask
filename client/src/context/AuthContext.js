@@ -17,6 +17,8 @@ import {
   signup as signupRequest,
   verifyEmail as verifyEmailRequest,
 } from "@/lib/services/authService";
+// Sent at signup so due dates show in local time.
+import { detectTimezone } from "@/utils/timezones";
 
 const AuthContext = createContext(null);
 
@@ -25,14 +27,6 @@ const AuthContext = createContext(null);
 // Older builds kept a JWT under this key; clear any leftover copy on load.
 const LEGACY_TOKEN_KEY = "afritask_token";
 
-// The browser's IANA timezone, sent at signup so due dates show in local time.
-const detectTimezone = () => {
-  try {
-    return Intl.DateTimeFormat().resolvedOptions().timeZone;
-  } catch {
-    return undefined;
-  }
-};
 
 // Provide the logged-in user, auth status, and session actions to the app.
 export function AuthProvider({ children }) {

@@ -27,8 +27,11 @@ const protect = async (req: Request, res: Response, next: NextFunction) => {
         req.sessionId = session.id;
         next();
     } catch (error) {
-        logger.error(`Authorization failure: ${describeError(error)}`);
-        res.status(401).json({ status: "fail", message: "Unauthorized" });
+        // NOTE: with database sessions, an exception here is an infrastructure failure
+        // (e.g. a dropped DB connection), not a bad credential. Answering 401 made the
+        // client treat a hiccup as "signed out" — let it be a 500 instead.
+        logger.error(`Authorization lookup failed: ${describeError(error)}`);
+        next(error);
     }
 };
 

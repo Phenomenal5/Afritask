@@ -7,6 +7,7 @@ import { usePathname } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import Avatar from "./Avatar";
 import ThemeToggle from "./ThemeToggle";
+import WorkspaceSwitcher from "./WorkspaceSwitcher";
 
 // Render top-level navigation and account controls for authenticated users.
 export default function Navbar() {
@@ -48,12 +49,14 @@ export default function Navbar() {
       }}
     >
       <div className="max-w-5xl mx-auto px-6 h-16 flex items-center justify-between">
-        <div className="flex items-center gap-8">
-          <Link href="/dashboard" className="font-display text-xl italic" style={{ color: "var(--ink)" }}>
+        <div className="flex items-center gap-4 sm:gap-6 min-w-0">
+          <Link href="/dashboard" className="font-display text-xl italic shrink-0" style={{ color: "var(--ink)" }}>
             Afritask
           </Link>
+          <WorkspaceSwitcher />
           <nav className="hidden sm:flex items-center gap-1">
             {navLink("/dashboard", "Tasks")}
+            {navLink("/workspace", "Workspace")}
             {navLink("/profile", "Profile")}
           </nav>
         </div>
@@ -88,6 +91,14 @@ export default function Navbar() {
                   onClick={() => setMenuOpen(false)}
                 >
                   Profile
+                </Link>
+                <Link
+                  href="/workspace"
+                  className="block px-3.5 py-2 text-sm hover:bg-[var(--line-soft)] sm:hidden"
+                  style={{ color: "var(--ink)" }}
+                  onClick={() => setMenuOpen(false)}
+                >
+                  Workspace
                 </Link>
                 <Link
                   href="/privacy"

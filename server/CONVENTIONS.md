@@ -46,6 +46,7 @@ server/
     │   └── userRoute.ts
     ├── middlewares/
     │   ├── auth.middleware.ts   # protect (session cookie → req.user, req.sessionId) + requireUser(req)
+    │   ├── workspaceAccess.middleware.ts # requireWorkspaceMember / requireWorkspaceRole / requireActiveMembership
     │   ├── csrf.middleware.ts   # writes must send X-Requested-With: XMLHttpRequest
     │   ├── rateLimiter.ts       # per-route limiter FACTORIES for auth endpoints
     │   ├── role.middleware.ts   # authorize(...roles)
@@ -89,7 +90,11 @@ Each domain (auth, task, user) is a triple: **model + controller + route**.
 - Validate inputs early; on failure return `next(new AppError(message, statusCode))`.
 - Get the user with `requireUser(req)` (from `auth.middleware.ts`) — `req.user` is typed optional, and the helper turns a missing user into a 401 instead of a crash: `const userId = requireUser(req).id;`.
 - Read config from `env` (`config/env.ts`), not `process.env`, for anything required.
-- **Always scope DB queries to the owner**: `prisma.task.findFirst({ where: { id, userId } })`; for writes use `updateMany`/`deleteMany` with the same `where` and check `count` — never touch a user-owned row by `id` alone.
+- **Workspace isolation**: every workspace-owned row (tasks, and later projects, labels…) is reached through an ACTIVE membership check.
+  - Routes with `:workspaceId` mount `requireWorkspaceMember` (→ `req.membership`) and, where needed, `requireWorkspaceRole("owner", "admin")` (rest args).
+  - Item routes without a workspace id (`/api/tasks/:id`) load the row, then `requireActiveMembership(row.workspaceId, userId)`.
+  - Non-members get the SAME `404` as a missing row — never a `403` that confirms it exists.
+  - Per-row rules (e.g. Members edit only tasks they created) live in `utils/taskPermissions.ts`, not inline.
 - Validate ids (`validator.isUUID`), enums and dates **before** Prisma runs, so bad input is a 400, not a 500.
 - **Never pass `undefined` or raw body objects into a `where`**: Prisma reads `{ field: undefined }` as *no filter* (matches every row) and an object as a filter operator (`{ "not": "" }`). Guard with `typeof value === "string"` first.
 - Logging: `logger.info` on success, `logger.warn` on expected failures (not found, bad input), `logger.error` for unexpected.

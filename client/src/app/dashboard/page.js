@@ -2,8 +2,11 @@
 
 // Dashboard combines task loading, filtering, and the create/edit flow.
 import { useEffect, useState, useMemo } from "react";
+import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { useTasks } from "@/context/TaskContext";
+import { useWorkspaces } from "@/context/WorkspaceContext";
+import LoadingScreen from "@/components/LoadingScreen";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import Navbar from "@/components/Navbar";
 import TaskCard from "@/components/TaskCard";
@@ -21,17 +24,24 @@ const FILTERS = [
 // Render the authenticated task dashboard and connect it to the task context.
 function DashboardContent() {
   const { user } = useAuth();
+  const router = useRouter();
+  const { activeWorkspace, workspaces, workspacesLoading } = useWorkspaces();
   const { tasks, tasksLoading, fetchTasks, updateTaskStatus, deleteTask } = useTasks();
   const [filter, setFilter] = useState("all");
   const [search, setSearch] = useState("");
   const [modalOpen, setModalOpen] = useState(false);
   const [editingTask, setEditingTask] = useState(null);
 
-  // Refresh the task list when the dashboard first appears.
+  // A verified account with no workspace yet (new signup) starts at onboarding (PRD J1).
+  useEffect(() => {
+    if (!workspacesLoading && workspaces.length === 0) router.replace("/onboarding");
+  }, [workspacesLoading, workspaces.length, router]);
+
+  // Load tasks when the dashboard appears and again whenever the active workspace
+  // changes (fetchTasks is re-created per workspace).
   useEffect(() => {
     fetchTasks();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [fetchTasks]);
 
   const filteredTasks = useMemo(() => {
     let result = tasks;
@@ -66,6 +76,8 @@ function DashboardContent() {
 
   const firstName = user?.name?.split(" ")[0];
 
+  if (workspacesLoading || !activeWorkspace) return <LoadingScreen />;
+
   return (
     <div className="flex-1 flex flex-col">
       <Navbar />
@@ -76,6 +88,9 @@ function DashboardContent() {
             {firstName ? `Hi, ${firstName}` : "Your tasks"}
           </h1>
         </div>
+        <p className="text-xs font-medium uppercase tracking-wide mb-2" style={{ color: "var(--moss)" }}>
+          {activeWorkspace.name}
+        </p>
         <p className="text-sm mb-8" style={{ color: "var(--ink-soft)" }}>
           {stats.total === 0
             ? "Start with one clear win."

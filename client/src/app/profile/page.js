@@ -12,18 +12,7 @@ import FormField from "@/components/FormField";
 import Button from "@/components/Button";
 import toast from "react-hot-toast";
 import { getPhotoUrl } from "@/utils/imageURL.js";
-
-// Every IANA zone the browser knows, for the timezone picker. Falls back to the user's
-// current zone if the browser lacks Intl.supportedValuesOf (older Safari).
-const listTimezones = (currentTimezone) => {
-  try {
-    const zones = Intl.supportedValuesOf("timeZone");
-    // "UTC" isn't always in the list, but it's the server default for new accounts.
-    return zones.includes(currentTimezone) ? zones : [currentTimezone, ...zones];
-  } catch {
-    return [currentTimezone];
-  }
-};
+import TimezoneSelect from "@/components/TimezoneSelect";
 
 // Render the settings page and bridge profile actions into the UI.
 function ProfileContent() {
@@ -185,32 +174,11 @@ function ProfileContent() {
               value={profileForm.age}
               onChange={(e) => setProfileForm((p) => ({ ...p, age: e.target.value }))}
             />
-            <div className="flex flex-col gap-1.5">
-              <label htmlFor="timezone" className="text-sm font-medium" style={{ color: "var(--ink)" }}>
-                Timezone
-              </label>
-              <select
-                id="timezone"
-                name="timezone"
-                value={profileForm.timezone}
-                onChange={(e) => setProfileForm((p) => ({ ...p, timezone: e.target.value }))}
-                className="w-full px-3.5 py-2.5 rounded-lg text-sm transition-colors outline-none"
-                style={{
-                  background: "var(--paper-raised)",
-                  border: "1px solid var(--line)",
-                  color: "var(--ink)",
-                }}
-              >
-                {listTimezones(profileForm.timezone).map((zone) => (
-                  <option key={zone} value={zone}>
-                    {zone.replaceAll("_", " ")}
-                  </option>
-                ))}
-              </select>
-              <p className="text-xs" style={{ color: "var(--ink-soft)" }}>
-                Due dates and reminders use this timezone. Changing it doesn&apos;t move deadlines you&apos;ve already set.
-              </p>
-            </div>
+            <TimezoneSelect
+              value={profileForm.timezone}
+              onChange={(timezone) => setProfileForm((p) => ({ ...p, timezone }))}
+              hint="Due dates and reminders use this timezone. Changing it doesn't move deadlines you've already set."
+            />
             <div>
               <Button type="submit" loading={profileLoading}>
                 Save changes

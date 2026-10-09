@@ -109,6 +109,26 @@ const carryOverPendingTokens = async (prisma: PrismaClient, userId: string, sour
     }
 };
 
+// Legacy tasks were personal, so each imported user gets one personal workspace with them
+// as Owner (Database Design §4). Re-runs reuse it: we look for an existing owner membership.
+const ensurePersonalWorkspace = async (prisma: PrismaClient, userId: string, userName: string) => {
+    const ownerMembership = await prisma.membership.findFirst({
+        where: { userId, role: "owner", status: "active" },
+        orderBy: { joinedAt: "asc" },
+        select: { workspaceId: true },
+    });
+    if (ownerMembership) return ownerMembership.workspaceId;
+
+    const workspace = await prisma.workspace.create({
+        data: {
+            name: `${userName.split(" ")[0]}'s workspace`,
+            memberships: { create: { userId, role: "owner" } },
+        },
+        select: { id: true },
+    });
+    return workspace.id;
+};
+
 // ─── Users ─────────────────────
 const importUsers = async (mongo: MongoClient, prisma: PrismaClient) => {
     const users = mongo.db().collection<MongoUser>("users");
@@ -164,6 +184,7 @@ const importUsers = async (mongo: MongoClient, prisma: PrismaClient) => {
                     select: { id: true },
                 });
                 await carryOverPendingTokens(prisma, importedUser.id, sourceUser);
+                await ensurePersonalWorkspace(prisma, importedUser.id, name);
             }
             importedCount += 1;
         }
@@ -186,12 +207,17 @@ const importTasks = async (mongo: MongoClient, prisma: PrismaClient) => {
     const sourceCount = await tasks.countDocuments();
     let importedCount = 0;
 
-    // legacy Mongo user id → new Postgres UUID
+    // legacy Mongo user id → new Postgres UUID, and each user's personal workspace
     const importedUsers = await prisma.user.findMany({
         where: { legacyMongoId: { not: null } },
-        select: { id: true, legacyMongoId: true },
+        select: {
+            id: true,
+            legacyMongoId: true,
+            memberships: { where: { role: "owner", status: "active" }, orderBy: { joinedAt: "asc" }, take: 1, select: { workspaceId: true } },
+        },
     });
     const userIdByLegacyId = new Map(importedUsers.map((user) => [user.legacyMongoId, user.id]));
+    const personalWorkspaceByUserId = new Map(importedUsers.map((user) => [user.id, user.memberships[0]?.workspaceId]));
 
     let batch: MongoTask[] = [];
     const flush = async () => {
@@ -209,9 +235,13 @@ const importTasks = async (mongo: MongoClient, prisma: PrismaClient) => {
             if (!status) { skip("tasks", sourceId, `unknown status "${sourceTask.status}"`); continue; }
             if (!priority) { skip("tasks", sourceId, `unknown priority "${sourceTask.priority}"`); continue; }
 
-            if (!isDryRun && ownerId) {
+            const workspaceId = ownerId ? personalWorkspaceByUserId.get(ownerId) : undefined;
+            if (!isDryRun && ownerId && !workspaceId) { skip("tasks", sourceId, `owner ${ownerLegacyId} has no personal workspace`); continue; }
+
+            if (!isDryRun && ownerId && workspaceId) {
                 const taskData = {
-                    userId: ownerId,
+                    workspaceId,
+                    creatorId: ownerId,
                     title: sourceTask.title,
                     description: sourceTask.description ?? "",
                     status,

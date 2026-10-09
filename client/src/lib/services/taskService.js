@@ -1,41 +1,36 @@
 /**
  * Task service wrappers for the backend task routes.
- * These functions keep task CRUD and status updates outside the UI layer.
+ * Lists and creates are scoped to a workspace; single-task routes use the task id
+ * (the server checks the caller belongs to that task's workspace).
  */
 import api from "@/lib/api";
 
-// Load all tasks, optionally filtered by query parameters.
-export const getAllTasks = (params) => {
-  // GET /task returns the current task list in the backend response envelope.
-  return api.get("/task", { params });
+// Load a workspace's tasks, optionally filtered by query parameters.
+export const getAllTasks = (workspaceId, params) => {
+  return api.get(`/workspaces/${workspaceId}/tasks`, { params });
 };
 
 // Load one task record by id.
 export const getOneTask = (id) => {
-  // GET /task/:id returns a single task object for details or editing flows.
-  return api.get(`/task/${id}`);
+  return api.get(`/tasks/${id}`);
 };
 
-// Create a new task record.
-export const createTask = (data) => {
-  // POST /task expects the task payload and returns the created task.
-  return api.post("/task", data);
+// Create a task in a workspace.
+export const createTask = (workspaceId, data) => {
+  return api.post(`/workspaces/${workspaceId}/tasks`, data);
 };
 
 // Update a task record with edited fields.
 export const updateTask = (id, data) => {
-  // PUT /task/:id expects the updated task payload and returns the saved task.
-  return api.put(`/task/${id}`, data);
+  return api.put(`/tasks/${id}`, data);
 };
 
 // Update only the status field of a task.
 export const updateTaskStatus = (id, status) => {
-  // PATCH /task/:id/status expects the new status and returns the updated task.
-  return api.patch(`/task/${id}/status`, { status });
+  return api.patch(`/tasks/${id}/status`, { status });
 };
 
 // Delete a task record by id.
 export const deleteTask = (id) => {
-  // DELETE /task/:id removes the task and returns the backend delete response.
-  return api.delete(`/task/${id}`);
+  return api.delete(`/tasks/${id}`);
 };

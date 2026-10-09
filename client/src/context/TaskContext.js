@@ -4,7 +4,7 @@
  */
 "use client";
 
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import toast from "react-hot-toast";
 import {
   createTask as createTaskRequest,
@@ -16,21 +16,28 @@ import {
 
 const TaskContext = createContext(null);
 
-// Provide task list state and CRUD actions to the dashboard and task form.
-export function TaskProvider({ children, logoutVersion = 0 }) {
+// Provide the ACTIVE workspace's task list and CRUD actions to the dashboard and task form.
+export function TaskProvider({ children, logoutVersion = 0, activeWorkspaceId = null }) {
   const [tasks, setTasks] = useState([]);
   const [tasksLoading, setTasksLoading] = useState(false);
+  // NOTE: the workspace the list currently belongs to. A slow response for the workspace
+  // the user just switched away from must be discarded, or it would paint workspace A's
+  // tasks under workspace B's name (SRS SR02 "clear previous workspace query state").
+  const currentWorkspaceRef = useRef(activeWorkspaceId);
 
-  // Clear the local task cache after sign-out so the next session starts clean.
+  // Clear the local task cache after sign-out or a workspace switch.
   useEffect(() => {
+    currentWorkspaceRef.current = activeWorkspaceId;
     setTasks([]);
-  }, [logoutVersion]);
+  }, [logoutVersion, activeWorkspaceId]);
 
   const fetchTasks = useCallback(async (params) => {
+    const requestedWorkspaceId = activeWorkspaceId;
+    if (!requestedWorkspaceId) return { success: false };
     setTasksLoading(true);
     try {
-      const res = await getAllTasks(params);
-      setTasks(res.data.data.tasks);
+      const res = await getAllTasks(requestedWorkspaceId, params);
+      if (currentWorkspaceRef.current === requestedWorkspaceId) setTasks(res.data.data.tasks);
       return { success: true };
     } catch (err) {
       toast.error(err.response?.data?.message || "Could not load tasks");
@@ -38,11 +45,12 @@ export function TaskProvider({ children, logoutVersion = 0 }) {
     } finally {
       setTasksLoading(false);
     }
-  }, []);
+  }, [activeWorkspaceId]);
 
   const createTask = useCallback(async (data) => {
+    if (!activeWorkspaceId) return { success: false, message: "Choose a workspace first" };
     try {
-      const res = await createTaskRequest(data);
+      const res = await createTaskRequest(activeWorkspaceId, data);
       const newTask = res.data.data.task;
       setTasks((prev) => [newTask, ...prev]);
       toast.success("Task added");
@@ -52,7 +60,7 @@ export function TaskProvider({ children, logoutVersion = 0 }) {
       toast.error(message);
       return { success: false, message };
     }
-  }, []);
+  }, [activeWorkspaceId]);
 
   const updateTask = useCallback(async (id, data) => {
     try {

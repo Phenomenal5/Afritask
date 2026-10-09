@@ -23,12 +23,22 @@ const sendDueTomorrowReminders = async () => {
             },
             status: { not: "completed" }
         },
-        include: { user: { select: { email: true } } },
+        include: {
+            creator: {
+                select: {
+                    email: true,
+                    memberships: { where: { status: "active" }, select: { workspaceId: true } },
+                },
+            },
+        },
     });
 
     for (const task of dueTasks) {
-        if (task.user?.email) {
-            await sendTaskReminderEmail(task.user.email, task);
+        // NOTE: recipient = creator, but ONLY while they're still an active member of the
+        // task's workspace — a removed member must not keep receiving its content (PRD FR10).
+        const creatorIsMember = task.creator.memberships.some((membership) => membership.workspaceId === task.workspaceId);
+        if (creatorIsMember && task.creator.email) {
+            await sendTaskReminderEmail(task.creator.email, task);
             emailsSent += 1;
         }
     }

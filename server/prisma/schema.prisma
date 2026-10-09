@@ -3,8 +3,10 @@
 // Apply changes with `npm run db:migrate -- --name <change>`.
 
 generator client {
-  provider = "prisma-client"
-  output   = "../src/generated/prisma"
+  provider        = "prisma-client"
+  output          = "../src/generated/prisma"
+  // partialIndexes: lets @@unique(..., where: raw(...)) express "one active owner per workspace".
+  previewFeatures = ["partialIndexes"]
 }
 
 // Connection URL lives in prisma.config.ts (Prisma 7 no longer reads it here).
@@ -35,6 +37,19 @@ enum TaskPriority {
   high
 }
 
+// Roles are per workspace: the same person can be Admin in one and Member in another.
+enum WorkspaceRole {
+  owner
+  admin
+  member
+}
+
+enum MembershipStatus {
+  active
+  // Left or removed. The row stays so history keeps its attribution (SRS SR04).
+  removed
+}
+
 enum AccountTokenPurpose {
   verify_email
   reset_password
@@ -62,7 +77,8 @@ model User {
   createdAt            DateTime     @default(now()) @db.Timestamptz(3)
   updatedAt            DateTime     @updatedAt @db.Timestamptz(3)
 
-  tasks         Task[]
+  createdTasks  Task[]       @relation("TaskCreator")
+  memberships   Membership[]
   sessions      Session[]
   accountTokens AccountToken[]
 }
@@ -99,9 +115,47 @@ model AccountToken {
   @@index([userId, purpose])
 }
 
+// The boundary for shared work. Personal and team workspaces are the same model;
+// a personal one simply has a single member (PRD §1).
+model Workspace {
+  id        String   @id @default(uuid(7)) @db.Uuid
+  name      String
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+
+  memberships Membership[]
+  tasks       Task[]
+}
+
+model Membership {
+  id          String           @id @default(uuid(7)) @db.Uuid
+  workspaceId String           @db.Uuid
+  userId      String           @db.Uuid
+  role        WorkspaceRole
+  status      MembershipStatus @default(active)
+  joinedAt    DateTime         @default(now()) @db.Timestamptz(3)
+  removedAt   DateTime?        @db.Timestamptz(3)
+  createdAt   DateTime         @default(now()) @db.Timestamptz(3)
+  updatedAt   DateTime         @updatedAt @db.Timestamptz(3)
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // One row per person per workspace — re-joining reactivates it instead of duplicating.
+  @@unique([workspaceId, userId])
+  // NOTE: the database itself refuses a second ACTIVE owner. Ownership transfer must
+  // demote the old owner before promoting the new one inside one transaction.
+  // (It can't enforce "at least one" — the service layer guarantees that.)
+  @@unique([workspaceId], map: "Membership_one_active_owner", where: raw("role = 'owner' AND status = 'active'"))
+  // "Which workspaces am I in?"
+  @@index([userId, status])
+}
+
 model Task {
   id            String       @id @default(uuid(7)) @db.Uuid
-  userId        String       @db.Uuid
+  workspaceId   String       @db.Uuid
+  // Author of the task. Kept even if they later leave the workspace.
+  creatorId     String       @db.Uuid
   title         String
   description   String       @default("")
   status        TaskStatus   @default(pending)
@@ -111,10 +165,13 @@ model Task {
   createdAt     DateTime     @default(now()) @db.Timestamptz(3)
   updatedAt     DateTime     @updatedAt @db.Timestamptz(3)
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  // Restrict: deleting a user must never silently delete shared work (DB design §3).
+  creator   User      @relation("TaskCreator", fields: [creatorId], references: [id], onDelete: Restrict)
 
-  // Every task query is owner-scoped, newest first.
-  @@index([userId, createdAt])
+  // Every task query is workspace-scoped, newest first.
+  @@index([workspaceId, createdAt])
+  @@index([creatorId])
   // Daily reminder scan: incomplete tasks by deadline.
   @@index([deadline, status])
 }

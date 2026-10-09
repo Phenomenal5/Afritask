@@ -11,7 +11,8 @@ Default route prefixes:
 ```txt
 /api/auth
 /api/users
-/api/task
+/api/workspaces
+/api/tasks
 ```
 
 Protected routes authenticate with the httpOnly `afritask_session` cookie that
@@ -478,6 +479,26 @@ Possible errors:
 }
 ```
 
+## Workspaces
+
+Every task belongs to a workspace. A user can be in several workspaces with a
+different role in each (`owner`, `admin`, `member`). All workspace routes need a
+signed-in session; a workspace you're not an active member of answers `404`
+(the same as one that doesn't exist).
+
+| Method | Path | Who | Purpose |
+| --- | --- | --- | --- |
+| `GET` | `/api/workspaces` | any user | My workspaces: `{ id, name, role, memberCount }[]` |
+| `POST` | `/api/workspaces` | any user | Create `{ name }` (1–100 chars); the caller becomes Owner |
+| `GET` | `/api/workspaces/:workspaceId` | member | Details + active members |
+| `PATCH` | `/api/workspaces/:workspaceId` | owner | Rename `{ name }` |
+| `GET` | `/api/workspaces/:workspaceId/tasks` | member | The workspace's tasks (`?status`, `?priority`, `?sort`) |
+| `POST` | `/api/workspaces/:workspaceId/tasks` | member | Create a task |
+
+Single-task routes use the task id: `GET/PUT/DELETE /api/tasks/:id`,
+`PATCH /api/tasks/:id/status`. Owners and Admins can edit or delete any task in
+the workspace; Members only the tasks they created (`403` otherwise).
+
 ## Tasks
 
 Task ownership rule:
@@ -499,7 +520,7 @@ Stored and returned as `in_progress`. For older clients the API also accepts `in
 ### Create Task
 
 ```http
-POST /api/task
+POST /api/workspaces/:workspaceId/tasks
 ```
 
 Auth required: yes.
@@ -543,18 +564,12 @@ Success response:
 }
 ```
 
-Backward-compatible route:
-
-```http
-POST /api/task/addTask
-```
-
 ### Get All Tasks
 
 Returns only tasks owned by the authenticated user.
 
 ```http
-GET /api/task
+GET /api/workspaces/:workspaceId/tasks
 ```
 
 Auth required: yes.
@@ -570,10 +585,10 @@ sort=deadline
 Examples:
 
 ```http
-GET /api/task?status=pending
-GET /api/task?priority=high
-GET /api/task?sort=deadline
-GET /api/task?sort=-createdAt
+GET /api/workspaces/:workspaceId/tasks?status=pending
+GET /api/workspaces/:workspaceId/tasks?priority=high
+GET /api/workspaces/:workspaceId/tasks?sort=deadline
+GET /api/workspaces/:workspaceId/tasks?sort=-createdAt
 ```
 
 Success response:
@@ -603,7 +618,7 @@ Success response:
 Returns one task only if it belongs to the authenticated user.
 
 ```http
-GET /api/task/:id
+GET /api/tasks/:id
 ```
 
 Auth required: yes.
@@ -611,7 +626,7 @@ Auth required: yes.
 Example:
 
 ```http
-GET /api/task/665f1c2d3a4b5c6d7e8f9012
+GET /api/tasks/665f1c2d3a4b5c6d7e8f9012
 ```
 
 Success response:
@@ -631,18 +646,12 @@ Success response:
 }
 ```
 
-Backward-compatible route:
-
-```http
-GET /api/task/getTask/:id
-```
-
 ### Edit Task
 
 Updates task fields only if the task belongs to the authenticated user.
 
 ```http
-PUT /api/task/:id
+PUT /api/tasks/:id
 ```
 
 Auth required: yes.
@@ -678,18 +687,12 @@ Success response:
 }
 ```
 
-Backward-compatible route:
-
-```http
-PUT /api/task/editTask/:id
-```
-
 ### Update Task Status
 
 Updates only the task status.
 
 ```http
-PATCH /api/task/:id/status
+PATCH /api/tasks/:id/status
 ```
 
 Auth required: yes.
@@ -731,7 +734,7 @@ Success response:
 Deletes a task only if it belongs to the authenticated user.
 
 ```http
-DELETE /api/task/:id
+DELETE /api/tasks/:id
 ```
 
 Auth required: yes.
@@ -740,12 +743,6 @@ Success response:
 
 ```http
 204 No Content
-```
-
-Backward-compatible route:
-
-```http
-DELETE /api/task/deleteTask/:id
 ```
 
 ## Mail Services
@@ -835,7 +832,7 @@ POST /api/auth/login
 5. Create task:
 
 ```http
-POST /api/task
+POST /api/workspaces/:workspaceId/tasks
 Cookie: afritask_session=<from login>
 X-Requested-With: XMLHttpRequest
 ```
@@ -843,7 +840,7 @@ X-Requested-With: XMLHttpRequest
 6. Get all tasks:
 
 ```http
-GET /api/task
+GET /api/workspaces/:workspaceId/tasks
 Cookie: afritask_session=<from login>
 ```
 
@@ -946,7 +943,7 @@ Stored and returned as `in_progress`. For older clients the API also accepts `in
 ### Create Task
 
 ```http
-POST /api/task
+POST /api/workspaces/:workspaceId/tasks
 ```
 
 Auth required: yes.
@@ -990,18 +987,12 @@ Success response:
 }
 ```
 
-Backward-compatible route:
-
-```http
-POST /api/task/addTask
-```
-
 ### Get All Tasks
 
 Returns only tasks owned by the authenticated user.
 
 ```http
-GET /api/task
+GET /api/workspaces/:workspaceId/tasks
 ```
 
 Auth required: yes.
@@ -1017,10 +1008,10 @@ sort=deadline
 Examples:
 
 ```http
-GET /api/task?status=pending
-GET /api/task?priority=high
-GET /api/task?sort=deadline
-GET /api/task?sort=-createdAt
+GET /api/workspaces/:workspaceId/tasks?status=pending
+GET /api/workspaces/:workspaceId/tasks?priority=high
+GET /api/workspaces/:workspaceId/tasks?sort=deadline
+GET /api/workspaces/:workspaceId/tasks?sort=-createdAt
 ```
 
 Success response:
@@ -1050,7 +1041,7 @@ Success response:
 Returns one task only if it belongs to the authenticated user.
 
 ```http
-GET /api/task/:id
+GET /api/tasks/:id
 ```
 
 Auth required: yes.
@@ -1058,7 +1049,7 @@ Auth required: yes.
 Example:
 
 ```http
-GET /api/task/665f1c2d3a4b5c6d7e8f9012
+GET /api/tasks/665f1c2d3a4b5c6d7e8f9012
 ```
 
 Success response:
@@ -1078,18 +1069,12 @@ Success response:
 }
 ```
 
-Backward-compatible route:
-
-```http
-GET /api/task/getTask/:id
-```
-
 ### Edit Task
 
 Updates task fields only if the task belongs to the authenticated user.
 
 ```http
-PUT /api/task/:id
+PUT /api/tasks/:id
 ```
 
 Auth required: yes.
@@ -1125,18 +1110,12 @@ Success response:
 }
 ```
 
-Backward-compatible route:
-
-```http
-PUT /api/task/editTask/:id
-```
-
 ### Update Task Status
 
 Updates only the task status.
 
 ```http
-PATCH /api/task/:id/status
+PATCH /api/tasks/:id/status
 ```
 
 Auth required: yes.
@@ -1178,7 +1157,7 @@ Success response:
 Deletes a task only if it belongs to the authenticated user.
 
 ```http
-DELETE /api/task/:id
+DELETE /api/tasks/:id
 ```
 
 Auth required: yes.
@@ -1187,12 +1166,6 @@ Success response:
 
 ```http
 204 No Content
-```
-
-Backward-compatible route:
-
-```http
-DELETE /api/task/deleteTask/:id
 ```
 
 ## Mail Services
@@ -1280,7 +1253,7 @@ POST /api/auth/login
 5. Create task:
 
 ```http
-POST /api/task
+POST /api/workspaces/:workspaceId/tasks
 Cookie: afritask_session=<from login>
 X-Requested-With: XMLHttpRequest
 ```
@@ -1288,6 +1261,6 @@ X-Requested-With: XMLHttpRequest
 6. Get all tasks:
 
 ```http
-GET /api/task
+GET /api/workspaces/:workspaceId/tasks
 Cookie: afritask_session=<from login>
 ```

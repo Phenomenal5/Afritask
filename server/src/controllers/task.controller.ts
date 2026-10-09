@@ -5,6 +5,8 @@ import catchAsync from "../utils/catchAsync.js";
 import AppError from "../utils/AppError.js";
 import logger from "../utils/logger.js";
 import { requireUser } from "../middlewares/auth.middleware.js";
+import { requireActiveMembership, requireMembership } from "../middlewares/workspaceAccess.middleware.js";
+import { canDeleteTask, canEditTask } from "../utils/taskPermissions.js";
 import routeParam from "../utils/routeParam.js";
 
 // ─── Input parsing (formerly the Mongoose schema's casting + enum checks) ─────────────────────
@@ -64,179 +66,153 @@ const parseSort = (sort: unknown): Prisma.TaskOrderByWithRelationInput[] => {
 };
 
 
-export const createTask = catchAsync(async (req, res, next) => {
+// ─── Load a task the caller may see ─────────────────────
+// Item routes (/api/tasks/:id) carry no workspace id, so access is derived from the
+// task itself: the caller must be an ACTIVE member of the task's workspace. Missing
+// task and "not your workspace" both answer the same 404 (no existence leak).
+const loadTaskForMember = async (taskId: string, userId: string) => {
+    const task = await prisma.task.findUnique({ where: { id: taskId } });
+    if (!task) throw new AppError("Task not found", 404);
+    const membership = await requireActiveMembership(task.workspaceId, userId).catch(() => {
+        throw new AppError("Task not found", 404);
+    });
+    return { task, membership };
+};
+
+
+// ─── Workspace collection: /api/workspaces/:workspaceId/tasks ─────────────────────
+
+export const listWorkspaceTasks = catchAsync(async (req, res) => {
+    const membership = requireMembership(req);
+    const { status, priority, sort } = req.query;
+
+    // Every active member sees every task in the workspace (PRD §8: all projects are
+    // shared in V1). The workspaceId filter is the isolation boundary.
+    const filter: Prisma.TaskWhereInput = { workspaceId: membership.workspaceId };
+    // Query values can arrive as arrays (?status=a&status=b); only a single string is a valid filter.
+    if (typeof status === "string" && status) filter.status = parseStatus(status);
+    if (typeof priority === "string" && priority) filter.priority = parsePriority(priority);
+
+    const tasks = await prisma.task.findMany({
+        where: filter,
+        orderBy: parseSort(sort),
+    });
+
+    logger.info(`List tasks workspaceId=${membership.workspaceId} userId=${membership.userId} returned ${tasks.length}`);
+    res.status(200).json({
+        status: "success",
+        results: tasks.length,
+        data: { tasks }
+    });
+});
+
+export const createWorkspaceTask = catchAsync(async (req, res, next) => {
+    const membership = requireMembership(req);
     const { title, description, status, priority, deadline } = req.body;
-    const userId = requireUser(req).id;
-    logger.info(`Create task requested by userId=${userId}, title=${title}`);
-    try {
-        if (!title) {
-            logger.warn(`Create task failed: missing title for userId=${userId}`);
-            return next(new AppError("Please provide a task title", 400));
-        }
 
-        const task = await prisma.task.create({
-            data: {
-                userId,
-                title,
-                description: description ?? undefined,
-                status: parseStatus(status),
-                priority: parsePriority(priority),
-                deadline: parseDeadline(deadline),
-            },
-        });
-
-        logger.info(`Task created successfully for userId=${userId}, taskId=${task.id}`);
-        res.status(201).json({
-            status: "success",
-            data: { task }
-        });
-    } catch (error) {
-        return next(error);
+    if (!title) {
+        logger.warn(`Create task failed: missing title userId=${membership.userId}`);
+        return next(new AppError("Please provide a task title", 400));
     }
+
+    const task = await prisma.task.create({
+        data: {
+            workspaceId: membership.workspaceId,
+            creatorId: membership.userId,
+            title,
+            description: description ?? undefined,
+            status: parseStatus(status),
+            priority: parsePriority(priority),
+            deadline: parseDeadline(deadline),
+        },
+    });
+
+    logger.info(`Task created taskId=${task.id} workspaceId=${membership.workspaceId} userId=${membership.userId}`);
+    res.status(201).json({
+        status: "success",
+        data: { task }
+    });
+});
+
+// ─── Single task: /api/tasks/:id ─────────────────────
+
+export const getTaskById = catchAsync(async (req, res) => {
+    const id = assertValidTaskId(routeParam(req, "id"));
+    const { task } = await loadTaskForMember(id, requireUser(req).id);
+
+    res.status(200).json({
+        status: "success",
+        data: { task }
+    });
 });
 
 export const editTask = catchAsync(async (req, res, next) => {
-    try {
-        const id = assertValidTaskId(routeParam(req, "id"));
-        const userId = requireUser(req).id;
-        const { title, description, status, priority, deadline } = req.body;
+    const id = assertValidTaskId(routeParam(req, "id"));
+    const { task: existingTask, membership } = await loadTaskForMember(id, requireUser(req).id);
+    const { title, description, status, priority, deadline } = req.body;
 
-        if (title !== undefined && !title) {
-            return next(new AppError("Title is required", 400));
-        }
-
-        // Always include the owner in the query so users can only edit their own tasks.
-        // updateMany (not update) because update's `where` only accepts unique fields.
-        const { count } = await prisma.task.updateMany({
-            where: { id, userId },
-            data: {
-                title,
-                description: description ?? undefined,
-                status: parseStatus(status),
-                priority: parsePriority(priority),
-                deadline: parseDeadline(deadline),
-            },
-        });
-        if (count === 0) {
-            logger.warn(`Edit task failed: task not found taskId=${id} userId=${userId}`);
-            return next(new AppError("Task not found", 404));
-        }
-
-        const task = await prisma.task.findUnique({ where: { id } });
-
-        logger.info(`Task updated successfully taskId=${id} userId=${userId}`);
-        res.status(200).json({
-            status: "success",
-            data: { task }
-        });
-    } catch (error) {
-        return next(error);
+    if (!canEditTask(membership, existingTask)) {
+        return next(new AppError("You can only edit tasks you created", 403));
     }
+    if (title !== undefined && !title) {
+        return next(new AppError("Title is required", 400));
+    }
+
+    const task = await prisma.task.update({
+        where: { id },
+        data: {
+            title,
+            description: description ?? undefined,
+            status: parseStatus(status),
+            priority: parsePriority(priority),
+            deadline: parseDeadline(deadline),
+        },
+    });
+
+    logger.info(`Task updated taskId=${id} userId=${membership.userId}`);
+    res.status(200).json({
+        status: "success",
+        data: { task }
+    });
 });
 
 export const updateTaskStatus = catchAsync(async (req, res, next) => {
-    try {
-        const id = assertValidTaskId(routeParam(req, "id"));
-        const { status } = req.body;
-        const userId = requireUser(req).id;
+    const id = assertValidTaskId(routeParam(req, "id"));
+    const { task: existingTask, membership } = await loadTaskForMember(id, requireUser(req).id);
+    const { status } = req.body;
 
-        if (status === undefined) {
-            logger.warn(`Invalid status update attempt for taskId=${id} userId=${userId}, status=${status}`);
-            return next(new AppError("Please provide a valid status", 400));
-        }
-        const normalizedStatus = parseStatus(status);
-
-        // The owner condition prevents updating another user's task by id.
-        const { count } = await prisma.task.updateMany({
-            where: { id, userId },
-            data: { status: normalizedStatus },
-        });
-
-        if (count === 0) {
-            logger.warn(`Update task status failed: task not found taskId=${id} userId=${userId}`);
-            return next(new AppError("Task not found", 404));
-        }
-
-        const task = await prisma.task.findUnique({ where: { id } });
-
-        logger.info(`Task status updated successfully taskId=${id} userId=${userId} status=${normalizedStatus}`);
-        res.status(200).json({
-            status: "success",
-            data: { task }
-        });
-    } catch (error) {
-        return next(error);
+    if (!canEditTask(membership, existingTask)) {
+        return next(new AppError("You can only update tasks you created", 403));
     }
+    if (status === undefined) {
+        return next(new AppError("Please provide a valid status", 400));
+    }
+
+    const task = await prisma.task.update({
+        where: { id },
+        data: { status: parseStatus(status) },
+    });
+
+    logger.info(`Task status updated taskId=${id} userId=${membership.userId} status=${task.status}`);
+    res.status(200).json({
+        status: "success",
+        data: { task }
+    });
 });
 
 export const deleteTask = catchAsync(async (req, res, next) => {
-    try {
-        const id = assertValidTaskId(routeParam(req, "id"));
-        const userId = requireUser(req).id;
+    const id = assertValidTaskId(routeParam(req, "id"));
+    const { task, membership } = await loadTaskForMember(id, requireUser(req).id);
 
-        // The owner condition prevents deleting another user's task by id.
-        const { count } = await prisma.task.deleteMany({ where: { id, userId } });
-
-        if (count === 0) {
-            logger.warn(`Delete task failed: task not found taskId=${id} userId=${userId}`);
-            return next(new AppError("Task not found", 404));
-        }
-
-        logger.info(`Task deleted successfully taskId=${id} userId=${userId}`);
-        res.status(204).json({
-            status: "success",
-            data: null
-        });
-    } catch (error) {
-        return next(error);
+    if (!canDeleteTask(membership, task)) {
+        return next(new AppError("You can only delete tasks you created", 403));
     }
-});
 
-export const getTaskById = catchAsync(async (req, res, next) => {
-    try {
-        const id = assertValidTaskId(routeParam(req, "id"));
-        const userId = requireUser(req).id;
+    await prisma.task.delete({ where: { id } });
 
-        // The owner condition prevents reading another user's task by id.
-        const task = await prisma.task.findFirst({ where: { id, userId } });
-        if (!task) {
-            logger.warn(`Get task by id failed: task not found taskId=${id} userId=${userId}`);
-            return next(new AppError("Task not found", 404));
-        }
-
-        logger.info(`Task retrieved successfully taskId=${id} userId=${userId}`);
-        res.status(200).json({
-            status: "success",
-            data: { task }
-        });
-    } catch (error) {
-        return next(error);
-    }
-});
-
-export const getAllTask = catchAsync(async (req, res, next) => {
-    try {
-        const userId = requireUser(req).id;
-        const { status, priority, sort } = req.query;
-
-        // List only tasks owned by the authenticated user.
-        const filter: Prisma.TaskWhereInput = { userId };
-        // Query values can arrive as arrays (?status=a&status=b); only a single string is a valid filter.
-        if (typeof status === "string" && status) filter.status = parseStatus(status);
-        if (typeof priority === "string" && priority) filter.priority = parsePriority(priority);
-
-        const tasks = await prisma.task.findMany({
-            where: filter,
-            orderBy: parseSort(sort),
-        });
-
-        logger.info(`Get all tasks for userId=${userId} returned ${tasks.length} tasks`);
-        res.status(200).json({
-            status: "success",
-            results: tasks.length,
-            data: { tasks }
-        });
-    } catch (error) {
-        return next(error);
-    }
+    logger.info(`Task deleted taskId=${id} userId=${membership.userId}`);
+    res.status(204).json({
+        status: "success",
+        data: null
+    });
 });
