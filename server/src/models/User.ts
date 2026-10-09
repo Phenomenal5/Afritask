@@ -1,8 +1,34 @@
-import mongoose from "mongoose"
+import mongoose, { type HydratedDocument, type Model } from "mongoose"
 import validator from "validator";
 import bcrypt from "bcrypt";
 
-const userSchema = new mongoose.Schema({
+export interface IUser {
+    name: string;
+    email: string;
+    age?: number;
+    photo?: string;
+    password?: string;
+    role: "user" | "admin";
+    provider: "local" | "google";
+    providerId?: string;
+    isVerified: boolean;
+    verifyEmailToken?: string;
+    verifyEmailExpires?: Date;
+    resetPasswordToken?: string;
+    resetPasswordExpires?: Date;
+    createdAt: Date;
+    updatedAt: Date;
+}
+
+interface IUserMethods {
+    comparePassword(password: string): Promise<boolean>;
+}
+
+type UserModel = Model<IUser, {}, IUserMethods>;
+
+export type UserDocument = HydratedDocument<IUser, IUserMethods>;
+
+const userSchema = new mongoose.Schema<IUser, UserModel, IUserMethods>({
     name: {
         type: String,
         required: [true, "Name is required"],
@@ -21,7 +47,7 @@ const userSchema = new mongoose.Schema({
     photo: String,
     password: {
       type: String,
-      required: function() {
+      required: function(this: IUser) {
         return this.provider === "local";
       },
       minlength: [6, "Password must be at least 6 characters"],
@@ -79,9 +105,12 @@ userSchema.pre("save", async function() {
 
 
 // compare the password with the hashed password
-userSchema.methods.comparePassword = async function(password) {
+// NOTE: password is select:false — callers must .select("+password") first,
+// otherwise there is no hash to compare against and the login always fails.
+userSchema.methods.comparePassword = async function(password: string) {
+    if (!this.password) return false;
     return await bcrypt.compare(password, this.password);
 }
 
 
-export default mongoose.model("User", userSchema);
+export default mongoose.model<IUser, UserModel>("User", userSchema);

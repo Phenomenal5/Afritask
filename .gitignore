@@ -9,6 +9,8 @@ node_modules/
 .env.*
 **/.env
 **/.env.*
+# Templates are meant to be committed.
+!**/.env.example
 
 # ─── Next.js (client) build output ────────────────
 .next/
@@ -40,3 +42,6 @@ server/public/uploads/*
 *.tsbuildinfo
 .idea/
 .vscode/
+
+# ─── Ignore files that are tracked by Git ─────────────
+*.docx

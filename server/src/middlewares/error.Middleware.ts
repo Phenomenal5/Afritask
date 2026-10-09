@@ -1,13 +1,24 @@
+import type { ErrorRequestHandler } from "express";
 import AppError from "../utils/AppError.js";
-import logger from "../utils/logger.js";
+import logger, { describeError } from "../utils/logger.js";
 
-const handleDuplicateFields = (error) => {
-  const field = Object.keys(error.keyValue)[0];
+// The union of fields we read off errors from Mongoose, MongoDB, JWT and our own AppError.
+interface HandledError extends Error {
+  statusCode?: number;
+  status?: string;
+  isOperational?: boolean;
+  code?: number;
+  keyValue?: Record<string, unknown>;
+  errors?: Record<string, { message: string }>;
+}
+
+const handleDuplicateFields = (error: HandledError) => {
+  const field = Object.keys(error.keyValue ?? {})[0];
   return new AppError(`${field} already exists`, 400);
 };
 
-const handleValidationError = (error) => {
-  const message = Object.values(error.errors)
+const handleValidationError = (error: HandledError) => {
+  const message = Object.values(error.errors ?? {})
     .map((item) => item.message)
     .join(". ");
 
@@ -21,9 +32,9 @@ const handleJwtError = () => new AppError("Invalid token. Please log in again", 
 const handleJwtExpiredError = () =>
   new AppError("Your token has expired. Please log in again", 401);
 
-const globalErrorHandler = (error, req, res, next) => {
-  let err = { ...error, message: error.message };
-  logger.error(error.stack || error.message || error);
+const globalErrorHandler: ErrorRequestHandler = (error: HandledError, req, res, next) => {
+  let err: HandledError = { ...error, message: error.message };
+  logger.error(describeError(error));
   if (error.code === 11000) err = handleDuplicateFields(error);
   if (error.name === "ValidationError") err = handleValidationError(error);
   if (error.name === "CastError") err = handleCastError();

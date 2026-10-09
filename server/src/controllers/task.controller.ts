@@ -1,13 +1,16 @@
-import Task from "../models/Task.js";
+import Task, { type ITask, type TaskStatus } from "../models/Task.js";
+import type { QueryFilter } from "mongoose";
 import catchAsync from "../utils/catchAsync.js";
 import AppError from "../utils/AppError.js";
 import logger from "../utils/logger.js";
+import { requireUser } from "../middlewares/auth.middleware.js";
 
-const normalizeStatus = (status) => status === "in-progress" ? "in progress" : status;
+// The client once sent "in-progress"; the stored value has a space.
+const normalizeStatus = (status?: string) => (status === "in-progress" ? "in progress" : status) as TaskStatus | undefined;
 
 export const createTask = catchAsync(async (req, res, next) => {
     const { title, description, status, priority, deadline } = req.body;
-    const userId = req.user.id;
+    const userId = requireUser(req).id;
     logger.info(`Create task requested by userId=${userId}, title=${title}`);
     try {
         if (!title) {
@@ -37,7 +40,7 @@ export const createTask = catchAsync(async (req, res, next) => {
 export const editTask = catchAsync(async (req, res, next) => {
     try {
         const { id } = req.params;
-        const userId = req.user.id;
+        const userId = requireUser(req).id;
         const { title, description, status, priority, deadline } = req.body;
 
         // Always include user in the query so users can only edit their own tasks.
@@ -49,7 +52,7 @@ export const editTask = catchAsync(async (req, res, next) => {
 
         if (title !== undefined) task.title = title;
         if (description !== undefined) task.description = description;
-        if (status !== undefined) task.status = normalizeStatus(status);
+        if (status !== undefined) task.status = normalizeStatus(status) ?? task.status;
         if (priority !== undefined) task.priority = priority;
         if (deadline !== undefined) task.deadline = deadline;
 
@@ -69,7 +72,7 @@ export const updateTaskStatus = catchAsync(async (req, res, next) => {
     try {
         const { id } = req.params;
         const { status } = req.body;
-        const userId = req.user.id;
+        const userId = requireUser(req).id;
         const normalizedStatus = normalizeStatus(status);
 
         const allowedStatuses = ["pending", "in progress", "completed"];
@@ -103,7 +106,7 @@ export const updateTaskStatus = catchAsync(async (req, res, next) => {
 export const deleteTask = catchAsync(async (req, res, next) => {
     try {
         const { id } = req.params;
-        const userId = req.user.id;
+        const userId = requireUser(req).id;
 
         // The user condition prevents deleting another user's task by id.
         const task = await Task.findOneAndDelete({ _id: id, user: userId });
@@ -126,7 +129,7 @@ export const deleteTask = catchAsync(async (req, res, next) => {
 export const getTaskById = catchAsync(async (req, res, next) => {
     try {
         const { id } = req.params;
-        const userId = req.user.id;
+        const userId = requireUser(req).id;
 
         // The user condition prevents reading another user's task by id.
         const task = await Task.findOne({ _id: id, user: userId });
@@ -147,17 +150,18 @@ export const getTaskById = catchAsync(async (req, res, next) => {
 
 export const getAllTask = catchAsync(async (req, res, next) => {
     try {
-        const userId = req.user.id;
+        const userId = requireUser(req).id;
         const { status, priority, sort } = req.query;
 
         // List only tasks owned by the authenticated user.
-        const filter = { user: userId };
-        if (status) filter.status = status;
-        if (priority) filter.priority = priority;
+        const filter: QueryFilter<ITask> = { user: userId };
+        // Query values can arrive as arrays (?status=a&status=b); only a single string is a valid filter.
+        if (typeof status === "string" && status) filter.status = status as ITask["status"];
+        if (typeof priority === "string" && priority) filter.priority = priority as ITask["priority"];
 
         let query = Task.find(filter);
 
-        if (sort) {
+        if (typeof sort === "string" && sort) {
             query = query.sort(sort.split(",").join(" "));
         } else {
             query = query.sort("-createdAt");

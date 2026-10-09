@@ -44,3 +44,11 @@ if (process.env.NODE_ENV !== "production") {
 
 
 export default logger
+
+// catch blocks receive `unknown` — this turns whatever was thrown into a loggable string.
+export const describeError = (error: unknown): string =>
+    error instanceof Error ? (error.stack ?? error.message) : String(error)
+
+// Message only, for one-line warnings where a full stack would be noise.
+export const errorMessage = (error: unknown): string =>
+    error instanceof Error ? error.message : String(error)

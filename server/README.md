@@ -4,7 +4,7 @@ Afritask is an Express + MongoDB API for authentication, user settings, task man
 
 ## Tech Stack
 
-- Node.js
+- Node.js + TypeScript
 - Express
 - MongoDB + Mongoose
 - Passport Google OAuth
@@ -22,35 +22,24 @@ Afritask is an Express + MongoDB API for authentication, user settings, task man
 ## Setup
 
 ```bash
+cp .env.example .env      # then fill in the (required) values
+docker compose up -d redis   # or point REDIS_URL at a hosted Redis
 npm install
-npm run dev
+npm run dev               # tsx watch — runs src/*.ts directly, restarts on change
 ```
 
-The server reads its port from `PORT` in `.env`.
-Keep the backend `PORT`, the frontend `NEXT_PUBLIC_API_URL`, and `FRONTEND_URL` aligned.
+| Script | What it does |
+| --- | --- |
+| `npm run dev` | Dev server with reload (`tsx watch`) |
+| `npm run typecheck` | `tsc --noEmit` — run before committing |
+| `npm run build` | Compile `src/` to `dist/` |
+| `npm start` | Run the compiled `dist/server.js` (production) |
+
+Keep the backend `PORT`, the frontend `NEXT_PUBLIC_API_URL`, and `CLIENT_URL` aligned.
 
 ## Environment Variables
 
-Create a `.env` file with values like:
-
-```env
-PORT=<backend-port>
-MONGO_URL=your_mongodb_connection_string
-JWT_SECRET=your_jwt_secret
-JWT_EXPIRES_IN=7d
-VERIFY_EMAIL_TOKEN_EXPIRES_MS=3600000
-
-BREVO_API_KEY=your_brevo_api_key
-EMAIL_FROM_NAME=AfriTask
-EMAIL_FROM_ADDRESS=verified-sender@example.com
-FRONTEND_URL=http://localhost:<frontend-port>
-
-GOOGLE_CLIENT_ID=your_google_client_id
-GOOGLE_CLIENT_SECRET=your_google_client_secret
-GOOGLE_CALLBACK_URL=http://localhost:<backend-port>/api/auth/google/callback
-
-REDIS_URL=redis://localhost:6379
-```
+Every variable is listed and explained in [`.env.example`](.env.example). The server refuses to boot if a required one is missing — see `src/config/env.ts`.
 
 ## API Base
 

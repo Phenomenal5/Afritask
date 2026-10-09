@@ -2,11 +2,12 @@ import User from "../models/User.js";
 import AppError from "../utils/AppError.js";
 import catchAsync from "../utils/catchAsync.js";
 import logger from "../utils/logger.js";
+import { requireUser } from "../middlewares/auth.middleware.js";
 import { sendPasswordChangedEmail } from "../utils/email.js";
 
 export const updateProfile = catchAsync(async (req, res, next) => {
   const { name, age } = req.body;
-  const userId = req.user.id;
+  const userId = requireUser(req).id;
   logger.info(`Profile update requested for userId=${userId}`);
   try {
     const user = await User.findById( userId );
@@ -37,7 +38,7 @@ export const updateProfile = catchAsync(async (req, res, next) => {
 
 export const updatePassword = catchAsync(async (req, res, next) => {
   const { currentPassword, newPassword } = req.body;
-  const userId = req.user.id;
+  const userId = requireUser(req).id;
   try {
     if (!currentPassword || !newPassword) {
       logger.warn(`Password update requested with missing fields for userId=${userId}`);

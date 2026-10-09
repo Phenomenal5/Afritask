@@ -13,6 +13,7 @@ import globalErrorHandler from "./middlewares/error.Middleware.js";
 import connectDB from "./config/db.js";
 import CLIENT_URL from "./config/clientUrl.js";
 import startTaskReminderJob from "./jobs/taskReminder.js";
+import env from "./config/env.js";
 
 
 
@@ -61,7 +62,7 @@ app.use("/api/task", taskRoute);
 app.use(globalErrorHandler);
 
 
-app.listen(process.env.PORT, () => {
-  logger.info(`Server is running on port ${process.env.PORT}`);
+app.listen(env.port, () => {
+  logger.info(`Server is running on port ${env.port}`);
   startTaskReminderJob();
 });

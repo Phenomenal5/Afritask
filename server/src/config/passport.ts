@@ -1,8 +1,9 @@
 import passport from "passport";
-import googleOauth from "passport-google-oauth20";
+import googleOauth, { type Profile, type VerifyCallback } from "passport-google-oauth20";
 import User from "../models/User.js";
 import { deliverWelcomeEmail } from "../utils/email.js";
 import logger from "../utils/logger.js";
+import env from "./env.js";
 
 // NOTE: no serializeUser/deserializeUser here on purpose. This app is fully
 // stateless — every passport.authenticate() call uses { session: false } and
@@ -12,19 +13,18 @@ import logger from "../utils/logger.js";
 // Google Oauth Strategy
 const { Strategy: GoogleStrategy } = googleOauth;
 
-const hasGoogleCredentials =
-  process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET;
+const { googleClientId, googleClientSecret } = env;
 
-if (hasGoogleCredentials) {
+if (googleClientId && googleClientSecret) {
   passport.use(
     new GoogleStrategy(
       {
-        clientID: process.env.GOOGLE_CLIENT_ID,
-        clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-        callbackURL: process.env.GOOGLE_CALLBACK_URL || "/api/auth/google/callback",
+        clientID: googleClientId,
+        clientSecret: googleClientSecret,
+        callbackURL: env.googleCallbackUrl,
       },
 
-      async (accessToken, refreshToken, profile, done) => {
+      async (accessToken: string, refreshToken: string, profile: Profile, done: VerifyCallback) => {
         try {
           const email = profile.emails?.[0]?.value;
 
@@ -98,7 +98,7 @@ if (hasGoogleCredentials) {
 
           return done(null, newUser);
         } catch (error) {
-          return done(error, null);
+          return done(error);
         }
       },
     ),

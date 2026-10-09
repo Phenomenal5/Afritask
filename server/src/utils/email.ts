@@ -1,19 +1,31 @@
 import { BrevoClient } from "@getbrevo/brevo";
 import { emailTemplate, escapeHtml } from "./emailTemplates.js";
-import logger from "./logger.js";
+import logger, { errorMessage } from "./logger.js";
+import env from "../config/env.js";
+import type { ITask } from "../models/Task.js";
 import CLIENT_URL from "../config/clientUrl.js";
 
 const brevo = new BrevoClient({
-  apiKey: process.env.BREVO_API_KEY,
+  apiKey: env.brevoApiKey,
 });
 
+interface OutgoingEmail {
+  to: string;
+  subject: string;
+  text: string;
+  html: string;
+}
+
+// Only the fields a reminder email shows.
+type ReminderTask = Pick<ITask, "title" | "description" | "deadline">;
+
 const emailService = {
-  sendEmail: async ({ to, subject, text, html }) => {
+  sendEmail: async ({ to, subject, text, html }: OutgoingEmail) => {
     await brevo.transactionalEmails.sendTransacEmail({
       to: [{ email: to }],
       sender: {
-        name: process.env.EMAIL_FROM_NAME || "AfriTask",
-        email: process.env.EMAIL_FROM_ADDRESS,
+        name: env.emailFromName,
+        email: env.emailFromAddress,
       },
       subject,
       textContent: text,
@@ -23,7 +35,7 @@ const emailService = {
   },
 };
 
-const formatTaskDeadline = (deadline) => {
+const formatTaskDeadline = (deadline?: Date | string | null) => {
   if (!deadline) {
     return "No deadline set";
   }
@@ -65,7 +77,7 @@ const buildPasswordChangedMessage = () => `
   <p>If you did not authorize this update, please secure your account immediately by resetting your password again.</p>
 `;
 
-const buildTaskReminderMessage = (task) => {
+const buildTaskReminderMessage = (task: ReminderTask) => {
   const title = escapeHtml(task?.title || "Untitled task");
   const deadline = escapeHtml(formatTaskDeadline(task?.deadline));
   const description = task?.description ? escapeHtml(task.description) : "";
@@ -93,7 +105,7 @@ const buildTaskReminderMessage = (task) => {
   `;
 };
 
-export const sendPasswordResetEmail = async (to, token) => {
+export const sendPasswordResetEmail = async (to: string, token: string) => {
   const resetUrl = `${CLIENT_URL}/reset-password?token=${token}`;
 
   await emailService.sendEmail({
@@ -110,7 +122,7 @@ export const sendPasswordResetEmail = async (to, token) => {
   });
 };
 
-export const sendEmailVerificationCode = async (to, token) => {
+export const sendEmailVerificationCode = async (to: string, token: string) => {
   const verificationUrl = `${CLIENT_URL}/verify-email/${token}`;
 
   await emailService.sendEmail({
@@ -127,7 +139,7 @@ export const sendEmailVerificationCode = async (to, token) => {
   });
 };
 
-export const sendWelcomeEmail = async (to, name = "there") => {
+export const sendWelcomeEmail = async (to: string, name = "there") => {
   const dashboardUrl = CLIENT_URL;
 
   await emailService.sendEmail({
@@ -152,15 +164,15 @@ export const sendWelcomeEmail = async (to, name = "there") => {
 // courtesy, never a gate — letting a Brevo outage bubble up would 500 the
 // email-verification request or abort an otherwise successful Google
 // sign-in, which is a far worse failure than a missing greeting.
-export const deliverWelcomeEmail = async (to, name) => {
+export const deliverWelcomeEmail = async (to: string, name?: string) => {
   try {
     await sendWelcomeEmail(to, name);
   } catch (error) {
-    logger.error(`Welcome email could not be delivered to ${to}: ${error.message}`);
+    logger.error(`Welcome email could not be delivered to ${to}: ${errorMessage(error)}`);
   }
 };
 
-export const sendPasswordChangedEmail = async (to) => {
+export const sendPasswordChangedEmail = async (to: string) => {
   const dashboardUrl = CLIENT_URL;
 
   await emailService.sendEmail({
@@ -177,7 +189,7 @@ export const sendPasswordChangedEmail = async (to) => {
   });
 };
 
-export const sendTaskReminderEmail = async (to, task) => {
+export const sendTaskReminderEmail = async (to: string, task: ReminderTask) => {
   const deadline = formatTaskDeadline(task?.deadline);
   const taskTitle = task?.title || "Untitled task";
   const dashboardUrl = CLIENT_URL;

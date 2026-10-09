@@ -34,7 +34,7 @@ REST API.
 | Layer      | Technology                                                        |
 | ---------- | ----------------------------------------------------------------- |
 | Frontend   | Next.js 16 (App Router), React 19, Tailwind CSS 4, axios, react-hot-toast |
-| Backend    | Node.js, Express 5, Mongoose 9 (MongoDB)                          |
+| Backend    | Node.js, Express 5, TypeScript, Mongoose 9 (MongoDB)              |
 | Auth       | JWT + Passport Google OAuth 2.0, bcrypt password hashing          |
 | Email      | Brevo transactional email, Redis + BullMQ for scheduled reminders    |
 | Uploads    | Multer (avatar images)                                            |
@@ -102,23 +102,7 @@ npm install
 npm run dev
 ```
 
-Create `server/.env` (see `server/README.md` for the full list):
-
-```env
-PORT=<backend-port>
-MONGO_URL=your_mongodb_connection_string
-JWT_SECRET=your_jwt_secret
-JWT_EXPIRES_IN=7d
-BREVO_API_KEY=your_brevo_api_key
-EMAIL_FROM_NAME=AfriTask
-EMAIL_FROM_ADDRESS=verified-sender@example.com
-FRONTEND_URL=http://localhost:<frontend-port>
-GOOGLE_CLIENT_ID=your_google_client_id
-GOOGLE_CLIENT_SECRET=your_google_client_secret
-GOOGLE_CALLBACK_URL=http://localhost:<backend-port>/api/auth/google/callback
-
-REDIS_URL=redis://localhost:6379
-```
+Copy `server/.env.example` to `server/.env` and fill in the values marked **(required)** — the server refuses to boot without them. The backend is TypeScript: `npm run dev` runs the sources directly, while production runs `npm run build` and then `npm start`.
 
 ### 2. Frontend (`client/`)
 

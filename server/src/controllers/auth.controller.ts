@@ -1,5 +1,6 @@
 import { randomBytes } from 'crypto';
-import User from '../models/User.js';
+import type { Response } from 'express';
+import User, { type UserDocument } from '../models/User.js';
 import AppError from '../utils/AppError.js';
 import catchAsync from '../utils/catchAsync.js';
 import {
@@ -9,7 +10,8 @@ import {
     sendPasswordResetEmail
 } from '../utils/email.js';
 import generateToken from '../utils/jwt.js';
-import logger from '../utils/logger.js';
+import logger, { errorMessage } from '../utils/logger.js';
+import { requireUser } from '../middlewares/auth.middleware.js';
 import CLIENT_URL from '../config/clientUrl.js';
 
 const VERIFY_EMAIL_TOKEN_EXPIRES = process.env.VERIFY_EMAIL_TOKEN_EXPIRES_MS
@@ -20,11 +22,11 @@ const RESET_PASSWORD_TOKEN_EXPIRES = process.env.RESET_PASSWORD_TOKEN_EXPIRES_MS
     ? Number(process.env.RESET_PASSWORD_TOKEN_EXPIRES_MS)
     : 15 * 60 * 1000; // 15 minutes
 
-const createAndSendVerificationToken = async (user) => {
+const createAndSendVerificationToken = async (user: UserDocument) => {
     const token = randomBytes(32).toString("hex");
 
     user.verifyEmailToken = token;
-    user.verifyEmailExpires = Date.now() + VERIFY_EMAIL_TOKEN_EXPIRES;
+    user.verifyEmailExpires = new Date(Date.now() + VERIFY_EMAIL_TOKEN_EXPIRES);
     await user.save({ validateBeforeSave: false });
 
     logger.info(`Verification token generated for user ${user.email}`);
@@ -33,7 +35,7 @@ const createAndSendVerificationToken = async (user) => {
     return token;
 };
 
-const sendAuthResponse = (user, statusCode, res) => {
+const sendAuthResponse = (user: UserDocument, statusCode: number, res: Response) => {
     const token = generateToken(user);
 
     res.status(statusCode).json({
@@ -72,7 +74,7 @@ export const signup = catchAsync(async (req, res, next) => {
             await createAndSendVerificationToken(user);
         } catch (emailError) {
             await User.deleteOne({ _id: user._id });
-            logger.error(`Signup rolled back for ${email}: verification email failed — ${emailError.message}`);
+            logger.error(`Signup rolled back for ${email}: verification email failed — ${errorMessage(emailError)}`);
             return next(new AppError(
                 "We couldn't send your verification email. Please try again in a moment.",
                 502
@@ -182,7 +184,7 @@ export const verifyEmail = catchAsync(async (req, res, next) => {
             return next(new AppError("Invalid or expired verification token", 400));
         }
 
-        if (user.verifyEmailExpires && user.verifyEmailExpires < Date.now() && !user.isVerified) {
+        if (user.verifyEmailExpires && user.verifyEmailExpires.getTime() < Date.now() && !user.isVerified) {
             await createAndSendVerificationToken(user);
             logger.warn(`Expired verification token used for user ${user.email}. New token sent.`);
 
@@ -232,7 +234,7 @@ export const verifyEmail = catchAsync(async (req, res, next) => {
 
 
 export const me = catchAsync(async (req, res, next) => {
-    const userId = req.user.id;
+    const userId = requireUser(req).id;
 
     try {
         const user = await User.findById(userId);
@@ -274,7 +276,7 @@ export const forgotPassword = catchAsync(async (req, res, next) => {
         // token — dropped: a new request always earns a new token.)
         const token = randomBytes(32).toString("hex");
         user.resetPasswordToken = token;
-        user.resetPasswordExpires = Date.now() + RESET_PASSWORD_TOKEN_EXPIRES;
+        user.resetPasswordExpires = new Date(Date.now() + RESET_PASSWORD_TOKEN_EXPIRES);
         await user.save({ validateBeforeSave: false });
 
         try {
@@ -285,7 +287,7 @@ export const forgotPassword = catchAsync(async (req, res, next) => {
             user.resetPasswordExpires = undefined;
             await user.save({ validateBeforeSave: false });
 
-            logger.error(`Password reset email failed for ${email}: ${emailError.message}`);
+            logger.error(`Password reset email failed for ${email}: ${errorMessage(emailError)}`);
             return next(new AppError(
                 "We couldn't send your password reset email. Please try again in a moment.",
                 502

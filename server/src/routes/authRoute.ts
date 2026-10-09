@@ -1,4 +1,5 @@
 import express from "express";
+import type { RequestHandler } from "express";
 import passport from "passport";
 import {
   forgotPassword,
@@ -12,12 +13,13 @@ import {
 } from "../controllers/auth.controller.js";
 import protect from "../middlewares/auth.middleware.js";
 import CLIENT_URL from "../config/clientUrl.js";
+import env from "../config/env.js";
 
 
 const router = express.Router();
 
-const googleCredentialsReady = (req, res, next) => {
-  if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
+const googleCredentialsReady: RequestHandler = (req, res, next) => {
+  if (!env.googleClientId || !env.googleClientSecret) {
     return res.status(500).json({
       status: "error",
       message: "Google OAuth credentials are not configured"

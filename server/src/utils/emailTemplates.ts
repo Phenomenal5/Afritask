@@ -14,7 +14,7 @@ const colors = {
   stone: "#8E8278",
 };
 
-const escapeHtml = (value = "") =>
+const escapeHtml = (value: unknown = "") =>
   String(value)
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
@@ -28,13 +28,22 @@ const getLogoUrl = () =>
   process.env.EMAIL_LOGO ||
   "📝";
 
+interface EmailTemplateOptions {
+  title: string;
+  // Trusted HTML built by utils/email.ts — escape any user input before it gets here.
+  message: string;
+  buttonText?: string;
+  buttonUrl?: string;
+  badge?: string;
+}
+
 export const emailTemplate = ({
   title,
   message,
   buttonText,
   buttonUrl,
   badge,
-}) => {
+}: EmailTemplateOptions) => {
   const year = new Date().getFullYear();
   const logoUrl = getLogoUrl();
   const hasButton = Boolean(buttonText && buttonUrl);

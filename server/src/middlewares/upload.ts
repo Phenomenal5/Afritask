@@ -1,4 +1,4 @@
-import multer from 'multer'
+import multer, { type Options } from 'multer'
 import path from 'path'
 import fs from 'fs'
 
@@ -17,11 +17,11 @@ const storage = multer.diskStorage({
     }
 });
 
-const imageFileFilter = (req, file, cb) => {
+const imageFileFilter: Options['fileFilter'] = (req, file, cb) => {
     const allowedExt = ['.png', '.jpg', '.jpeg', '.gif'];
     const ext = path.extname(file.originalname).toLowerCase();
     if (!allowedExt.includes(ext) || !file.mimetype.startsWith('image/')) {
-        return cb(new Error('Only image files (png, jpg, jpeg, gif) are allowed'), false);
+        return cb(new Error('Only image files (png, jpg, jpeg, gif) are allowed'));
     }
     cb(null, true);
 };

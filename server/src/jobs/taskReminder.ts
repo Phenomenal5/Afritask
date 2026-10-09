@@ -1,5 +1,6 @@
 import { Queue, Worker } from "bullmq"
 import Task from "../models/Task.js"
+import type { UserDocument } from "../models/User.js"
 import { sendTaskReminderEmail } from "../utils/email.js"
 import logger from "../utils/logger.js"
 import redisConnection from "../config/redis.js"
@@ -21,7 +22,7 @@ const sendDueTomorrowReminders = async () => {
             $lt: new Date(`${tomorrowStr}T23:59:59`)
         },
         status: {$ne: "completed"}
-    }).populate("user");
+    }).populate<{ user: UserDocument | null }>("user");
 
     for (const task of dueTasks) {
         if (task.user?.email) {
