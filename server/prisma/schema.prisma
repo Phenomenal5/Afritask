@@ -50,6 +50,14 @@ enum MembershipStatus {
   removed
 }
 
+enum ProjectState {
+  active
+  on_hold
+  completed
+  // Read-only until restored; reminders for its tasks pause (PRD FR05).
+  archived
+}
+
 // "Expired" isn't stored — it's derived from expiresAt, so it can never drift.
 enum InvitationStatus {
   pending
@@ -95,6 +103,7 @@ model User {
   createdTasks  Task[]       @relation("TaskCreator")
   memberships   Membership[]
   sentInvites   Invitation[] @relation("InvitationInviter")
+  projects      Project[]    @relation("ProjectCreator")
   sessions      Session[]
   accountTokens AccountToken[]
 }
@@ -141,7 +150,29 @@ model Workspace {
 
   memberships Membership[]
   invitations Invitation[]
+  projects    Project[]
   tasks       Task[]
+}
+
+// A group of related tasks inside one workspace. All projects are visible to every active
+// member in V1; only Owners/Admins manage them (PRD §8). Projects are archived, not deleted.
+model Project {
+  id          String        @id @default(uuid(7)) @db.Uuid
+  workspaceId String        @db.Uuid
+  name        String
+  description String        @default("")
+  state       ProjectState  @default(active)
+  // The state before archiving, so "restore" returns it there instead of always to Active.
+  priorState  ProjectState?
+  createdById String        @db.Uuid
+  createdAt   DateTime      @default(now()) @db.Timestamptz(3)
+  updatedAt   DateTime      @updatedAt @db.Timestamptz(3)
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  createdBy User      @relation("ProjectCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  tasks     Task[]
+
+  @@index([workspaceId, state])
 }
 
 // A pending offer to join a workspace by email (SRS SR03). It grants NOTHING until a
@@ -202,6 +233,10 @@ model Task {
   workspaceId   String       @db.Uuid
   // Author of the task. Kept even if they later leave the workspace.
   creatorId     String       @db.Uuid
+  // Optional: a quick task can live in the workspace without a project (PRD J1).
+  // NOTE: same-workspace is enforced in the task controller — Prisma can't express a
+  // composite (projectId, workspaceId) FK on an optional relation with a required column.
+  projectId     String?      @db.Uuid
   title         String
   description   String       @default("")
   status        TaskStatus   @default(pending)
@@ -214,10 +249,12 @@ model Task {
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   // Restrict: deleting a user must never silently delete shared work (DB design §3).
   creator   User      @relation("TaskCreator", fields: [creatorId], references: [id], onDelete: Restrict)
+  project   Project?  @relation(fields: [projectId], references: [id], onDelete: Restrict)
 
   // Every task query is workspace-scoped, newest first.
   @@index([workspaceId, createdAt])
   @@index([creatorId])
+  @@index([projectId])
   // Daily reminder scan: incomplete tasks by deadline.
   @@index([deadline, status])
 }

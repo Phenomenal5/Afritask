@@ -37,12 +37,15 @@ function formatDeadline(dateStr, todayStr) {
 }
 
 // Render a task row with optimistic state cues and edit/delete controls.
-export default function TaskCard({ task, onToggleComplete, onEdit, onDelete }) {
+// showProject: off on a project's own page, where the badge would just repeat the header.
+export default function TaskCard({ task, onToggleComplete, onEdit, onDelete, showProject = true }) {
   const [deleting, setDeleting] = useState(false);
   const [todayStr, setTodayStr] = useState("");
   const priority = PRIORITY_STYLES[task.priority] || PRIORITY_STYLES.low;
   const deadline = formatDeadline(task.deadline, todayStr);
   const isCompleted = task.status === "completed";
+  // Archived projects are read-only (the server refuses changes) — hide the controls.
+  const isReadOnly = task.project?.state === "archived";
 
   useEffect(() => {
     const today = new Date();
@@ -75,6 +78,7 @@ export default function TaskCard({ task, onToggleComplete, onEdit, onDelete }) {
         type="checkbox"
         className="task-check mt-0.5 ml-1"
         checked={isCompleted}
+        disabled={isReadOnly}
         onChange={() =>
           onToggleComplete(task.id, isCompleted ? "pending" : "completed")
         }
@@ -93,6 +97,7 @@ export default function TaskCard({ task, onToggleComplete, onEdit, onDelete }) {
             {task.title}
           </h3>
 
+          {!isReadOnly && (
           <div className="flex items-center gap-1 opacity-100 transition-opacity flex-shrink-0 sm:opacity-0 sm:group-hover:opacity-100">
             <button
               onClick={() => onEdit(task)}
@@ -127,6 +132,7 @@ export default function TaskCard({ task, onToggleComplete, onEdit, onDelete }) {
               </svg>
             </button>
           </div>
+          )}
         </div>
 
         {task.description && (
@@ -152,6 +158,16 @@ export default function TaskCard({ task, onToggleComplete, onEdit, onDelete }) {
           >
             {STATUS_LABELS[task.status] || task.status}
           </span>
+
+          {showProject && task.project && (
+            <span
+              className="text-xs px-2 py-0.5 rounded-full"
+              style={{ border: "1px solid var(--line)", color: "var(--ink-soft)" }}
+            >
+              {task.project.name}
+              {isReadOnly ? " · archived" : ""}
+            </span>
+          )}
 
           {deadline && (
             <span

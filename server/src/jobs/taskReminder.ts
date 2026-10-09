@@ -21,7 +21,9 @@ const sendDueTomorrowReminders = async () => {
                 gte: new Date(tomorrowStr),
                 lt: new Date(`${tomorrowStr}T23:59:59`)
             },
-            status: { not: "completed" }
+            status: { not: "completed" },
+            // Reminders pause while a task's project is archived (PRD FR05 default).
+            OR: [{ projectId: null }, { project: { state: { not: "archived" } } }],
         },
         include: {
             creator: {

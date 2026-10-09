@@ -79,16 +79,49 @@ const loadTaskForMember = async (taskId: string, userId: string) => {
     return { task, membership };
 };
 
+// Returned with every task so lists can show the project and know it's read-only.
+const taskInclude = { project: { select: { id: true, name: true, state: true } } } as const;
+
+// NOTE: archived projects are read-only, tasks included (PRD §8 protection rules).
+const assertTaskWritable = async (task: { projectId: string | null }) => {
+    if (!task.projectId) return;
+    const project = await prisma.project.findUnique({ where: { id: task.projectId }, select: { state: true } });
+    if (project?.state === "archived") {
+        throw new AppError("This task's project is archived. Restore the project to make changes.", 409);
+    }
+};
+
+// A task's project must be in the SAME workspace and not archived. undefined = unchanged,
+// null/"" = no project. Anything from another workspace answers like a missing project.
+const parseProjectId = async (projectId: unknown, workspaceId: string): Promise<string | null | undefined> => {
+    if (projectId === undefined) return undefined;
+    if (projectId === null || projectId === "") return null;
+    if (typeof projectId !== "string" || !validator.isUUID(projectId)) throw new AppError("Project not found", 400);
+    const project = await prisma.project.findFirst({ where: { id: projectId, workspaceId }, select: { state: true } });
+    if (!project) throw new AppError("Project not found", 400);
+    if (project.state === "archived") throw new AppError("Can't add tasks to an archived project", 409);
+    return projectId;
+};
+
 
 // ─── Workspace collection: /api/workspaces/:workspaceId/tasks ─────────────────────
 
 export const listWorkspaceTasks = catchAsync(async (req, res) => {
     const membership = requireMembership(req);
-    const { status, priority, sort } = req.query;
+    const { status, priority, sort, projectId } = req.query;
 
     // Every active member sees every task in the workspace (PRD §8: all projects are
     // shared in V1). The workspaceId filter is the isolation boundary.
     const filter: Prisma.TaskWhereInput = { workspaceId: membership.workspaceId };
+    if (projectId === "none") {
+        filter.projectId = null;
+    } else if (typeof projectId === "string" && validator.isUUID(projectId)) {
+        filter.projectId = projectId;
+    } else {
+        // Workspace-wide lists leave out archived projects' tasks (PRD FR14: archived
+        // excluded by default). Asking for one project by id still shows them, read-only.
+        filter.OR = [{ projectId: null }, { project: { state: { not: "archived" } } }];
+    }
     // Query values can arrive as arrays (?status=a&status=b); only a single string is a valid filter.
     if (typeof status === "string" && status) filter.status = parseStatus(status);
     if (typeof priority === "string" && priority) filter.priority = parsePriority(priority);
@@ -96,6 +129,7 @@ export const listWorkspaceTasks = catchAsync(async (req, res) => {
     const tasks = await prisma.task.findMany({
         where: filter,
         orderBy: parseSort(sort),
+        include: taskInclude,
     });
 
     logger.info(`List tasks workspaceId=${membership.workspaceId} userId=${membership.userId} returned ${tasks.length}`);
@@ -108,7 +142,7 @@ export const listWorkspaceTasks = catchAsync(async (req, res) => {
 
 export const createWorkspaceTask = catchAsync(async (req, res, next) => {
     const membership = requireMembership(req);
-    const { title, description, status, priority, deadline } = req.body;
+    const { title, description, status, priority, deadline, projectId } = req.body;
 
     if (!title) {
         logger.warn(`Create task failed: missing title userId=${membership.userId}`);
@@ -119,12 +153,14 @@ export const createWorkspaceTask = catchAsync(async (req, res, next) => {
         data: {
             workspaceId: membership.workspaceId,
             creatorId: membership.userId,
+            projectId: await parseProjectId(projectId, membership.workspaceId),
             title,
             description: description ?? undefined,
             status: parseStatus(status),
             priority: parsePriority(priority),
             deadline: parseDeadline(deadline),
         },
+        include: taskInclude,
     });
 
     logger.info(`Task created taskId=${task.id} workspaceId=${membership.workspaceId} userId=${membership.userId}`);
@@ -139,21 +175,23 @@ export const createWorkspaceTask = catchAsync(async (req, res, next) => {
 export const getTaskById = catchAsync(async (req, res) => {
     const id = assertValidTaskId(routeParam(req, "id"));
     const { task } = await loadTaskForMember(id, requireUser(req).id);
+    const taskWithProject = await prisma.task.findUnique({ where: { id: task.id }, include: taskInclude });
 
     res.status(200).json({
         status: "success",
-        data: { task }
+        data: { task: taskWithProject }
     });
 });
 
 export const editTask = catchAsync(async (req, res, next) => {
     const id = assertValidTaskId(routeParam(req, "id"));
     const { task: existingTask, membership } = await loadTaskForMember(id, requireUser(req).id);
-    const { title, description, status, priority, deadline } = req.body;
+    const { title, description, status, priority, deadline, projectId } = req.body;
 
     if (!canEditTask(membership, existingTask)) {
         return next(new AppError("You can only edit tasks you created", 403));
     }
+    await assertTaskWritable(existingTask);
     if (title !== undefined && !title) {
         return next(new AppError("Title is required", 400));
     }
@@ -166,7 +204,10 @@ export const editTask = catchAsync(async (req, res, next) => {
             status: parseStatus(status),
             priority: parsePriority(priority),
             deadline: parseDeadline(deadline),
+            // Moving between projects stays inside the task's workspace (PRD FR06).
+            projectId: await parseProjectId(projectId, existingTask.workspaceId),
         },
+        include: taskInclude,
     });
 
     logger.info(`Task updated taskId=${id} userId=${membership.userId}`);
@@ -184,6 +225,7 @@ export const updateTaskStatus = catchAsync(async (req, res, next) => {
     if (!canEditTask(membership, existingTask)) {
         return next(new AppError("You can only update tasks you created", 403));
     }
+    await assertTaskWritable(existingTask);
     if (status === undefined) {
         return next(new AppError("Please provide a valid status", 400));
     }
@@ -191,6 +233,7 @@ export const updateTaskStatus = catchAsync(async (req, res, next) => {
     const task = await prisma.task.update({
         where: { id },
         data: { status: parseStatus(status) },
+        include: taskInclude,
     });
 
     logger.info(`Task status updated taskId=${id} userId=${membership.userId} status=${task.status}`);
@@ -207,6 +250,7 @@ export const deleteTask = catchAsync(async (req, res, next) => {
     if (!canDeleteTask(membership, task)) {
         return next(new AppError("You can only delete tasks you created", 403));
     }
+    await assertTaskWritable(task);
 
     await prisma.task.delete({ where: { id } });
 

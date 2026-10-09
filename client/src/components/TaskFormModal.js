@@ -3,6 +3,8 @@
 // Modal form used for both creating new tasks and editing existing ones.
 import { useState, useEffect } from "react";
 import { useTasks } from "@/context/TaskContext";
+import { useWorkspaces } from "@/context/WorkspaceContext";
+import { getWorkspaceProjects } from "@/lib/services/projectService";
 import FormField from "./FormField";
 import Button from "./Button";
 
@@ -12,11 +14,24 @@ const EMPTY = {
   status: "pending",
   priority: "medium",
   deadline: "",
+  projectId: "",
 };
 
-export default function TaskFormModal({ open, onClose, task }) {
+// defaultProjectId pre-selects a project (e.g. "Add task" from a project page).
+export default function TaskFormModal({ open, onClose, task, defaultProjectId = "" }) {
   const { createTask, updateTask } = useTasks();
+  const { activeWorkspace } = useWorkspaces();
   const [form, setForm] = useState(EMPTY);
+  const [projects, setProjects] = useState([]);
+
+  // Project choices for the active workspace. Archived projects are read-only, so they
+  // aren't offered (the server would refuse them anyway).
+  useEffect(() => {
+    if (!open || !activeWorkspace?.id) return;
+    getWorkspaceProjects(activeWorkspace.id)
+      .then((res) => setProjects(res.data.data.projects))
+      .catch(() => setProjects([]));
+  }, [open, activeWorkspace?.id]);
   const [loading, setLoading] = useState(false);
   const isEditing = !!task;
 
@@ -29,11 +44,12 @@ export default function TaskFormModal({ open, onClose, task }) {
         status: task.status || "pending",
         priority: task.priority || "medium",
         deadline: task.deadline ? task.deadline.slice(0, 10) : "",
+        projectId: task.projectId || "",
       });
     } else {
-      setForm(EMPTY);
+      setForm({ ...EMPTY, projectId: defaultProjectId });
     }
-  }, [task, open]);
+  }, [task, open, defaultProjectId]);
 
   // Close on Escape for keyboard users
   useEffect(() => {
@@ -52,7 +68,7 @@ export default function TaskFormModal({ open, onClose, task }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
-    const payload = { ...form };
+    const payload = { ...form, projectId: form.projectId || null };
     if (!payload.deadline) delete payload.deadline;
 
     const res = isEditing
@@ -154,6 +170,29 @@ export default function TaskFormModal({ open, onClose, task }) {
               </select>
             </div>
           </div>
+
+          {projects.length > 0 && (
+            <div className="flex flex-col gap-1.5">
+              <label htmlFor="projectId" className="text-sm font-medium" style={{ color: "var(--ink)" }}>
+                Project
+              </label>
+              <select
+                id="projectId"
+                name="projectId"
+                value={form.projectId}
+                onChange={handleChange}
+                className="w-full px-3.5 py-2.5 rounded-lg text-sm outline-none"
+                style={{ background: "var(--paper-raised)", border: "1px solid var(--line)", color: "var(--ink)" }}
+              >
+                <option value="">No project</option>
+                {projects.map((project) => (
+                  <option key={project.id} value={project.id}>
+                    {project.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
 
           <FormField
             label="Deadline (optional)"

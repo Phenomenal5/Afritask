@@ -56,6 +56,7 @@ export default function Navbar() {
           <WorkspaceSwitcher />
           <nav className="hidden sm:flex items-center gap-1">
             {navLink("/dashboard", "Tasks")}
+            {navLink("/projects", "Projects")}
             {navLink("/workspace", "Workspace")}
             {navLink("/profile", "Profile")}
           </nav>
@@ -91,6 +92,14 @@ export default function Navbar() {
                   onClick={() => setMenuOpen(false)}
                 >
                   Profile
+                </Link>
+                <Link
+                  href="/projects"
+                  className="block px-3.5 py-2 text-sm hover:bg-[var(--line-soft)] sm:hidden"
+                  style={{ color: "var(--ink)" }}
+                  onClick={() => setMenuOpen(false)}
+                >
+                  Projects
                 </Link>
                 <Link
                   href="/workspace"

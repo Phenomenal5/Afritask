@@ -499,6 +499,28 @@ Single-task routes use the task id: `GET/PUT/DELETE /api/tasks/:id`,
 `PATCH /api/tasks/:id/status`. Owners and Admins can edit or delete any task in
 the workspace; Members only the tasks they created (`403` otherwise).
 
+## Projects
+
+Projects group related tasks inside a workspace. Every active member can view
+them; Owners and Admins create and manage them. A task's project is optional
+(`projectId: null`) and must belong to the task's own workspace.
+
+| Method | Path | Who | Purpose |
+| --- | --- | --- | --- |
+| `GET` | `/api/workspaces/:workspaceId/projects` | member | Projects with `taskCounts { total, open, completed }`. Archived ones only with `?includeArchived=true` |
+| `POST` | `/api/workspaces/:workspaceId/projects` | owner, admin | `{ name, description? }` (name 1–100 chars) |
+| `GET` | `/api/projects/:projectId` | member | One project + `canManage` |
+| `PATCH` | `/api/projects/:projectId` | owner, admin | `{ name?, description?, state? }` — `state` is `active`, `on_hold` or `completed` |
+| `POST` | `/api/projects/:projectId/archive` | owner, admin | Archive (records the previous state) |
+| `POST` | `/api/projects/:projectId/restore` | owner, admin | Back to the state it had before archiving |
+
+- Completing a project never completes its tasks; clients should warn using `taskCounts.open`.
+- Archived projects are read-only: editing the project or creating, editing,
+  completing or deleting its tasks answers `409`. Their tasks are left out of
+  workspace task lists (ask with `?projectId=<id>` to see them) and their reminders pause.
+- Task lists accept `?projectId=<uuid>` or `?projectId=none`; task responses include
+  `project: { id, name, state } | null`.
+
 ## Members
 
 | Method | Path | Who | Purpose |

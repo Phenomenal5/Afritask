@@ -5,6 +5,7 @@ import { createWorkspace, getWorkspace, listMyWorkspaces, renameWorkspace } from
 import { createWorkspaceTask, listWorkspaceTasks } from "../controllers/task.controller.js";
 import { createInvitation, listWorkspaceInvitations } from "../controllers/invitation.controller.js";
 import { invitationLimiter } from "../middlewares/rateLimiter.js";
+import { createProject, listWorkspaceProjects } from "../controllers/project.controller.js";
 import { changeMemberRole, leaveWorkspace, removeMember, transferOwnership } from "../controllers/member.controller.js";
 
 
@@ -26,6 +27,10 @@ router.post("/:workspaceId/tasks", requireWorkspaceMember, createWorkspaceTask);
 // Invitations: Owner and Admin (the controller limits which roles each may offer).
 router.get("/:workspaceId/invitations", requireWorkspaceMember, requireWorkspaceRole("owner", "admin"), listWorkspaceInvitations);
 router.post("/:workspaceId/invitations", requireWorkspaceMember, requireWorkspaceRole("owner", "admin"), invitationLimiter(), createInvitation);
+
+// Projects: everyone views, Owner/Admin create.
+router.get("/:workspaceId/projects", requireWorkspaceMember, listWorkspaceProjects);
+router.post("/:workspaceId/projects", requireWorkspaceMember, requireWorkspaceRole("owner", "admin"), createProject);
 
 // Members (role rules beyond these gates live in member.controller.ts).
 router.patch("/:workspaceId/members/:membershipId", requireWorkspaceMember, requireWorkspaceRole("owner"), changeMemberRole);
