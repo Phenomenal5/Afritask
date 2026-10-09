@@ -4,4 +4,13 @@ services:
     ports:
       - "3000:3000"
     env_file: .env
+    environment:
+      # Point at the redis service below instead of whatever .env says.
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      - redis
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
     restart: unless-stopped

@@ -36,7 +36,7 @@ REST API.
 | Frontend   | Next.js 16 (App Router), React 19, Tailwind CSS 4, axios, react-hot-toast |
 | Backend    | Node.js, Express 5, Mongoose 9 (MongoDB)                          |
 | Auth       | JWT + Passport Google OAuth 2.0, bcrypt password hashing          |
-| Email      | Brevo transactional email, node-cron for scheduled reminders      |
+| Email      | Brevo transactional email, Redis + BullMQ for scheduled reminders    |
 | Uploads    | Multer (avatar images)                                            |
 | Security   | helmet, cors, hpp, express-rate-limit                             |
 
@@ -60,7 +60,7 @@ labphase/
         ├── models/       # Mongoose schemas (User, Task)
         ├── routes/       # thin route wiring
         ├── middlewares/  # auth, roles, error handler, uploads
-        ├── jobs/         # daily reminder cron job
+        ├── jobs/         # daily reminder job (BullMQ)
         └── utils/        # AppError, catchAsync, logger, tokens
 ```
 
@@ -85,7 +85,7 @@ repositories and are now combined here for the lab-phase submission.
 - Optimistic status/delete updates in the UI, rolled back on failure
 
 **Automation**
-- A daily `node-cron` job (8:00am server time) emails reminders for
+- A daily BullMQ job (8:00am server time) emails reminders for
   incomplete tasks due the next day
 
 ---
@@ -116,6 +116,8 @@ FRONTEND_URL=http://localhost:<frontend-port>
 GOOGLE_CLIENT_ID=your_google_client_id
 GOOGLE_CLIENT_SECRET=your_google_client_secret
 GOOGLE_CALLBACK_URL=http://localhost:<backend-port>/api/auth/google/callback
+
+REDIS_URL=redis://localhost:6379
 ```
 
 ### 2. Frontend (`client/`)

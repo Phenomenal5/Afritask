@@ -1,7 +1,7 @@
 // AuthLayout frames the sign-in and sign-up flows with Afritask's brand voice.
 import Link from "next/link";
 
-const currentYear = 2026;
+const currentYear = new Date().getFullYear();
 
 export default function AuthLayout({ eyebrow, title, subtitle, children }) {
   return (

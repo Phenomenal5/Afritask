@@ -9,7 +9,7 @@ Afritask is an Express + MongoDB API for authentication, user settings, task man
 - MongoDB + Mongoose
 - Passport Google OAuth
 - Brevo for transactional email
-- node-cron for task reminders
+- Redis + BullMQ for scheduled task reminders
 
 ## Features
 
@@ -48,6 +48,8 @@ FRONTEND_URL=http://localhost:<frontend-port>
 GOOGLE_CLIENT_ID=your_google_client_id
 GOOGLE_CLIENT_SECRET=your_google_client_secret
 GOOGLE_CALLBACK_URL=http://localhost:<backend-port>/api/auth/google/callback
+
+REDIS_URL=redis://localhost:6379
 ```
 
 ## API Base
@@ -92,7 +94,7 @@ Legacy aliases are also available for some task endpoints:
 
 ## Reminder Job
 
-The reminder cron job is registered when the server starts and runs every day at `8:00am` server time.
+The reminder job is a BullMQ job scheduler (stored in Redis), registered when the server starts. It runs every day at `8:00am` server time.
 
 It finds incomplete tasks due tomorrow and sends reminder emails to the owning user.
 

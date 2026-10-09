@@ -9,7 +9,7 @@ Task Management REST API. Use this as the blueprint for adding or modifying code
 - **Auth:** JWT + Passport Google OAuth
 - **Email:** Brevo / Resend / Nodemailer
 - **Logging:** Winston (+ Morgan piped into it)
-- **Jobs:** node-cron
+- **Jobs:** BullMQ (Redis)
 
 ## Directory layout
 
@@ -41,7 +41,7 @@ server/
     │   ├── error.Middleware.js  # globalErrorHandler
     │   └── upload.js            # multer config
     ├── jobs/
-    │   └── taskReminder.js      # node-cron scheduled job
+    │   └── taskReminder.js      # BullMQ queue + worker for daily reminders
     └── utils/
         ├── AppError.js          # operational error class
         ├── catchAsync.js        # async wrapper -> next(err)
@@ -109,7 +109,7 @@ Each domain (auth, task, user) is a triple: **model + controller + route**.
 ### Cross-cutting
 - Security middleware in `server.js`: `helmet`, `cors` (env-driven origin), `express.json()`, `express.static('public')`, `morgan` piped into Winston.
 - Logging: import `logger` from `utils/logger.js`; log `error.stack || error.message || error`.
-- Background work: node-cron jobs in `jobs/`, registered inside the `app.listen` callback.
+- Background work: BullMQ queues + workers in `jobs/` (Redis via `config/redis.js`), registered inside the `app.listen` callback.
 - DB: `connectDB()` called once at the top of `server.js`.
 
 
