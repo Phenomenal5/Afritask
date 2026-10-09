@@ -14,11 +14,20 @@ Default route prefixes:
 /api/task
 ```
 
-All protected routes require a JWT in the `Authorization` header:
+Protected routes authenticate with the httpOnly `afritask_session` cookie that
+login sets (there is no bearer token). Browsers reach the API same-origin through
+the client's `/api` rewrite, so the cookie is sent automatically.
+
+Every `POST`/`PUT`/`PATCH`/`DELETE` must also send this header (CSRF guard),
+otherwise the API answers `403`:
 
 ```http
-Authorization: Bearer <token>
+X-Requested-With: XMLHttpRequest
 ```
+
+Sensitive auth routes are rate limited per IP (login/verify/reset/Google exchange:
+10 per 15 min each; signup/forgot-password: 5 per 15 min each) and answer `429`
+when exceeded.
 
 Common error response:
 
@@ -34,8 +43,7 @@ Common error response:
 ```env
 PORT=<backend-port>
 DATABASE_URL=postgresql://user:password@host/db
-JWT_SECRET=your_jwt_secret
-JWT_EXPIRES_IN=7d
+SESSION_TTL_DAYS=7
 VERIFY_EMAIL_TOKEN_EXPIRES_MS=3600000
 
 BREVO_API_KEY=your_brevo_api_key
@@ -136,7 +144,8 @@ If the verification token has expired, the API will generate and email a new ver
 
 ### Login
 
-Logs in a verified local user and returns a JWT.
+Logs in a verified local user, starts a session and sets the
+`afritask_session` cookie (`HttpOnly; SameSite=Lax`, `Secure` in production).
 
 ```http
 POST /api/auth/login
@@ -156,12 +165,12 @@ Success response:
 ```json
 {
   "status": "success",
-  "token": "jwt_token_here",
   "user": {
     "id": "user_uuid",
     "name": "Abdul",
     "email": "abdul@example.com",
     "age": 25,
+    "timezone": "Africa/Lagos",
     "provider": "local",
     "isVerified": true,
     "createdAt": "2026-06-20T00:00:00.000Z",
@@ -212,19 +221,19 @@ http://localhost:<PORT>/api/auth/google/callback
 ### Google Callback
 
 Google redirects to this route after login. Because the whole flow is a
-top-level browser redirect (not an XHR), this route does **not** return JSON —
-it mints the JWT and redirects the browser back to the frontend, which stores
-the token and hydrates the session (same end state as a credential login).
+top-level browser redirect (not an XHR) on the API's own domain, this route does
+**not** return JSON or set a cookie — it mints a single-use code (valid 2 minutes)
+and redirects to the frontend, which exchanges it via `POST /api/auth/google/exchange`.
 
 ```http
 GET /api/auth/google/callback
 ```
 
-Success — redirects to the frontend callback with the token in the query string:
+Success — redirects to the frontend callback with the one-time code:
 
 ```txt
 302 Found
-Location: <CLIENT_URL>/auth/callback?token=<jwt_token_here>
+Location: <CLIENT_URL>/auth/callback?code=<one_time_code>
 ```
 
 Failure (denied consent, no email, missing user) — redirects to the frontend
@@ -244,9 +253,48 @@ If Google credentials are missing:
 }
 ```
 
+### Google Sign-in Exchange
+
+Second half of Google sign-in: trades the one-time code for a session cookie.
+Each code works once.
+
+```http
+POST /api/auth/google/exchange
+```
+
+Request body:
+
+```json
+{
+  "code": "<one_time_code>"
+}
+```
+
+Success: `200` with `{ "status": "success", "user": { ... } }` and the
+`afritask_session` cookie. Used or expired code: `401` "Google sign-in expired. Please try again."
+
+### Logout
+
+Ends the current session (other devices stay signed in) and clears the cookie.
+
+```http
+POST /api/auth/logout
+```
+
+Auth required: yes.
+
+```json
+{
+  "status": "success",
+  "message": "Logged out successfully"
+}
+```
+
 ### Forgot Password
 
-Creates a password reset token and sends a reset email.
+Sends a reset email if the account exists. The response is identical whether or
+not the email is registered, so it can't be used to discover accounts. Requesting
+again replaces any earlier link.
 
 ```http
 POST /api/auth/forgot-password
@@ -265,39 +313,14 @@ Success response:
 ```json
 {
   "status": "success",
-  "message": "Password reset link has been sent to your email"
-}
-```
-
-### Verify Password Reset Token
-
-Checks whether a password reset token is valid and not expired.
-
-```http
-POST /api/auth/forgot-password/verify-token/:token
-```
-
-Success response:
-
-```json
-{
-  "status": "success",
-  "message": "Password reset token is valid"
-}
-```
-
-Possible error:
-
-```json
-{
-  "status": "fail",
-  "message": "Invalid or expired password reset token"
+  "message": "If an account exists for that email, a password reset link has been sent."
 }
 ```
 
 ### Reset Password
 
-Updates the user's password using a valid reset token.
+Updates the user's password using a valid reset token. The link is single-use,
+and a successful reset signs the user out on every device.
 
 ```http
 PATCH /api/auth/reset-password/:token
@@ -345,7 +368,7 @@ Possible errors:
 
 ### Get Current User
 
-Returns the authenticated user and a fresh JWT.
+Returns the authenticated user for the current session cookie.
 
 ```http
 GET /api/auth/me
@@ -358,11 +381,11 @@ Success response:
 ```json
 {
   "status": "success",
-  "token": "jwt_token_here",
   "user": {
     "id": "user_uuid",
     "name": "Abdul",
     "email": "abdul@example.com",
+    "timezone": "Africa/Lagos",
     "isVerified": true
   }
 }
@@ -807,20 +830,21 @@ GET /api/auth/verify-email/:token
 POST /api/auth/login
 ```
 
-4. Copy the returned token.
+4. Keep the `afritask_session` cookie the login response set (e.g. `curl -c jar.txt` then `-b jar.txt`).
 
 5. Create task:
 
 ```http
 POST /api/task
-Authorization: Bearer <token>
+Cookie: afritask_session=<from login>
+X-Requested-With: XMLHttpRequest
 ```
 
 6. Get all tasks:
 
 ```http
 GET /api/task
-Authorization: Bearer <token>
+Cookie: afritask_session=<from login>
 ```
 
 
@@ -1251,18 +1275,19 @@ GET /api/auth/verify-email/:token
 POST /api/auth/login
 ```
 
-4. Copy the returned token.
+4. Keep the `afritask_session` cookie the login response set (e.g. `curl -c jar.txt` then `-b jar.txt`).
 
 5. Create task:
 
 ```http
 POST /api/task
-Authorization: Bearer <token>
+Cookie: afritask_session=<from login>
+X-Requested-With: XMLHttpRequest
 ```
 
 6. Get all tasks:
 
 ```http
 GET /api/task
-Authorization: Bearer <token>
+Cookie: afritask_session=<from login>
 ```

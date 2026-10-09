@@ -7,7 +7,6 @@
 
 const ALWAYS_REQUIRED = [
   "DATABASE_URL",
-  "JWT_SECRET",
   "REDIS_URL",
   "BREVO_API_KEY",
   "EMAIL_FROM_ADDRESS",
@@ -33,8 +32,11 @@ const env = {
   databaseUrl: requiredValue("DATABASE_URL"),
   redisUrl: requiredValue("REDIS_URL"),
 
-  jwtSecret: requiredValue("JWT_SECRET"),
-  jwtExpiresIn: process.env.JWT_EXPIRES_IN ?? "7d",
+  // How long a login lasts before the session cookie expires.
+  sessionTtlDays: Number(process.env.SESSION_TTL_DAYS ?? 7),
+  // Hops of reverse proxy in front of Express in production (e.g. the client's /api
+  // rewrite + the host's load balancer). Needed for correct client IPs in rate limiting.
+  trustProxyHops: Number(process.env.TRUST_PROXY_HOPS ?? 1),
 
   brevoApiKey: requiredValue("BREVO_API_KEY"),
   emailFromName: process.env.EMAIL_FROM_NAME ?? "AfriTask",

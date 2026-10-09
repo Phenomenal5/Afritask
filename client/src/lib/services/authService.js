@@ -16,10 +16,20 @@ export const verifyEmail = (token) => {
   return api.get(`/auth/verify-email/${token}`);
 };
 
-// Sign in an existing user and return the JWT plus user payload.
+// Sign in an existing user. The server sets the httpOnly session cookie.
 export const login = (data) => {
-  // POST /auth/login expects credentials and returns token + user data.
+  // POST /auth/login expects credentials and returns the user.
   return api.post("/auth/login", data);
+};
+
+// End the current session (the server revokes it and clears the cookie).
+export const logout = () => {
+  return api.post("/auth/logout");
+};
+
+// Trade the one-time code from the Google redirect for a session cookie.
+export const exchangeGoogleCode = (code) => {
+  return api.post("/auth/google/exchange", { code });
 };
 
 // Request a password reset email for the provided account email.
@@ -34,13 +44,10 @@ export const resetPassword = ({ token, password }) => {
   return api.patch(`/auth/reset-password/${token}`, { password });
 };
 
-// Fetch the currently authenticated user using the stored JWT.
+// Fetch the currently authenticated user from the session cookie (401 when signed out).
 export const getMe = () => {
-  // GET /auth/me returns the logged-in user and a refreshed token when applicable.
   return api.get("/auth/me");
 };
 
-// Build the Google OAuth redirect URL used by the sign-in page.
-export const googleLoginUrl = () => {
-  return `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000"}/api/auth/google`;
-};
+// Google OAuth entry point — a full-page navigation through the /api rewrite.
+export const googleLoginUrl = () => "/api/auth/google";

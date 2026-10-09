@@ -1,6 +1,6 @@
 // ─── Shared Prisma client (PostgreSQL via the pg driver adapter) ─────────────────────
 import { PrismaPg } from "@prisma/adapter-pg";
-import { PrismaClient, type User } from "../generated/prisma/client.js";
+import { PrismaClient, type Prisma, type User } from "../generated/prisma/client.js";
 import logger, { describeError } from "../utils/logger.js";
 import env from "./env.js";
 
@@ -8,14 +8,13 @@ const adapter = new PrismaPg({ connectionString: env.databaseUrl });
 
 // Columns that must never leave the server. Drives both the global omit below
 // and the PublicUser type, so the two can't drift apart.
+// NOTE: `satisfies Prisma.UserOmit` makes a stale entry (a dropped column) a compile
+// error — without it, a leftover name only blew up when the server started.
+// (Tokens and sessions live in their own tables now, never on the user row.)
 const USER_SECRET_FIELDS = {
   password: true,
-  verifyEmailToken: true,
-  verifyEmailExpires: true,
-  resetPasswordToken: true,
-  resetPasswordExpires: true,
   legacyMongoId: true,
-} as const;
+} as const satisfies Prisma.UserOmit;
 
 // What a default user query returns (and what `protect` puts on req.user).
 export type PublicUser = Omit<User, keyof typeof USER_SECRET_FIELDS>;

@@ -1,6 +1,7 @@
 import passport from "passport";
 import googleOauth, { type Profile, type VerifyCallback } from "passport-google-oauth20";
 import prisma from "./prisma.js";
+import { revokeAccountTokens } from "../services/accountTokenService.js";
 import { deliverWelcomeEmail } from "../utils/email.js";
 import logger from "../utils/logger.js";
 import env from "./env.js";
@@ -62,13 +63,12 @@ if (googleClientId && googleClientSecret) {
                 provider: "google",
                 providerId: profile.id,
                 isVerified: true,
-                // Google already proved ownership of the address, so retire the
-                // pending token. Leaving it live would let the old verification
-                // link run verifyEmail later and fire a SECOND welcome email.
-                verifyEmailToken: null,
-                verifyEmailExpires: null,
               },
             });
+            // Google already proved ownership of the address, so retire the
+            // pending verification link. (verifyEmail would now answer "already
+            // verified" anyway, but a dead link is the clearer state.)
+            await revokeAccountTokens(linkedUser.id, "verify_email");
 
             logger.info(`Google OAuth linked existing user ${email} with provider account`);
 

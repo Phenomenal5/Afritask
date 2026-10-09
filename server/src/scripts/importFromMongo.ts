@@ -14,8 +14,11 @@
 
 import { PrismaPg } from "@prisma/adapter-pg";
 import { MongoClient, type ObjectId } from "mongodb";
+import { hashSecureToken } from "../utils/secureToken.js";
 import {
+    AccountTokenPurpose,
     AuthProvider,
+    type Prisma,
     PrismaClient,
     Role,
     TaskPriority,
@@ -87,6 +90,25 @@ const enumValue = <T extends string>(allowed: Record<string, T>, value: unknown,
     return (Object.values(allowed) as string[]).includes(value as string) ? (value as T) : null;
 };
 
+// Mongo kept raw verify/reset tokens on the user. Store them as hashed AccountTokens
+// (same SHA-256 as the app) so links already in people's inboxes keep working.
+// Upsert on the hash keeps re-runs duplicate-free.
+const carryOverPendingTokens = async (prisma: PrismaClient, userId: string, sourceUser: MongoUser) => {
+    const pendingTokens = [
+        { purpose: AccountTokenPurpose.verify_email, rawToken: sourceUser.verifyEmailToken, expiresAt: sourceUser.verifyEmailExpires },
+        { purpose: AccountTokenPurpose.reset_password, rawToken: sourceUser.resetPasswordToken, expiresAt: sourceUser.resetPasswordExpires },
+    ];
+    for (const { purpose, rawToken, expiresAt } of pendingTokens) {
+        if (!rawToken) continue;
+        const tokenHash = hashSecureToken(rawToken);
+        await prisma.accountToken.upsert({
+            where: { tokenHash },
+            create: { userId, purpose, tokenHash, expiresAt: expiresAt ?? new Date() },
+            update: {},
+        });
+    }
+};
+
 // ─── Users ─────────────────────
 const importUsers = async (mongo: MongoClient, prisma: PrismaClient) => {
     const users = mongo.db().collection<MongoUser>("users");
@@ -119,7 +141,7 @@ const importUsers = async (mongo: MongoClient, prisma: PrismaClient) => {
 
             const age = typeof sourceUser.age === "number" && sourceUser.age >= 0 ? Math.round(sourceUser.age) : null;
 
-            const userData = {
+            const userData: Prisma.UserUncheckedCreateInput = {
                 name,
                 email,
                 age,
@@ -130,20 +152,18 @@ const importUsers = async (mongo: MongoClient, prisma: PrismaClient) => {
                 provider,
                 providerId: sourceUser.providerId ?? null,
                 isVerified: sourceUser.isVerified ?? false,
-                verifyEmailToken: sourceUser.verifyEmailToken ?? null,
-                verifyEmailExpires: sourceUser.verifyEmailExpires ?? null,
-                resetPasswordToken: sourceUser.resetPasswordToken ?? null,
-                resetPasswordExpires: sourceUser.resetPasswordExpires ?? null,
                 createdAt: sourceUser.createdAt ?? sourceUser._id.getTimestamp(),
                 updatedAt: sourceUser.updatedAt ?? sourceUser.createdAt ?? sourceUser._id.getTimestamp(),
             };
 
             if (!isDryRun) {
-                await prisma.user.upsert({
+                const importedUser = await prisma.user.upsert({
                     where: { legacyMongoId: sourceId },
                     create: { ...userData, legacyMongoId: sourceId },
                     update: userData,
+                    select: { id: true },
                 });
+                await carryOverPendingTokens(prisma, importedUser.id, sourceUser);
             }
             importedCount += 1;
         }

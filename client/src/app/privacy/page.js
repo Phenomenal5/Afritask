@@ -12,7 +12,7 @@ export const metadata = {
     "How Afritask collects, uses, and protects your information, and the choices you have over it.",
 };
 
-const LAST_UPDATED = "September 19, 2026";
+const LAST_UPDATED = "October 9, 2026";
 
 // Set NEXT_PUBLIC_CONTACT_EMAIL to publish a privacy contact address. It's an
 // env var (not hardcoded) so a personal inbox never gets committed; when it's
@@ -132,8 +132,10 @@ export default function PrivacyPage() {
         <Section id="information-we-collect" number={1} title="Information we collect">
           <ul>
             <li>
-              <strong>Account details.</strong> Your name, your email address, and
-              your age if you choose to add it. If you sign up with email, we also
+              <strong>Account details.</strong> Your name, your email address, your
+              timezone (detected from your device so due dates show at the right
+              local time, and editable in your profile), and your age if you choose
+              to add it. If you sign up with email, we also
               store your password, but only as a one-way bcrypt hash. We never see
               or keep the password itself.
             </li>
@@ -147,6 +149,11 @@ export default function PrivacyPage() {
               name, email, and Google account ID so we can recognise you next time.
               We never receive your Google password, and we don&apos;t access your
               Gmail, Drive, contacts, or calendar.
+            </li>
+            <li>
+              <strong>Sign-in sessions.</strong> Each time you sign in we record
+              when the session started, when it expires, and your browser type, so
+              it can be ended when you sign out or reset your password.
             </li>
             <li>
               <strong>Your tasks.</strong> Each task&apos;s title, description,
@@ -165,14 +172,17 @@ export default function PrivacyPage() {
 
         <Section id="browser-storage" number={2} title="What's stored in your browser">
           <p>
-            Afritask saves two things in your browser&apos;s local storage:{" "}
-            <code>afritask_token</code> keeps you signed in, and{" "}
+            Afritask stores two things in your browser. A cookie called{" "}
+            <code>afritask_session</code> keeps you signed in. It&apos;s strictly
+            necessary, can&apos;t be read by scripts on the page, and stops working
+            when you sign out or after 7 days. In local storage,{" "}
             <code>afritask_theme</code> remembers whether you prefer light or dark
-            mode. Signing out removes the sign-in token.
+            mode.
           </p>
           <p>
-            We don&apos;t use cookies to track you, and Afritask has no analytics,
-            advertising, or third-party tracking scripts.
+            That session cookie is the only cookie we set. We don&apos;t use cookies
+            to track you, and Afritask has no analytics, advertising, or third-party
+            tracking scripts.
           </p>
         </Section>
 
@@ -263,11 +273,13 @@ export default function PrivacyPage() {
             <li>Passwords are hashed with bcrypt before they&apos;re saved.</li>
             <li>
               Email verification and password reset links use long random tokens
-              that expire, and a reset link stops working once it has been used.
+              that expire, and a reset link stops working once it has been used. We
+              store only a one-way hash of every link and session, never the token
+              itself.
             </li>
             <li>
-              Your tasks can be read or changed only by requests signed with your
-              account&apos;s token.
+              Your tasks can be read or changed only by requests from your signed-in
+              session. Resetting your password signs you out on every device.
             </li>
             <li>
               Data travels between your browser and our servers over encrypted HTTPS

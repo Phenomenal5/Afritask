@@ -35,7 +35,7 @@ REST API.
 | ---------- | ----------------------------------------------------------------- |
 | Frontend   | Next.js 16 (App Router), React 19, Tailwind CSS 4, axios, react-hot-toast |
 | Backend    | Node.js, Express 5, TypeScript, Prisma 7 (PostgreSQL)             |
-| Auth       | JWT + Passport Google OAuth 2.0, bcrypt password hashing          |
+| Auth       | httpOnly cookie sessions, Passport Google OAuth 2.0, bcrypt       |
 | Email      | Brevo transactional email, Redis + BullMQ for scheduled reminders    |
 | Uploads    | Multer (avatar images)                                            |
 | Security   | helmet, cors, hpp, express-rate-limit                             |
@@ -73,7 +73,7 @@ repositories and are now combined here for the lab-phase submission.
 
 **Authentication & accounts**
 - Email/password signup with email verification
-- Login, logout, and session restore from a stored JWT
+- Login, logout, and session restore via a revocable httpOnly session cookie
 - Google OAuth sign-in
 - Forgot-password / reset-password flow
 - Profile updates, password change, and avatar upload

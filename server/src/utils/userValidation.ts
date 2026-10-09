@@ -37,3 +37,16 @@ export const parseAge = (age: unknown): number | undefined => {
     }
     return parsedAge;
 };
+
+// IANA zone names only ("Africa/Lagos", "UTC"). Intl rejects unknown zones by throwing,
+// which is more reliable than a hand-kept list. Empty/undefined = not provided.
+export const parseTimezone = (timezone: unknown): string | undefined => {
+    if (timezone === undefined || timezone === null || timezone === "") return undefined;
+    if (typeof timezone !== "string") throw new AppError("Please provide a valid timezone", 400);
+    try {
+        // resolvedOptions() gives the canonical spelling ("africa/lagos" → "Africa/Lagos").
+        return new Intl.DateTimeFormat("en-US", { timeZone: timezone }).resolvedOptions().timeZone;
+    } catch {
+        throw new AppError("Please provide a valid timezone", 400);
+    }
+};

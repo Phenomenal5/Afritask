@@ -89,10 +89,10 @@ Open the app at `http://localhost:3000`.
 Create a `.env` file with:
 
 ```env
-NEXT_PUBLIC_API_URL=http://localhost:<backend-port>
+API_URL=http://localhost:<backend-port>
 ```
 
-`NEXT_PUBLIC_API_URL` should point to your backend origin without `/api`. Make sure it matches the port your server is actually listening on.
+`API_URL` is the backend origin (without `/api`) that `next.config.mjs` proxies `/api` and `/uploads` to. It's read on the server only — the browser never calls the backend directly, which keeps the session cookie first-party. The older `NEXT_PUBLIC_API_URL` still works as a fallback. **Don't** point the browser at the backend origin directly: the cookie would be set on the wrong site and sign-in would silently fail.
 
 Optionally set `NEXT_PUBLIC_CONTACT_EMAIL` to show a contact address on the privacy policy page. Without it, the page tells users to reply to any Afritask email instead.
 
@@ -108,7 +108,9 @@ Optionally set `NEXT_PUBLIC_CONTACT_EMAIL` to show a contact address on the priv
 
 - `src/lib/api.js` creates the shared axios instance.
 - `src/lib/services/*.js` keeps backend route calls organized by feature.
-- JWTs are stored in `localStorage` under `afritask_token` and attached automatically to requests.
+- Requests go to relative `/api/...`; `next.config.mjs` rewrites them (and `/uploads`) to the backend, so the call is same-origin.
+- Auth is an httpOnly `afritask_session` cookie set by the server — JavaScript never sees or stores a token. Whether you're signed in is decided by `GET /api/auth/me`.
+- The axios instance sends `X-Requested-With: XMLHttpRequest` on every request; the server's CSRF guard rejects writes without it.
 
 ### Global state
 

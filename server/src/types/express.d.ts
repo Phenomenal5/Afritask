@@ -5,6 +5,11 @@ import type { PublicUser } from "../config/prisma.js";
 declare global {
   namespace Express {
     interface User extends PublicUser {}
+
+    interface Request {
+      // Id of the session `protect` authenticated — lets logout/password change target it.
+      sessionId?: string;
+    }
   }
 }
 

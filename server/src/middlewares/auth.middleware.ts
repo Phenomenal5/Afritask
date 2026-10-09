@@ -1,50 +1,30 @@
 import type { NextFunction, Request, Response } from "express";
-import jwt, { type JwtPayload } from "jsonwebtoken";
-import validator from "validator";
-import prisma, { type PublicUser } from "../config/prisma.js";
+import type { PublicUser } from "../config/prisma.js";
 import AppError from "../utils/AppError.js";
 import logger, { describeError } from "../utils/logger.js";
-import env from "../config/env.js";
+import { SESSION_COOKIE_NAME, clearSessionCookie, findActiveSession } from "../services/sessionService.js";
 
-// Older tokens were signed with { userId } instead of { id }.
-interface AuthTokenPayload extends JwtPayload {
-    id?: string;
-    userId?: string;
-}
-
+// Authenticates via the httpOnly session cookie (see services/sessionService.ts).
+// NOTE: the old `Authorization: Bearer <jwt>` header is no longer accepted — every
+// pre-sessions login was effectively signed out by this change.
 const protect = async (req: Request, res: Response, next: NextFunction) => {
     try {
-        const authHeader = req.headers.authorization;
-        if (!authHeader || !authHeader.startsWith("Bearer ")) {
-            logger.warn(`Unauthorized access attempt: missing or invalid auth header`);
+        const rawSecret: unknown = req.cookies?.[SESSION_COOKIE_NAME];
+        if (typeof rawSecret !== "string" || !rawSecret) {
+            logger.warn(`Unauthorized access attempt: no session cookie`);
             return res.status(401).json({ status: "fail", message: "Unauthorized" });
         }
 
-        const token = authHeader.split(" ")[1] ?? "";
-        const decoded = jwt.verify(token, env.jwtSecret) as AuthTokenPayload;
-        // Accept the current payload name and older tokens generated with userId.
-        const userId = decoded.id || decoded.userId;
-
-        if (!userId) {
-            logger.warn(`Unauthorized access attempt: token missing userId`);
+        const session = await findActiveSession(rawSecret);
+        if (!session) {
+            // Expired or revoked — drop the dead cookie so the browser stops sending it.
+            clearSessionCookie(res);
+            logger.warn(`Unauthorized access attempt: unknown, expired or revoked session`);
             return res.status(401).json({ status: "fail", message: "Unauthorized" });
         }
 
-        // NOTE: tokens issued before the Postgres move carry a Mongo ObjectId, not a
-        // UUID. They're still validly signed, so reject them here (forcing a fresh
-        // login) instead of letting Postgres throw on the malformed id.
-        if (!validator.isUUID(userId)) {
-            logger.warn(`Unauthorized access attempt: pre-migration token userId=${userId}`);
-            return res.status(401).json({ status: "fail", message: "Unauthorized" });
-        }
-
-        const user = await prisma.user.findUnique({ where: { id: userId } });
-        if (!user) {
-            logger.warn(`Unauthorized access attempt: user not found userId=${userId}`);
-            return res.status(401).json({ status: "fail", message: "Unauthorized" });
-        }
-
-        req.user = user;
+        req.user = session.user;
+        req.sessionId = session.id;
         next();
     } catch (error) {
         logger.error(`Authorization failure: ${describeError(error)}`);

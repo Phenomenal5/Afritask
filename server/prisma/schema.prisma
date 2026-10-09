@@ -1,7 +1,6 @@
 // ─── Afritask database schema (PostgreSQL) ─────────────────────
-// Mirrors the old Mongoose User/Task models 1:1 so this migration changes no
-// behaviour. Workspaces, sessions, etc. arrive in later branches per the
-// Database Design doc. Apply changes with `npm run db:migrate`.
+// Follows the Database Design doc; tables arrive feature by feature.
+// Apply changes with `npm run db:migrate -- --name <change>`.
 
 generator client {
   provider = "prisma-client"
@@ -36,6 +35,13 @@ enum TaskPriority {
   high
 }
 
+enum AccountTokenPurpose {
+  verify_email
+  reset_password
+  // Short-lived code that hands a finished Google sign-in from the API's redirect to the client.
+  oauth_exchange
+}
+
 model User {
   id                   String       @id @default(uuid(7)) @db.Uuid
   name                 String
@@ -49,16 +55,48 @@ model User {
   provider             AuthProvider @default(local)
   providerId           String?      @unique
   isVerified           Boolean      @default(false)
-  verifyEmailToken     String?
-  verifyEmailExpires   DateTime?    @db.Timestamptz(3)
-  resetPasswordToken   String?
-  resetPasswordExpires DateTime?    @db.Timestamptz(3)
+  // IANA zone, e.g. "Africa/Lagos". Detected from the device at signup, editable in profile.
+  timezone             String       @default("UTC")
   // Source Mongo _id, so the import script can be re-run without duplicating rows.
   legacyMongoId        String?      @unique
   createdAt            DateTime     @default(now()) @db.Timestamptz(3)
   updatedAt            DateTime     @updatedAt @db.Timestamptz(3)
 
-  tasks Task[]
+  tasks         Task[]
+  sessions      Session[]
+  accountTokens AccountToken[]
+}
+
+// A signed-in browser. The cookie holds a random secret; only its SHA-256 hash is stored,
+// so a database leak can't be replayed as a login. Revoking = setting revokedAt.
+model Session {
+  id         String    @id @default(uuid(7)) @db.Uuid
+  userId     String    @db.Uuid
+  secretHash String    @unique
+  expiresAt  DateTime  @db.Timestamptz(3)
+  revokedAt  DateTime? @db.Timestamptz(3)
+  userAgent  String?
+  createdAt  DateTime  @default(now()) @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+// Single-use links/codes (email verification, password reset, OAuth hand-off).
+// Raw token goes out by email/redirect; only its hash is stored. usedAt marks it consumed.
+model AccountToken {
+  id        String              @id @default(uuid(7)) @db.Uuid
+  userId    String              @db.Uuid
+  purpose   AccountTokenPurpose
+  tokenHash String              @unique
+  expiresAt DateTime            @db.Timestamptz(3)
+  usedAt    DateTime?           @db.Timestamptz(3)
+  createdAt DateTime            @default(now()) @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, purpose])
 }
 
 model Task {

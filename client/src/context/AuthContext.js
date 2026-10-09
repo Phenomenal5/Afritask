@@ -8,9 +8,11 @@ import { createContext, useCallback, useContext, useEffect, useState } from "rea
 import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
 import {
+  exchangeGoogleCode,
   forgotPassword as forgotPasswordRequest,
   getMe,
   login as loginRequest,
+  logout as logoutRequest,
   resetPassword as resetPasswordRequest,
   signup as signupRequest,
   verifyEmail as verifyEmailRequest,
@@ -18,7 +20,19 @@ import {
 
 const AuthContext = createContext(null);
 
-const TOKEN_KEY = "afritask_token";
+// NOTE: the session lives in an httpOnly cookie that JavaScript can't read. So "am I
+// signed in?" is answered only by asking the server (/auth/me) — never by checking storage.
+// Older builds kept a JWT under this key; clear any leftover copy on load.
+const LEGACY_TOKEN_KEY = "afritask_token";
+
+// The browser's IANA timezone, sent at signup so due dates show in local time.
+const detectTimezone = () => {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone;
+  } catch {
+    return undefined;
+  }
+};
 
 // Provide the logged-in user, auth status, and session actions to the app.
 export function AuthProvider({ children }) {
@@ -27,29 +41,19 @@ export function AuthProvider({ children }) {
   const [authLoading, setAuthLoading] = useState(true);
   const [logoutVersion, setLogoutVersion] = useState(0);
 
-  // Restore the current session once on mount by checking localStorage and /auth/me.
+  // Restore the current session once on mount — the cookie (if any) rides along to /auth/me.
   useEffect(() => {
-    const token = localStorage.getItem(TOKEN_KEY);
-    if (!token) {
-      setAuthLoading(false);
-      return;
-    }
+    localStorage.removeItem(LEGACY_TOKEN_KEY);
 
     getMe()
-      .then((res) => {
-        setUser(res.data.user);
-        if (res.data.token) localStorage.setItem(TOKEN_KEY, res.data.token);
-      })
-      .catch(() => {
-        localStorage.removeItem(TOKEN_KEY);
-        setUser(null);
-      })
+      .then((res) => setUser(res.data.user))
+      .catch(() => setUser(null))
       .finally(() => setAuthLoading(false));
   }, []);
 
   const signup = useCallback(async ({ name, email, password, age }) => {
     try {
-      const res = await signupRequest({ name, email, password, age });
+      const res = await signupRequest({ name, email, password, age, timezone: detectTimezone() });
       toast.success(res.data.message || "Check your email to verify your account.");
       return { success: true };
     } catch (err) {
@@ -76,7 +80,6 @@ export function AuthProvider({ children }) {
     async ({ email, password }) => {
       try {
         const res = await loginRequest({ email, password });
-        localStorage.setItem(TOKEN_KEY, res.data.token);
         setUser(res.data.user);
         toast.success(`Welcome back, ${res.data.user.name.split(" ")[0]}`);
         router.push("/dashboard");
@@ -90,22 +93,18 @@ export function AuthProvider({ children }) {
     [router]
   );
 
-  // Finish a Google sign-in. The backend completed OAuth server-side and handed
-  // us a JWT via the /auth/callback URL — store it, hydrate the user from
-  // /auth/me, and land on the dashboard. Same end state as a credential login.
+  // Finish a Google sign-in. The backend completed OAuth server-side and redirected
+  // to /auth/callback with a one-time code — exchanging it sets the session cookie.
+  // Same end state as a credential login.
   const completeOAuthLogin = useCallback(
-    async (token) => {
+    async (code) => {
       try {
-        localStorage.setItem(TOKEN_KEY, token);
-        const res = await getMe();
+        const res = await exchangeGoogleCode(code);
         setUser(res.data.user);
-        // /auth/me refreshes the token when applicable — keep the newest one.
-        if (res.data.token) localStorage.setItem(TOKEN_KEY, res.data.token);
         toast.success(`Welcome, ${res.data.user.name.split(" ")[0]}`);
         router.push("/dashboard");
         return { success: true };
       } catch (err) {
-        localStorage.removeItem(TOKEN_KEY);
         const message = err.response?.data?.message || "Google sign-in failed";
         toast.error(message);
         router.push("/login");
@@ -141,8 +140,12 @@ export function AuthProvider({ children }) {
     }
   }, []);
 
-  const logout = useCallback(() => {
-    localStorage.removeItem(TOKEN_KEY);
+  const logout = useCallback(async () => {
+    try {
+      await logoutRequest();
+    } catch {
+      // Already signed out server-side (expired session) — clearing local state is all that's left.
+    }
     setUser(null);
     setLogoutVersion((count) => count + 1);
     toast.success("Signed out");

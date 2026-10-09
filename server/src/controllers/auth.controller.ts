@@ -1,21 +1,26 @@
-import { randomBytes } from 'crypto';
-import type { Response } from 'express';
+import type { Request, Response } from 'express';
 import prisma, { type PublicUser } from '../config/prisma.js';
 import AppError from '../utils/AppError.js';
 import catchAsync from '../utils/catchAsync.js';
 import {
     deliverWelcomeEmail,
     sendEmailVerificationCode,
-    sendPasswordChangedEmail,
+    deliverPasswordChangedEmail,
     sendPasswordResetEmail
 } from '../utils/email.js';
-import generateToken from '../utils/jwt.js';
 import logger, { errorMessage } from '../utils/logger.js';
 import { comparePassword, hashPassword } from '../utils/password.js';
-import { assertValidEmail, assertValidPassword, normalizeName, parseAge } from '../utils/userValidation.js';
+import { assertValidEmail, assertValidPassword, normalizeName, parseAge, parseTimezone } from '../utils/userValidation.js';
 import { requireUser } from '../middlewares/auth.middleware.js';
 import CLIENT_URL from '../config/clientUrl.js';
 import routeParam from '../utils/routeParam.js';
+import {
+    consumeAccountToken,
+    findAccountToken,
+    issueAccountToken,
+    revokeAccountTokens
+} from '../services/accountTokenService.js';
+import { clearSessionCookie, revokeAllSessions, revokeSession, startSession } from '../services/sessionService.js';
 
 const VERIFY_EMAIL_TOKEN_EXPIRES = process.env.VERIFY_EMAIL_TOKEN_EXPIRES_MS
     ? Number(process.env.VERIFY_EMAIL_TOKEN_EXPIRES_MS)
@@ -25,16 +30,15 @@ const RESET_PASSWORD_TOKEN_EXPIRES = process.env.RESET_PASSWORD_TOKEN_EXPIRES_MS
     ? Number(process.env.RESET_PASSWORD_TOKEN_EXPIRES_MS)
     : 15 * 60 * 1000; // 15 minutes
 
-const createAndSendVerificationToken = async (user: PublicUser) => {
-    const token = randomBytes(32).toString("hex");
+// The Google hand-off code only has to survive one redirect + one request.
+const OAUTH_EXCHANGE_CODE_EXPIRES = 2 * 60 * 1000; // 2 minutes
 
-    await prisma.user.update({
-        where: { id: user.id },
-        data: {
-            verifyEmailToken: token,
-            verifyEmailExpires: new Date(Date.now() + VERIFY_EMAIL_TOKEN_EXPIRES),
-        },
-    });
+// NOTE: forgot-password answers the same way whether or not the email exists, so the
+// endpoint can't be used to discover who has an account (SRS SR01).
+const FORGOT_PASSWORD_RESPONSE = "If an account exists for that email, a password reset link has been sent.";
+
+const createAndSendVerificationToken = async (user: PublicUser) => {
+    const token = await issueAccountToken(user.id, "verify_email", VERIFY_EMAIL_TOKEN_EXPIRES);
 
     logger.info(`Verification token generated for user ${user.email}`);
     await sendEmailVerificationCode(user.email, token);
@@ -42,18 +46,19 @@ const createAndSendVerificationToken = async (user: PublicUser) => {
     return token;
 };
 
-const sendAuthResponse = (user: PublicUser, statusCode: number, res: Response) => {
-    const token = generateToken(user);
+// Start a session (sets the httpOnly cookie) and return the user. No token in the body —
+// the browser never gets to see the session secret.
+const sendAuthResponse = async (req: Request, res: Response, user: PublicUser, statusCode: number) => {
+    await startSession(req, res, user.id);
 
     res.status(statusCode).json({
         status: "success",
-        token,
         user
     });
 };
 
 export const signup = catchAsync(async (req, res, next) => {
-    const { name, email, password, age } = req.body;
+    const { name, email, password, age, timezone } = req.body;
     try {
         if (!name || !email || !password) {
             return next(new AppError("Please provide all required fields", 400));
@@ -74,6 +79,7 @@ export const signup = catchAsync(async (req, res, next) => {
                 email: assertValidEmail(email),
                 password: await hashPassword(assertValidPassword(password)),
                 age: parseAge(age),
+                timezone: parseTimezone(timezone),
             },
         });
 
@@ -117,30 +123,26 @@ export const resetPassword = catchAsync(async (req, res, next) => {
             return next(new AppError("Please provide a new password", 400));
         }
 
-        const user = await prisma.user.findFirst({
-            where: {
-                resetPasswordToken: token,
-                resetPasswordExpires: { gt: new Date() }
-            }
-        });
+        // Validate before consuming, so a too-short password doesn't burn the link.
+        const passwordHash = await hashPassword(assertValidPassword(password));
 
-
-        if (!user) {
-            logger.warn(`Password reset failed with invalid token: ${token}`);
+        // Single-use: of two concurrent submits with the same link, only one succeeds.
+        const userId = await consumeAccountToken(token, "reset_password");
+        if (!userId) {
+            logger.warn(`Password reset failed with invalid, used or expired token`);
             return next(new AppError("Invalid or expired password reset token", 400));
         }
 
-        await prisma.user.update({
-            where: { id: user.id },
-            data: {
-                password: await hashPassword(assertValidPassword(password)),
-                resetPasswordToken: null,
-                resetPasswordExpires: null,
-            },
+        const user = await prisma.user.update({
+            where: { id: userId },
+            data: { password: passwordHash },
         });
 
+        // A reset means the password may have been compromised: end every existing session.
+        await revokeAllSessions(user.id);
+
         logger.info(`Password reset successfully for user ${user.email}`);
-        await sendPasswordChangedEmail(user.email);
+        await deliverPasswordChangedEmail(user.email);
 
         res.status(200).json({
             status: "success",
@@ -193,7 +195,7 @@ export const login = catchAsync(async (req, res, next) => {
         const { password: _passwordHash, ...user } = userWithPassword;
 
         logger.info(`User logged in: ${email}`);
-        sendAuthResponse(user, 200, res);
+        await sendAuthResponse(req, res, user, 200);
     } catch (error) {
         next(error);
     }
@@ -202,23 +204,39 @@ export const login = catchAsync(async (req, res, next) => {
 export const verifyEmail = catchAsync(async (req, res, next) => {
     const token = routeParam(req, "token");
     try {
-        // NOTE: Prisma treats `where: { verifyEmailToken: undefined }` as NO filter and
-        // would match the first user in the table — never query with a missing token.
         if (!token) {
             return next(new AppError("Invalid or expired verification token", 400));
         }
 
-        const user = await prisma.user.findFirst({
-            where: { verifyEmailToken: token },
-            omit: { verifyEmailExpires: false },
-        });
+        const accountToken = await findAccountToken(token, "verify_email");
+        if (!accountToken) {
+            logger.warn(`Invalid email verification attempt`);
+            return next(new AppError("Invalid or expired verification token", 400));
+        }
+        const { user } = accountToken;
 
-        if (!user) {
-            logger.warn(`Invalid email verification attempt with token: ${token}`);
+        // NOTE: verification is deliberately IDEMPOTENT. The same link legitimately
+        // arrives more than once — React StrictMode runs the verify effect twice in dev,
+        // and mail scanners (Outlook Safe Links & co) pre-fetch links before anyone
+        // clicks. Answering the repeat with 400 surfaced in the UI as "invalid or
+        // expired" on a verification that had in fact just succeeded. So a link whose
+        // account is already verified answers success — it grants nothing (this route
+        // starts no session) and can't verify anything new.
+        if (user.isVerified) {
+            logger.info(`Email already verified for user ${user.email}`);
+            return res.status(200).json({
+                status: "success",
+                message: "Email already verified"
+            });
+        }
+
+        // An older link that a resend replaced.
+        if (accountToken.usedAt) {
+            logger.warn(`Replaced verification link used for user ${user.email}`);
             return next(new AppError("Invalid or expired verification token", 400));
         }
 
-        if (user.verifyEmailExpires && user.verifyEmailExpires.getTime() < Date.now() && !user.isVerified) {
+        if (accountToken.expiresAt.getTime() < Date.now()) {
             await createAndSendVerificationToken(user);
             logger.warn(`Expired verification token used for user ${user.email}. New token sent.`);
 
@@ -228,21 +246,20 @@ export const verifyEmail = catchAsync(async (req, res, next) => {
             ));
         }
 
-        // NOTE: verification is deliberately IDEMPOTENT, and the token is left
-        // in place rather than cleared. The same link legitimately arrives more
-        // than once — React StrictMode runs the verify effect twice in dev, and
-        // mail scanners (Outlook Safe Links & co) pre-fetch links before anyone
-        // clicks. Clearing the token on first use made the second request 400,
-        // which surfaced in the UI as "invalid or expired" on a verification
-        // that had in fact just succeeded. The token grants nothing by itself —
-        // this route issues no JWT — and it stops working once it expires.
-        const claimed = await prisma.user.updateMany({
-            where: { id: user.id, isVerified: false },
-            data: { isVerified: true },
-        });
+        // Consume the token and verify the account together. The conditional updates
+        // are atomic, so a duplicate request can't also think it was first — otherwise
+        // both would fire off a welcome email.
+        const [, claimed] = await prisma.$transaction([
+            prisma.accountToken.updateMany({
+                where: { id: accountToken.id, usedAt: null },
+                data: { usedAt: new Date() },
+            }),
+            prisma.user.updateMany({
+                where: { id: user.id, isVerified: false },
+                data: { isVerified: true },
+            }),
+        ]);
 
-        // The conditional update is atomic so the duplicate request can't also think
-        // it was first — otherwise both would fire off a welcome email.
         if (claimed.count === 0) {
             logger.info(`Email already verified for user ${user.email}`);
             return res.status(200).json({
@@ -283,7 +300,10 @@ export const me = catchAsync(async (req, res, next) => {
         }
 
         logger.info(`Authenticated user accessed profile: ${user.email}`);
-        sendAuthResponse(user, 200, res);
+        res.status(200).json({
+            status: "success",
+            user
+        });
     } catch (error) {
         next(error);
     }
@@ -297,55 +317,42 @@ export const forgotPassword = catchAsync(async (req, res, next) => {
             logger.warn(`Forgot password requested without email`);
             return next(new AppError("Please provide your email", 400));
         }
+
         const user = await prisma.user.findUnique({ where: { email } });
         if (!user) {
             logger.warn(`Forgot password requested for missing user: ${email}`);
-            return next(new AppError("User not found", 404));
+            return res.status(200).json({ status: "success", message: FORGOT_PASSWORD_RESPONSE });
         }
 
-        // NOTE: mint a fresh token and PERSIST it *before* emailing. The old
+        // NOTE: mint a fresh token and PERSIST it *before* emailing. An earlier
         // version emailed a token it never saved, so resetPassword could never
         // match it and every reset link died with "Invalid or expired token".
-        // (It also had a branch that re-sent the previous, already-expired
-        // token — dropped: a new request always earns a new token.)
-        const token = randomBytes(32).toString("hex");
-        await prisma.user.update({
-            where: { id: user.id },
-            data: {
-                resetPasswordToken: token,
-                resetPasswordExpires: new Date(Date.now() + RESET_PASSWORD_TOKEN_EXPIRES),
-            },
-        });
+        // Issuing also retires any previous unused reset link.
+        const token = await issueAccountToken(user.id, "reset_password", RESET_PASSWORD_TOKEN_EXPIRES);
 
         try {
             await sendPasswordResetEmail(email, token);
+            logger.info(`Password reset email sent to ${email}`);
         } catch (emailError) {
-            // Don't leave a live reset token behind for a link nobody received.
-            await prisma.user.update({
-                where: { id: user.id },
-                data: { resetPasswordToken: null, resetPasswordExpires: null },
-            });
-
+            // Don't leave a live reset token behind for a link nobody received. The
+            // response stays generic (a 502 here would confirm the account exists).
+            await revokeAccountTokens(user.id, "reset_password");
             logger.error(`Password reset email failed for ${email}: ${errorMessage(emailError)}`);
-            return next(new AppError(
-                "We couldn't send your password reset email. Please try again in a moment.",
-                502
-            ));
         }
 
-        logger.info(`Password reset email sent to ${email}`);
-        res.status(200).json({
-            status: "success",
-            message: "Password reset link has been sent to your email"
-        });
+        res.status(200).json({ status: "success", message: FORGOT_PASSWORD_RESPONSE });
     } catch (error) {
         next(error);
     }
 });
 
 
+// Ends the session making the request (other devices stay signed in).
 export const logout = catchAsync(async (req, res, next) => {
-    logger.info(`User logout called: ${req.user?.id || 'unknown'}`);
+    if (req.sessionId) await revokeSession(req.sessionId);
+    clearSessionCookie(res);
+
+    logger.info(`User logged out: ${req.user?.id || 'unknown'}`);
     res.status(200).json({
         status: "success",
         message: "Logged out successfully"
@@ -353,20 +360,36 @@ export const logout = catchAsync(async (req, res, next) => {
 })
 
 // Handle Google login/signup after Passport has attached the user to req.user.
-// NOTE: OAuth arrives here as a top-level browser redirect, NOT an XHR — so we
-// must NOT return JSON (the browser would just render it on the API domain and
-// the token would never reach the app). Instead we mint the JWT and redirect
-// back to the frontend /auth/callback, which stores it exactly like a normal
-// login. Keep this route in sync with the client callback page.
+// NOTE: OAuth arrives here as a top-level browser redirect to the API's own domain,
+// where a cookie would be set for the wrong site. So instead of a session we mint a
+// short-lived single-use code and redirect to the client's /auth/callback, which
+// POSTs it to /auth/google/exchange through the same-origin /api proxy — that
+// response sets the session cookie on the client's domain. The old version put a
+// JWT in this URL; a code that dies after one use (or 2 minutes) is far safer there.
 export const googleCallback = catchAsync(async (req, res, next) => {
     if (!req.user) {
         logger.warn(`Google authentication failed: req.user missing`);
         return res.redirect(`${CLIENT_URL}/login?error=google`);
     }
 
-    const token = generateToken(req.user);
+    const exchangeCode = await issueAccountToken(req.user.id, "oauth_exchange", OAUTH_EXCHANGE_CODE_EXPIRES);
     logger.info(`Google OAuth login successful for user ${req.user.email}`);
-    // Token travels in the query string; the callback page reads it once and
-    // moves it into localStorage, then cleans the URL by routing to /dashboard.
-    res.redirect(`${CLIENT_URL}/auth/callback?token=${token}`);
+    res.redirect(`${CLIENT_URL}/auth/callback?code=${exchangeCode}`);
+})
+
+// Second half of Google sign-in: trade the one-time code for a session cookie.
+export const googleExchange = catchAsync(async (req, res, next) => {
+    const { code } = req.body;
+    if (typeof code !== "string" || !code) {
+        return next(new AppError("Missing sign-in code", 400));
+    }
+
+    const userId = await consumeAccountToken(code, "oauth_exchange");
+    const user = userId ? await prisma.user.findUnique({ where: { id: userId } }) : null;
+    if (!user) {
+        logger.warn(`Google sign-in exchange failed: invalid, used or expired code`);
+        return next(new AppError("Google sign-in expired. Please try again.", 401));
+    }
+
+    await sendAuthResponse(req, res, user, 200);
 })

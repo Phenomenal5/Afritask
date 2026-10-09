@@ -1,5 +1,5 @@
 // Normalize avatar/photo paths so Next Image can render backend uploads reliably.
-const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
+// Uploads are served same-origin through the /uploads rewrite in next.config.mjs.
 
 // Convert a backend photo path or blob URL into something the UI can consume directly.
 export const getPhotoUrl = (photo) => {
@@ -14,5 +14,5 @@ export const getPhotoUrl = (photo) => {
   }
 
   const cleanPhoto = photo.replaceAll("\\", "/").replace(/^public\//, "");
-  return `${apiBaseUrl}${cleanPhoto.startsWith("/") ? cleanPhoto : `/${cleanPhoto}`}`;
+  return cleanPhoto.startsWith("/") ? cleanPhoto : `/${cleanPhoto}`;
 };

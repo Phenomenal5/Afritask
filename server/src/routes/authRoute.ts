@@ -4,14 +4,16 @@ import passport from "passport";
 import {
   forgotPassword,
   googleCallback,
+  googleExchange,
   login,
+  logout,
   me,
   resetPassword,
   signup,
   verifyEmail,
-  // verifyForgetPasswordEmailToken
 } from "../controllers/auth.controller.js";
 import protect from "../middlewares/auth.middleware.js";
+import { credentialLimiter, emailActionLimiter } from "../middlewares/rateLimiter.js";
 import CLIENT_URL from "../config/clientUrl.js";
 import env from "../config/env.js";
 
@@ -32,13 +34,15 @@ const googleCredentialsReady: RequestHandler = (req, res, next) => {
 
 
 
-router.post("/signup", signup);
-router.post("/login", login);
-router.get("/verify-email/:token", verifyEmail);
-router.post("/forgot-password", forgotPassword);
-// router.post("/forgot-password/verify-token/:token", verifyForgetPasswordEmailToken);
-router.patch("/reset-password/:token", resetPassword);
+router.post("/signup", emailActionLimiter(), signup);
+router.post("/login", credentialLimiter(), login);
+router.post("/logout", protect, logout);
+router.get("/verify-email/:token", credentialLimiter(), verifyEmail);
+router.post("/forgot-password", emailActionLimiter(), forgotPassword);
+router.patch("/reset-password/:token", credentialLimiter(), resetPassword);
 router.get("/me", protect, me);
+// Second half of Google sign-in — see googleCallback in auth.controller.ts.
+router.post("/google/exchange", credentialLimiter(), googleExchange);
 
 // Start Google OAuth login.
 router.get(

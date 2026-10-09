@@ -3,12 +3,13 @@ import AppError from "../utils/AppError.js";
 import catchAsync from "../utils/catchAsync.js";
 import logger from "../utils/logger.js";
 import { requireUser } from "../middlewares/auth.middleware.js";
-import { sendPasswordChangedEmail } from "../utils/email.js";
+import { deliverPasswordChangedEmail } from "../utils/email.js";
 import { comparePassword, hashPassword } from "../utils/password.js";
-import { assertValidPassword, normalizeName, parseAge } from "../utils/userValidation.js";
+import { assertValidPassword, normalizeName, parseAge, parseTimezone } from "../utils/userValidation.js";
+import { revokeAllSessions } from "../services/sessionService.js";
 
 export const updateProfile = catchAsync(async (req, res, next) => {
-  const { name, age } = req.body;
+  const { name, age, timezone } = req.body;
   const userId = requireUser(req).id;
   logger.info(`Profile update requested for userId=${userId}`);
   try {
@@ -29,6 +30,8 @@ export const updateProfile = catchAsync(async (req, res, next) => {
         ...(req.file && { photo: `/uploads/profile/${req.file.filename}` }),
         ...(name !== undefined && { name: normalizeName(name) }),
         ...(age !== undefined && { age: parseAge(age) ?? null }),
+        // Changing timezone affects how dates are shown, never already-saved deadline instants.
+        ...(timezone !== undefined && { timezone: parseTimezone(timezone) ?? "UTC" }),
       },
     });
 
@@ -71,9 +74,12 @@ export const updatePassword = catchAsync(async (req, res, next) => {
       data: { password: await hashPassword(assertValidPassword(newPassword)) },
     });
 
+    // Sign out every OTHER device; the browser that just proved the old password stays in.
+    await revokeAllSessions(userId, req.sessionId);
+
     logger.info(`Password updated successfully for user ${user.email}`);
     // Notify the user that their password was changed successfully.
-    await sendPasswordChangedEmail(user.email);
+    await deliverPasswordChangedEmail(user.email);
 
     res.status(200).json({
       status: "success",

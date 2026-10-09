@@ -189,6 +189,17 @@ export const sendPasswordChangedEmail = async (to: string) => {
   });
 };
 
+// NOTE: like the welcome email, the "password changed" notice is sent AFTER the change
+// has committed. Letting a Brevo failure throw here used to turn a successful reset into
+// a 500 — the user saw an error and retried with a link that was already used.
+export const deliverPasswordChangedEmail = async (to: string) => {
+  try {
+    await sendPasswordChangedEmail(to);
+  } catch (error) {
+    logger.error(`Password-changed email could not be delivered to ${to}: ${errorMessage(error)}`);
+  }
+};
+
 export const sendTaskReminderEmail = async (to: string, task: ReminderTask) => {
   const deadline = formatTaskDeadline(task?.deadline);
   const taskTitle = task?.title || "Untitled task";

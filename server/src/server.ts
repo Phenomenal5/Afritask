@@ -1,6 +1,7 @@
 import "dotenv/config";
 import express from "express";
 import cors from "cors";
+import cookieParser from "cookie-parser";
 import helmet from "helmet";
 import passport from "passport";
 import "./config/passport.js";
@@ -14,10 +15,15 @@ import { connectDatabase } from "./config/prisma.js";
 import CLIENT_URL from "./config/clientUrl.js";
 import startTaskReminderJob from "./jobs/taskReminder.js";
 import env from "./config/env.js";
+import requireAjaxHeader from "./middlewares/csrf.middleware.js";
 
 
 
 const app = express();
+
+// Behind the client's /api rewrite (and the host's load balancer) in production — trust
+// exactly that many hops so req.ip is the real client for rate limiting, and nothing more.
+if (env.isProduction) app.set("trust proxy", env.trustProxyHops);
 
 
 connectDatabase();
@@ -30,11 +36,15 @@ app.use(helmet({
 const corsOptions = {
   origin: CLIENT_URL,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
+  allowedHeaders: ['Content-Type', 'X-Requested-With'],
+  // The browser normally reaches the API same-origin via the client's /api rewrite;
+  // this only matters for direct cross-origin calls (e.g. local tools).
+  credentials: true,
 };
 
 app.use(cors(corsOptions));
 app.use(express.json());
+app.use(cookieParser());
 app.use(express.static('public'))
 app.use(passport.initialize());
 app.use(
@@ -46,6 +56,8 @@ app.use(
 );
 
 app.options('{*path}', cors(corsOptions));
+// Cookie-authenticated writes must prove they came from our own JS (see middleware).
+app.use("/api", requireAjaxHeader);
 // Routes
 // Authentication routes
 app.use("/api/auth", authRoutes);

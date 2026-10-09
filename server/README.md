@@ -94,6 +94,6 @@ It finds incomplete tasks due tomorrow and sends reminder emails to the owning u
 
 ## Notes
 
-- Protected routes require a JWT in the `Authorization` header.
+- Protected routes use the httpOnly `afritask_session` cookie (server-side sessions); writes also need `X-Requested-With: XMLHttpRequest`.
 - The server serves uploaded files from `public/`.
 - Full endpoint request and response examples live in `API_DOCUMENTATION.md`.

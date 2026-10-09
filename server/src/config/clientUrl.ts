@@ -9,7 +9,7 @@ const CLIENT_URL =
   process.env.CLIENT_URL ||
   process.env.FRONTEND_URL ||
   (process.env.NODE_ENV === "production"
-    ? "https://afritask.netlify.app"
+    ? "https://afritask.jimba.dev"
     : "http://localhost:3001");
 
 export default CLIENT_URL;

@@ -3,7 +3,7 @@ import { Prisma } from "../generated/prisma/client.js";
 import AppError from "../utils/AppError.js";
 import logger, { describeError } from "../utils/logger.js";
 
-// The union of fields we read off errors from JWT and our own AppError.
+// The fields we read off our own AppError (and anything that mimics it).
 interface HandledError extends Error {
   statusCode?: number;
   status?: string;
@@ -25,17 +25,10 @@ const handlePrismaKnownError = (error: Prisma.PrismaClientKnownRequestError) => 
   return null;
 };
 
-const handleJwtError = () => new AppError("Invalid token. Please log in again", 401);
-
-const handleJwtExpiredError = () =>
-  new AppError("Your token has expired. Please log in again", 401);
-
 const globalErrorHandler: ErrorRequestHandler = (error: HandledError, req, res, next) => {
   let err: HandledError = { ...error, message: error.message };
   logger.error(describeError(error));
   if (error instanceof Prisma.PrismaClientKnownRequestError) err = handlePrismaKnownError(error) ?? err;
-  if (error.name === "JsonWebTokenError") err = handleJwtError();
-  if (error.name === "TokenExpiredError") err = handleJwtExpiredError();
 
   // NOTE: only our own AppErrors get to choose the status code. Third-party SDK
   // errors carry their own `statusCode` and the spread above copies it straight
