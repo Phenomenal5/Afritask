@@ -25,3 +25,16 @@ export function clearDraft(key: string): void {
     // nothing to clear
   }
 }
+
+// Sign-out: drop every unsaved draft in this tab, so nothing typed under one account is
+// offered to whoever signs in next on this device (SRS SR15 AC06 "account switch").
+// NOTE: all draft keys start with "afritask" — keep new ones that way.
+export function clearAllDrafts(): void {
+  try {
+    Object.keys(sessionStorage)
+      .filter((key) => key.startsWith("afritask"))
+      .forEach((key) => sessionStorage.removeItem(key));
+  } catch {
+    // Storage blocked: there were no drafts to keep anyway.
+  }
+}

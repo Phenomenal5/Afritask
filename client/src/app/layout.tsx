@@ -5,6 +5,7 @@ import { DM_Sans, Fraunces } from "next/font/google";
 import "./globals.css";
 import AppProviders from "@/context/AppProviders";
 import { Toaster } from "react-hot-toast";
+import ServiceWorkerManager from "@/components/pwa/ServiceWorkerManager";
 
 // Fraunces carries the expressive marketing headings; DM Sans runs the product UI.
 const fraunces = Fraunces({
@@ -22,6 +23,13 @@ export const metadata: Metadata = {
   title: "Afritask — A clear place for your next step",
   description:
     "Afritask keeps your plans, tasks and the people you work with in one shared workspace, so everyone knows what's next.",
+  // The manifest is linked automatically from app/manifest.ts.
+  applicationName: "Afritask",
+  appleWebApp: { capable: true, title: "Afritask", statusBarStyle: "default" },
+  icons: {
+    icon: [{ url: "/icons/icon.svg", type: "image/svg+xml" }, { url: "/icons/icon-192.png", sizes: "192x192", type: "image/png" }],
+    apple: [{ url: "/icons/apple-touch-icon.png", sizes: "180x180" }],
+  },
 };
 
 export const viewport: Viewport = {
@@ -54,6 +62,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
       <body className="min-h-full flex flex-col" suppressHydrationWarning>
         <AppProviders>
           {children}
+          <ServiceWorkerManager />
           {/* react-hot-toast renders each toast with role="status" + aria-live, so save
               results and errors are announced to screen readers. */}
           <Toaster

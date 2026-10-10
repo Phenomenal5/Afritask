@@ -12,6 +12,7 @@ import PageHeader from "@/components/layout/PageHeader";
 import SettingsNav from "@/components/settings/SettingsNav";
 import SettingsSection from "@/components/settings/SettingsSection";
 import ThemeToggle from "@/components/layout/ThemeToggle";
+import InstallAppCard from "@/components/pwa/InstallAppCard";
 import Avatar from "@/components/ui/Avatar";
 import Button from "@/components/ui/Button";
 import { SelectField, TextField } from "@/components/ui/Field";
@@ -251,19 +252,31 @@ export default function AccountSettingsPage() {
             <div className="flex items-start gap-3 rounded-[12px] border border-line bg-surface p-4">
               <BellRing size={19} aria-hidden="true" className="mt-0.5 shrink-0 text-forest" />
               <div className="text-[14.5px]">
-                <p className="font-semibold text-ink">Due-date reminder emails</p>
+                <p className="font-semibold text-ink">Task reminders and overdue alerts</p>
                 <p className="mt-0.5 text-muted">
-                  Each morning, Afritask emails the assignee of every open task due the next day (or its creator, if nobody is assigned). Tasks in
-                  archived projects are skipped.
+                  Each task has its own reminder — one day before its deadline unless someone picks another time, or none — set in the task
+                  itself. When it fires, and once if the task becomes overdue, the assignee (or the creator, if nobody is assigned) gets an email
+                  and an in-app notification. Completed tasks and archived projects stay quiet.
                 </p>
               </div>
             </div>
-            <Notice icon={Info}>Choosing which emails you get, per event or per task, isn&apos;t available yet. Account emails (verification, password changes, invitations) are always sent.</Notice>
+            <div className="flex items-start gap-3 rounded-[12px] border border-line bg-surface p-4">
+              <BellRing size={19} aria-hidden="true" className="mt-0.5 shrink-0 text-forest" />
+              <div className="text-[14.5px]">
+                <p className="font-semibold text-ink">In-app notifications</p>
+                <p className="mt-0.5 text-muted">When someone assigns you a task, mentions you in a comment or invites you to a workspace. They appear under Notifications.</p>
+              </div>
+            </div>
+            <Notice icon={Info}>Turning email types on or off isn&apos;t available yet — set a task&apos;s reminder to &ldquo;No reminder&rdquo; to silence it. Account emails (verification, password changes, invitations) are always sent.</Notice>
           </div>
         </SettingsSection>
 
         <SettingsSection title="Appearance" description="Saved on this device only.">
           <ThemeToggle className={buttonClasses("secondary", "md")} />
+        </SettingsSection>
+
+        <SettingsSection title="This device" description="Use Afritask like an app on your phone or computer.">
+          <InstallAppCard />
         </SettingsSection>
       </div>
     </>

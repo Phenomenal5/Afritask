@@ -23,6 +23,7 @@ import {
 // Sent at signup so due dates show in local time.
 import { detectTimezone } from "@/utils/timezones";
 import { clearPendingInvite, postSignInPath, saveReturnPath } from "@/utils/pendingInvite";
+import { clearAllDrafts } from "@/utils/draftStorage";
 import { SESSION_EXPIRED_EVENT } from "@/lib/api";
 import { failureMessage } from "@/lib/errors";
 import type { ActionResult, CurrentUser } from "@/types/models";
@@ -184,6 +185,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // An invitation link opened in this browser belongs to whoever opened it — don't
     // carry it into the next account that signs in here.
     clearPendingInvite();
+    clearAllDrafts();
     setLogoutVersion((count) => count + 1);
     toast.success("Signed out");
     router.push("/login");
