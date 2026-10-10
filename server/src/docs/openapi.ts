@@ -955,6 +955,57 @@ const notificationPaths = {
     },
 };
 
+const dashboardPaths = {
+    "/workspaces/{workspaceId}/dashboard": {
+        parameters: [workspaceIdParam],
+        get: {
+            tags: ["Workspaces"],
+            summary: "Dashboard counts. Personal = assigned to you (subtasks included); workspace/projects = top-level tasks; archived projects excluded; week = since Monday in your timezone",
+            security: signedIn,
+            responses: {
+                200: jsonResponse("Counts", {
+                    type: "object",
+                    properties: {
+                        status: { type: "string" },
+                        data: {
+                            type: "object",
+                            properties: {
+                                generatedAt: { type: "string", format: "date-time" },
+                                timezone: { type: "string" },
+                                personal: {
+                                    type: "object",
+                                    description: "Links: ?assignee=me&due=today | due=overdue | status=in_progress | due=week",
+                                    properties: { dueToday: { type: "integer" }, overdue: { type: "integer" }, inProgress: { type: "integer" }, completedThisWeek: { type: "integer" } },
+                                },
+                                workspace: {
+                                    type: "object",
+                                    properties: { open: { type: "integer" }, completed: { type: "integer" }, overdue: { type: "integer" }, activeProjects: { type: "integer" } },
+                                },
+                                projects: {
+                                    type: "array",
+                                    items: {
+                                        type: "object",
+                                        properties: {
+                                            id: { type: "string" },
+                                            name: { type: "string" },
+                                            state: ref("ProjectState"),
+                                            total: { type: "integer" },
+                                            completed: { type: "integer" },
+                                            open: { type: "integer" },
+                                            percentComplete: { type: ["integer", "null"], description: "null for a project with no tasks" },
+                                        },
+                                    },
+                                },
+                            },
+                        },
+                    },
+                }),
+                ...errorResponses(401, 404),
+            },
+        },
+    },
+};
+
 const activityPageParams = [
     { name: "limit", in: "query", schema: { type: "integer", default: 30, maximum: 100 } },
     { name: "before", in: "query", description: "nextCursor from the previous page", schema: { type: "string", format: "uuid" } },
@@ -1045,7 +1096,7 @@ const openApiDocument = {
         },
         schemas,
     },
-    paths: withOperationIds({ ...authPaths, ...userPaths, ...workspacePaths, ...invitationPaths, ...projectPaths, ...labelPaths, ...taskPaths, ...subtaskPaths, ...commentPaths, ...notificationPaths, ...activityPaths }),
+    paths: withOperationIds({ ...authPaths, ...userPaths, ...workspacePaths, ...invitationPaths, ...projectPaths, ...labelPaths, ...taskPaths, ...subtaskPaths, ...commentPaths, ...notificationPaths, ...activityPaths, ...dashboardPaths }),
 };
 
 export default openApiDocument;

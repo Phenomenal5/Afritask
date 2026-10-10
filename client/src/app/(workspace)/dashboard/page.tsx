@@ -16,7 +16,8 @@ import { useStatusChange } from "@/hooks/useStatusChange";
 import { useViewer } from "@/hooks/useViewer";
 import { useNow } from "@/hooks/useNow";
 import { getWorkspaceActivity } from "@/lib/services/activityService";
-import { completedThisWeek, compareByUrgency, dueBucketOf } from "@/utils/taskBuckets";
+import { compareByUrgency } from "@/utils/taskBuckets";
+import { useDashboard } from "@/hooks/useDashboard";
 import { canEditTask } from "@/utils/permissions";
 import { cx } from "@/lib/cx";
 import PageHeader from "@/components/layout/PageHeader";
@@ -50,30 +51,11 @@ export default function OverviewPage() {
   const viewer = useViewer();
   const now = useNow();
 
-  // NOTE: null (placeholder) until the tasks have actually loaded — computing from the
-  // empty initial list showed a confident "0 overdue" while data was still on its way.
-  const myCounts = useMemo(() => {
-    if (!now || myTasksStatus !== "ready") return null;
-    const buckets = myTasks.map((task) => dueBucketOf(task, now, viewer.timezone));
-    return {
-      overdue: buckets.filter((bucket) => bucket === "overdue").length,
-      today: buckets.filter((bucket) => bucket === "today").length,
-      inProgress: myTasks.filter((task) => task.status === "in_progress").length,
-      doneThisWeek: myTasks.filter((task) => completedThisWeek(task, now, viewer.timezone)).length,
-    };
-  }, [myTasks, myTasksStatus, now, viewer.timezone]);
-
-  // Workspace summary: top-level tasks, archived projects excluded (PRD FR14).
-  const workspaceCounts = useMemo(() => {
-    if (!now || workspaceTasks.status !== "ready") return null;
-    const tasks = workspaceTasks.tasks;
-    return {
-      open: tasks.filter((task) => task.status !== "completed").length,
-      overdue: tasks.filter((task) => dueBucketOf(task, now, viewer.timezone) === "overdue").length,
-      completed: tasks.filter((task) => task.status === "completed").length,
-      activeProjects: projects.filter((project) => project.state === "active").length,
-    };
-  }, [workspaceTasks.tasks, workspaceTasks.status, projects, now, viewer.timezone]);
+  // Counts come from the server, computed with the same rules as the lists they link to
+  // (SRS SR14). NOTE: undefined (placeholder) until they've loaded — never a confident 0.
+  const dashboard = useDashboard(activeWorkspace?.id);
+  const personal = dashboard.counts?.personal;
+  const workspaceCounts = dashboard.counts?.workspace;
 
   const assignedPreview = useMemo(() => myTasks.filter((task) => task.status !== "completed").sort(compareByUrgency).slice(0, ASSIGNED_LIST_LIMIT), [myTasks]);
   const openAssignedCount = myTasks.filter((task) => task.status !== "completed").length;
@@ -120,10 +102,10 @@ export default function OverviewPage() {
             Your work at a glance
           </h2>
           <ul className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-            <StatTile icon={TriangleAlert} label="Overdue" value={myCounts?.overdue} href="/tasks?due=overdue" tone={myCounts?.overdue ? "danger" : "neutral"} hint="Past their due time" />
-            <StatTile icon={CalendarClock} label="Due today" value={myCounts?.today} href="/tasks?due=today" hint="Still on time" />
-            <StatTile icon={CircleDot} label="In progress" value={myCounts?.inProgress} href="/tasks?status=in_progress" hint="Started by you" />
-            <StatTile icon={CircleCheck} label="Done this week" value={myCounts?.doneThisWeek} href="/tasks?due=week" hint="Since Monday" />
+            <StatTile icon={TriangleAlert} label="Overdue" value={personal?.overdue} href="/tasks?due=overdue" tone={personal?.overdue ? "danger" : "neutral"} hint="Past their due time" />
+            <StatTile icon={CalendarClock} label="Due today" value={personal?.dueToday} href="/tasks?due=today" hint="On your calendar today" />
+            <StatTile icon={CircleDot} label="In progress" value={personal?.inProgress} href="/tasks?status=in_progress" hint="Assigned to you, started" />
+            <StatTile icon={CircleCheck} label="Done this week" value={personal?.completedThisWeek} href="/tasks?due=week" hint="Since Monday" />
           </ul>
         </section>
 
@@ -244,7 +226,7 @@ export default function OverviewPage() {
                 <SummaryFigure label="Open tasks" value={workspaceCounts?.open} href="/tasks?scope=all&due=open" />
                 <SummaryFigure label="Overdue" value={workspaceCounts?.overdue} href="/tasks?scope=all&due=overdue" danger={!!workspaceCounts?.overdue} />
                 <SummaryFigure label="Completed" value={workspaceCounts?.completed} href="/tasks?scope=all&due=completed" />
-                <SummaryFigure label="Active projects" value={resourcesStatus === "ready" ? workspaceCounts?.activeProjects : undefined} href="/projects" />
+                <SummaryFigure label="Active projects" value={workspaceCounts?.activeProjects} href="/projects" />
               </dl>
             )}
           </section>

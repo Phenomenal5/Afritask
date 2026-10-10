@@ -523,6 +523,21 @@ they created or are currently assigned to, and delete only tasks they created.
 When a member leaves or is removed, their **open** tasks become unassigned.
 Task lists also filter by `?assignee=me|none|<membershipId>`.
 
+## Dashboard
+
+`GET /api/workspaces/:workspaceId/dashboard` (any active member) returns:
+
+- `personal` — `dueToday`, `overdue`, `inProgress`, `completedThisWeek`: work assigned to
+  you, subtasks included. Each equals the list at `?assignee=me&due=today|overdue`,
+  `?assignee=me&status=in_progress` and `?assignee=me&due=week`.
+- `workspace` — `open`, `completed`, `overdue` (top-level tasks; match `?due=open|completed|overdue`)
+  and `activeProjects`.
+- `projects` — each non-archived project's top-level `total`, `completed`, `open` and
+  `percentComplete` (`null` for a project with no tasks).
+
+Archived projects are excluded everywhere; "this week" starts Monday 00:00 in your
+profile timezone.
+
 ## Search, filters and paging
 
 `GET /api/workspaces/:workspaceId/tasks` also takes:

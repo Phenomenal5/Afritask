@@ -8,6 +8,7 @@ import { invitationLimiter } from "../middlewares/rateLimiter.js";
 import { createProject, listWorkspaceProjects } from "../controllers/project.controller.js";
 import { createLabel, listLabels } from "../controllers/label.controller.js";
 import { listWorkspaceActivity } from "../controllers/activity.controller.js";
+import { getWorkspaceDashboard } from "../controllers/dashboard.controller.js";
 import { changeMemberRole, leaveWorkspace, removeMember, transferOwnership } from "../controllers/member.controller.js";
 
 
@@ -46,6 +47,9 @@ router.post("/:workspaceId/transfer-ownership", requireWorkspaceMember, requireW
 
 // Activity history: every member reads it; ?projectId= narrows to one project.
 router.get("/:workspaceId/activity", requireWorkspaceMember, listWorkspaceActivity);
+
+// Dashboard counts: personal and workspace figures, each matching the list it links to.
+router.get("/:workspaceId/dashboard", requireWorkspaceMember, getWorkspaceDashboard);
 
 
 export default router;

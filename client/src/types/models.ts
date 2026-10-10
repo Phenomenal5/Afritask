@@ -156,6 +156,16 @@ export interface ActivityPage {
   nextCursor: string | null;
 }
 
+export interface DashboardCounts {
+  generatedAt: string;
+  timezone: string;
+  // Assigned to you, subtasks included (what My Tasks lists).
+  personal: { dueToday: number; overdue: number; inProgress: number; completedThisWeek: number };
+  // Top-level tasks, archived projects excluded.
+  workspace: { open: number; completed: number; overdue: number; activeProjects: number };
+  projects: { id: string; name: string; state: ProjectState; total: number; completed: number; open: number; percentComplete: number | null }[];
+}
+
 // Every context action resolves to this instead of throwing, so pages can react.
 export interface ActionResult<Payload = undefined> {
   success: boolean;
