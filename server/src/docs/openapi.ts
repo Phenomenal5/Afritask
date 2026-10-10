@@ -572,8 +572,32 @@ const taskPaths = {
                 { name: "labelId", in: "query", schema: { type: "string" } },
                 { name: "includeSubtasks", in: "query", schema: { type: "boolean" }, description: "Lists show top-level tasks only unless true" },
                 { name: "sort", in: "query", schema: { type: "string", example: "-createdAt,title" } },
+                {
+                    name: "due",
+                    in: "query",
+                    schema: { type: "string", enum: ["open", "today", "upcoming", "overdue", "none", "completed", "week"] },
+                    description:
+                        "My Tasks views, in your profile timezone. `today` = your local date (an item due earlier today is also `overdue`); `overdue` = open and past its due instant; `none` = open without a due date; `week` = completed since Monday.",
+                },
+                { name: "counts", in: "query", schema: { type: "boolean" }, description: "Also return `data.counts`: the size of every `due` view under the same other filters" },
             ],
-            responses: { 200: jsonResponse("Tasks", listEnvelope("tasks", ref("Task"))), ...errorResponses(400, 401, 404) },
+            responses: {
+                200: jsonResponse("Tasks", {
+                    type: "object",
+                    properties: {
+                        status: { type: "string" },
+                        results: { type: "integer" },
+                        data: {
+                            type: "object",
+                            properties: {
+                                tasks: { type: "array", items: ref("Task") },
+                                counts: { type: "object", additionalProperties: { type: "integer" }, description: "Only with counts=true" },
+                            },
+                        },
+                    },
+                }),
+                ...errorResponses(400, 401, 404),
+            },
         },
         post: {
             tags: ["Tasks"],

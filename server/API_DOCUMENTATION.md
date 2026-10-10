@@ -523,6 +523,25 @@ they created or are currently assigned to, and delete only tasks they created.
 When a member leaves or is removed, their **open** tasks become unassigned.
 Task lists also filter by `?assignee=me|none|<membershipId>`.
 
+## My Tasks views
+
+`GET /api/workspaces/:workspaceId/tasks?assignee=me&due=<view>` is My Tasks: everything
+assigned to you, including separately assigned subtasks (each with `parent`). `due` works
+with any other filter and is judged in your profile timezone at request time:
+
+| `due` | Meaning |
+|---|---|
+| `open` | not completed |
+| `today` | open, due on your local date — an item due earlier today is also `overdue` |
+| `upcoming` | open, due after today |
+| `overdue` | open, past its due instant |
+| `none` | open, no due date |
+| `completed` | completed |
+| `week` | completed since Monday 00:00 (your timezone) |
+
+Add `counts=true` to also get `data.counts` — the size of every view under the same
+other filters, so a count and the list it opens always match.
+
 ## Subtasks and labels
 
 **Subtasks** (one level only): `POST /api/tasks/:id/subtasks` with the usual task fields.

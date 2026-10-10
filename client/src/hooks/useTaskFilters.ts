@@ -2,7 +2,7 @@
 
 import { useCallback, useMemo } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
-import { completedThisWeek, dueBucketOf, compareByUrgency, type DueBucket } from "@/utils/taskBuckets";
+import { completedThisWeek, compareByUrgency, hasNoDueDate, isDueToday, isOverdue, isUpcoming, type DueBucket } from "@/utils/taskBuckets";
 import type { Task, TaskPriority, TaskStatus } from "@/types/models";
 
 // Filters live in the URL: links from the Overview ("3 overdue") land pre-filtered, the
@@ -99,7 +99,11 @@ export function matchesDueFilter(task: Task, due: DueFilter, now: Date | null, t
   // Date buckets need "now", which only exists after mount.
   if (!now) return true;
   if (due === "week") return completedThisWeek(task, now, timezone);
-  return dueBucketOf(task, now, timezone) === due;
+  // NOTE: the server's ?due= rules — an item due earlier today is in Today AND Overdue.
+  if (due === "overdue") return isOverdue(task, now);
+  if (due === "today") return isDueToday(task, now, timezone);
+  if (due === "upcoming") return isUpcoming(task, now, timezone);
+  return hasNoDueDate(task);
 }
 
 // List order: open work by urgency, completed work last (most recently completed first).

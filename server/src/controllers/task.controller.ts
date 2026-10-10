@@ -9,6 +9,7 @@ import { requireActiveMembership, requireMembership } from "../middlewares/works
 import { canAssignTask, canDeleteTask, canEditTask } from "../utils/taskPermissions.js";
 import { parseDue } from "../utils/dueDate.js";
 import routeParam from "../utils/routeParam.js";
+import { DUE_VIEWS, dueViewWhere, isDueView } from "../utils/taskViews.js";
 import { diffFields, recordActivity } from "../services/activityService.js";
 import { notifyTaskAssigned } from "../services/notificationService.js";
 import {
@@ -304,7 +305,11 @@ const replaceLabels = (tx: Prisma.TransactionClient, taskId: string, labelIds: s
 
 export const listWorkspaceTasks = catchAsync(async (req, res) => {
     const membership = requireMembership(req);
-    const { status, priority, sort, projectId, assignee, labelId, includeSubtasks } = req.query;
+    const user = requireUser(req);
+    const { status, priority, sort, projectId, assignee, labelId, includeSubtasks, due, counts } = req.query;
+    if (due !== undefined && !isDueView(due)) {
+        throw new AppError(`due must be one of ${DUE_VIEWS.join(", ")}`, 400);
+    }
 
     // Every active member sees every task in the workspace (PRD §8: all projects are
     // shared in V1). The workspaceId filter is the isolation boundary.
@@ -332,17 +337,28 @@ export const listWorkspaceTasks = catchAsync(async (req, res) => {
     const wantsSubtasks = includeSubtasks === "true" || (typeof assignee === "string" && assignee !== "none");
     if (!wantsSubtasks) filter.parentTaskId = null;
 
+    // Due views (SRS SR11) are judged in the viewer's profile timezone, at request time.
+    const now = new Date();
+    const timeZone = user.timezone || "UTC";
     const tasks = await prisma.task.findMany({
-        where: filter,
+        where: isDueView(due) ? { AND: [filter, dueViewWhere(due, now, timeZone)] } : filter,
         orderBy: parseSort(sort),
         include: taskInclude,
     });
+
+    // ?counts=true: how many tasks each due view holds under the SAME other filters, so a
+    // count and the list it links to can never disagree (SRS SR14 acceptance).
+    const viewCounts = counts === "true"
+        ? Object.fromEntries(
+            await Promise.all(DUE_VIEWS.map(async (view) => [view, await prisma.task.count({ where: { AND: [filter, dueViewWhere(view, now, timeZone)] } })] as const))
+        )
+        : undefined;
 
     logger.info(`List tasks workspaceId=${membership.workspaceId} userId=${membership.userId} returned ${tasks.length}`);
     res.status(200).json({
         status: "success",
         results: tasks.length,
-        data: { tasks: tasks.map(toTaskResponse) }
+        data: { tasks: tasks.map(toTaskResponse), ...(viewCounts && { counts: viewCounts }) }
     });
 });
 

@@ -12,7 +12,7 @@ import { useWorkspaces } from "@/context/WorkspaceContext";
 import { useWorkspaceTasks, type LoadStatus } from "@/hooks/useWorkspaceTasks";
 import { useNow } from "@/hooks/useNow";
 import { useViewer } from "@/hooks/useViewer";
-import { dueBucketOf } from "@/utils/taskBuckets";
+import { isDueToday, isOverdue } from "@/utils/taskBuckets";
 import type { Failure } from "@/lib/errors";
 import type { Invitation, Task } from "@/types/models";
 
@@ -92,9 +92,8 @@ export function MyWorkProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const value = useMemo<MyWork>(() => {
-    const buckets = now ? tasks.map((task) => dueBucketOf(task, now, timezone)) : [];
-    const overdueCount = buckets.filter((bucket) => bucket === "overdue").length;
-    const dueTodayCount = buckets.filter((bucket) => bucket === "today").length;
+    const overdueCount = now ? tasks.filter((task) => isOverdue(task, now)).length : 0;
+    const dueTodayCount = now ? tasks.filter((task) => isDueToday(task, now, timezone)).length : 0;
     return {
       myTasks: tasks,
       myTasksStatus: status,
