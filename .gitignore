@@ -45,3 +45,6 @@ server/public/uploads/*
 
 # ─── Ignore files that are tracked by Git ─────────────
 *.docx
+
+# Database dumps from scripts/backup-restore-rehearsal.sh hold every account's data — never commit them.
+backups/

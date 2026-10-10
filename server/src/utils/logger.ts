@@ -14,7 +14,9 @@ const logger = winston.createLogger({
     // Test runs would otherwise print every request's log lines.
     silent: process.env.NODE_ENV === "test" && process.env.LOG_IN_TESTS !== "on",
     format: winston.format.combine(
-        winston.format.timestamp({ format: "YYYY-MM-DD HH:MM:ss" }),
+        // NOTE: "mm" is minutes — this read "HH:MM:ss" (MM = month), so every log line showed
+        // the month where the minutes belong.
+        winston.format.timestamp({ format: "YYYY-MM-DD HH:mm:ss" }),
         winston.format.errors({ stack: true }),
         winston.format.printf(({ timestamp, level, message, stack }) => {
             return `[${timestamp}] ${level.toUpperCase()}: ${stack || message}`;
@@ -32,7 +34,16 @@ const logger = winston.createLogger({
     ],
 });
 
-if (process.env.NODE_ENV !== "production") {
+if (process.env.NODE_ENV === "production") {
+    // Hosts (Render, Fly, Docker…) collect stdout and usually discard files written inside a
+    // container, so production logs go to the console as one JSON object per line — easy to
+    // search and alert on. The files above stay as a local fallback.
+    logger.add(
+        new winston.transports.Console({
+            format: winston.format.combine(winston.format.timestamp(), winston.format.errors({ stack: true }), winston.format.json()),
+        })
+    )
+} else {
     logger.add(
         new winston.transports.Console({
             format: winston.format.combine(

@@ -15,6 +15,7 @@
 import { PrismaPg } from "@prisma/adapter-pg";
 import { MongoClient, type ObjectId } from "mongodb";
 import { hashSecureToken } from "../utils/secureToken.js";
+import { DEFAULT_REMINDER_OFFSET, computeSchedule } from "../utils/reminderSchedule.js";
 import {
     AccountTokenPurpose,
     AuthProvider,
@@ -245,6 +246,11 @@ const importTasks = async (mongo: MongoClient, prisma: PrismaClient) => {
             if (!isDryRun && ownerId && !workspaceId) { skip("tasks", sourceId, `owner ${ownerLegacyId} has no personal workspace`); continue; }
 
             if (!isDryRun && ownerId && workspaceId) {
+                const due = legacyDue(sourceTask.deadline);
+                // NOTE: imported deadlines keep the reminder the old daily email gave them
+                // (1 day before), scheduled only if still in the future — the same rule the
+                // reminders migration applied to rows already in Postgres.
+                const reminderOffset = due.dueAt ? DEFAULT_REMINDER_OFFSET : null;
                 const taskData = {
                     workspaceId,
                     creatorId: ownerId,
@@ -254,7 +260,9 @@ const importTasks = async (mongo: MongoClient, prisma: PrismaClient) => {
                     priority,
                     // Legacy deadlines were picked as calendar dates (stored midnight UTC):
                     // per PRD §9 a date means 23:59 that day in the creator's zone (UTC here).
-                    ...legacyDue(sourceTask.deadline),
+                    ...due,
+                    reminderOffset,
+                    ...computeSchedule({ ...due, reminderOffset, status }, null),
                     createdAt: sourceTask.createdAt ?? sourceTask._id.getTimestamp(),
                     updatedAt: sourceTask.updatedAt ?? sourceTask.createdAt ?? sourceTask._id.getTimestamp(),
                 };

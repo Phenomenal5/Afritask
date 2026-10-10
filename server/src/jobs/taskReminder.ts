@@ -199,6 +199,14 @@ const startTaskReminderJob = () => {
     reminderWorker.on("failed", (job, error) => {
         logger.error(`Reminder sweep ${job?.id} failed: ${error.stack || error.message}`);
     });
+
+    // For graceful shutdown: let a sweep in progress finish, then release Redis.
+    return {
+        close: async () => {
+            await reminderWorker.close();
+            await reminderQueue.close();
+        },
+    };
 }
 
 

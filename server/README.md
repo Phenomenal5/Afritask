@@ -91,6 +91,13 @@ A BullMQ job scheduler (stored in Redis), registered when the server starts, run
 - The sweep claims each due schedule atomically, re-checks the task (still open, not archived, recipient still a member), then writes the in-app notification and sends the email to the assignee (or the creator if unassigned).
 - The `EmailDelivery` ledger prevents duplicate sends; failed emails are retried up to 3 times, then stay visible as `failed`. Schedules missed by more than 2 hours (worker down) are dropped rather than sent late.
 
+## Operations
+
+- `GET /api/health` (liveness) and `GET /api/health/ready` (PostgreSQL + Redis) for hosts and load balancers.
+- Every response carries `X-Request-Id`; log lines and 500 responses include it. URLs are redacted before logging.
+- Production logs are JSON on stdout. `SIGTERM` shuts down gracefully (in-flight requests and the reminder sweep finish first).
+- Environments, release steps, rollback, backups and the MongoDB → PostgreSQL cutover: see [`docs/RELEASE.md`](../docs/RELEASE.md).
+
 ## Notes
 
 - Protected routes use the httpOnly `afritask_session` cookie (server-side sessions); writes also need `X-Requested-With: XMLHttpRequest`.

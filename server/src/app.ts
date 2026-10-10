@@ -18,6 +18,8 @@ import projectRoute from "./routes/projectRoute.js";
 import labelRoute from "./routes/labelRoute.js";
 import commentRoute from "./routes/commentRoute.js";
 import notificationRoute from "./routes/notificationRoute.js";
+import assignRequestId, { redactUrl } from "./middlewares/requestId.middleware.js";
+import healthRoute from "./routes/healthRoute.js";
 import logger from "./utils/logger.js";
 import globalErrorHandler from "./middlewares/error.Middleware.js";
 import CLIENT_URL from "./config/clientUrl.js";
@@ -27,6 +29,9 @@ import openApiDocument from "./docs/openapi.js";
 
 
 const app = express();
+
+// First: every later log line about this request can name it.
+app.use(assignRequestId);
 
 // Behind the client's /api rewrite (and the host's load balancer) in production — trust
 // exactly that many hops so req.ip is the real client for rate limiting, and nothing more.
@@ -52,15 +57,24 @@ app.use(cookieParser());
 app.use(express.static('public'))
 app.use(passport.initialize());
 // Request logs are noise in test output; errors still reach the logger.
+// NOTE: the URL is redacted (invitation/verification/reset tokens never reach the logs), and
+// there's no Referer/User-Agent/IP noise — just what's needed to trace a request.
+morgan.token("id", (req) => (req as express.Request).id);
+morgan.token("safe-url", (req) => redactUrl((req as express.Request).originalUrl));
 if (!env.isTest) {
   app.use(
-    morgan("combined", {
+    morgan("requestId=:id :method :safe-url :status :res[content-length] - :response-time ms", {
+      // Health probes run every few seconds; logging each would drown everything else.
+      skip: (req) => req.originalUrl.startsWith("/api/health"),
       stream: {
         write: (message) => logger.info(message.trim()),
       },
     })
   );
 }
+
+// ─── Health checks: no auth, no CSRF (GET only), no rate limit ─────────────────────
+app.use("/api/health", healthRoute);
 
 app.options('{*path}', cors(corsOptions));
 

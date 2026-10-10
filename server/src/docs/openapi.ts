@@ -73,6 +73,7 @@ const schemas = {
         properties: {
             status: { type: "string", enum: ["fail", "error"] },
             message: { type: "string" },
+            requestId: { type: "string", description: "Only on 500s: a reference that matches the server's log entry (also in the X-Request-Id header)" },
         },
     },
     Message: {
@@ -324,6 +325,20 @@ const schemas = {
     UnreadCount: {
         type: "object",
         properties: { status: { type: "string" }, data: { type: "object", properties: { unreadCount: { type: "integer" } } } },
+    },
+    Readiness: {
+        type: "object",
+        properties: {
+            status: { type: "string", enum: ["ok", "unavailable"] },
+            version: { type: "string" },
+            checks: {
+                type: "object",
+                additionalProperties: {
+                    type: "object",
+                    properties: { status: { type: "string", enum: ["ok", "unavailable"] }, latencyMs: { type: "integer" } },
+                },
+            },
+        },
     },
     ActivityPage: {
         type: "object",
@@ -1006,6 +1021,33 @@ const dashboardPaths = {
     },
 };
 
+const healthPaths = {
+    "/health": {
+        get: {
+            tags: ["Health"],
+            summary: "Liveness: the process is up (never checks dependencies)",
+            security: publicRoute,
+            responses: {
+                200: jsonResponse("Alive", {
+                    type: "object",
+                    properties: { status: { type: "string", example: "ok" }, version: { type: "string" }, uptimeSeconds: { type: "integer" } },
+                }),
+            },
+        },
+    },
+    "/health/ready": {
+        get: {
+            tags: ["Health"],
+            summary: "Readiness: PostgreSQL and Redis both answer (503 if not)",
+            security: publicRoute,
+            responses: {
+                200: jsonResponse("Ready", ref("Readiness")),
+                503: jsonResponse("A dependency is unavailable", ref("Readiness")),
+            },
+        },
+    },
+};
+
 const activityPageParams = [
     { name: "limit", in: "query", schema: { type: "integer", default: 30, maximum: 100 } },
     { name: "before", in: "query", description: "nextCursor from the previous page", schema: { type: "string", format: "uuid" } },
@@ -1087,6 +1129,7 @@ const openApiDocument = {
         { name: "Labels", description: "Workspace labels for tagging tasks" },
         { name: "Comments", description: "Discussion on tasks, with @mentions of workspace members" },
         { name: "Notifications", description: "In-app notifications: assignments, mentions and invitations" },
+        { name: "Health", description: "Liveness and readiness probes for hosts and load balancers" },
         { name: "Activity", description: "Read-only history: who changed what, with before/after values" },
     ],
     security: signedIn,
@@ -1096,7 +1139,7 @@ const openApiDocument = {
         },
         schemas,
     },
-    paths: withOperationIds({ ...authPaths, ...userPaths, ...workspacePaths, ...invitationPaths, ...projectPaths, ...labelPaths, ...taskPaths, ...subtaskPaths, ...commentPaths, ...notificationPaths, ...activityPaths, ...dashboardPaths }),
+    paths: withOperationIds({ ...authPaths, ...userPaths, ...workspacePaths, ...invitationPaths, ...projectPaths, ...labelPaths, ...taskPaths, ...subtaskPaths, ...commentPaths, ...notificationPaths, ...activityPaths, ...dashboardPaths, ...healthPaths }),
 };
 
 export default openApiDocument;

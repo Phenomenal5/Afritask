@@ -3,6 +3,7 @@ import multer from "multer";
 import { Prisma } from "../generated/prisma/client.js";
 import AppError from "../utils/AppError.js";
 import logger, { describeError } from "../utils/logger.js";
+import { redactUrl } from "./requestId.middleware.js";
 
 // The fields we read off our own AppError (and anything that mimics it).
 interface HandledError extends Error {
@@ -28,7 +29,6 @@ const handlePrismaKnownError = (error: Prisma.PrismaClientKnownRequestError) => 
 
 const globalErrorHandler: ErrorRequestHandler = (error: HandledError, req, res, next) => {
   let err: HandledError = { ...error, message: error.message };
-  logger.error(describeError(error));
   if (error instanceof Prisma.PrismaClientKnownRequestError) err = handlePrismaKnownError(error) ?? err;
   // Upload limits (e.g. file over 5 MB) are the client's mistake, not a server failure.
   if (error instanceof multer.MulterError) {
@@ -47,9 +47,17 @@ const globalErrorHandler: ErrorRequestHandler = (error: HandledError, req, res, 
   const isOperational = Boolean(err.isOperational);
   const statusCode = isOperational ? err.statusCode || 500 : 500;
 
+  // Expected refusals (4xx) are one-line warnings; real failures get the stack. Both carry
+  // the request id and a redacted URL, so a report can be matched to its log entry.
+  const where = `requestId=${req.id ?? "-"} ${req.method} ${redactUrl(req.originalUrl)}`;
+  if (statusCode >= 500) logger.error(`${where} ${describeError(error)}`);
+  else logger.warn(`${where} ${statusCode} ${err.message}`);
+
   res.status(statusCode).json({
     status: isOperational ? err.status || "error" : "error",
-    message: isOperational ? err.message : "Something went wrong",
+    message: isOperational ? err.message : "Something went wrong on our side. Please try again in a moment.",
+    // A reference the person can quote; it points at the log line above. No internals.
+    ...(statusCode >= 500 && { requestId: req.id }),
   });
 };
 
