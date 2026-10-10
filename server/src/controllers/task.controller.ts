@@ -9,6 +9,7 @@ import { requireActiveMembership, requireMembership } from "../middlewares/works
 import { canAssignTask, canDeleteTask, canEditTask } from "../utils/taskPermissions.js";
 import { parseDue } from "../utils/dueDate.js";
 import routeParam from "../utils/routeParam.js";
+import { diffFields, recordActivity } from "../services/activityService.js";
 
 // ─── Input parsing ─────────────────────
 // Each helper throws an operational 400 so bad input never reaches Prisma as a 500.
@@ -101,7 +102,7 @@ const parseSort = (sort: unknown): Prisma.TaskOrderByWithRelationInput[] => {
 // Item routes (/api/tasks/:id) carry no workspace id, so access is derived from the
 // task itself: the caller must be an ACTIVE member of the task's workspace. Missing
 // task and "not your workspace" both answer the same 404 (no existence leak).
-const loadTaskForMember = async (taskId: string, userId: string) => {
+export const loadTaskForMember = async (taskId: string, userId: string) => {
     const task = await prisma.task.findUnique({ where: { id: taskId } });
     if (!task) throw new AppError("Task not found", 404);
     const membership = await requireActiveMembership(task.workspaceId, userId).catch(() => {
@@ -140,6 +141,29 @@ const toTaskResponse = <TaskRow extends TaskRelations>(task: TaskRow) => {
         },
     };
 };
+
+// What a task looked like, in the terms history shows: names rather than ids, so a
+// later rename or removal doesn't change what an old entry says (SRS SR09).
+interface TaskHistoryRow extends TaskRelations {
+    title: string;
+    description: string;
+    status: TaskStatus;
+    priority: TaskPriority;
+    dueAt: Date | null;
+    project: { name: string } | null;
+    assignee: { user: { name: string } } | null;
+}
+const HISTORY_FIELDS = ["title", "description", "status", "priority", "dueAt", "project", "assignee", "labels"] as const;
+const toHistorySnapshot = (task: TaskHistoryRow) => ({
+    title: task.title,
+    description: task.description,
+    status: task.status,
+    priority: task.priority,
+    dueAt: task.dueAt,
+    project: task.project?.name ?? null,
+    assignee: task.assignee?.user.name ?? null,
+    labels: task.labels.map((taskLabel) => taskLabel.label.name),
+});
 
 const findTaskResponse = async (taskId: string) => {
     const task = await prisma.task.findUnique({ where: { id: taskId }, include: taskInclude });
@@ -206,22 +230,40 @@ const completionChange = (previousStatus: TaskStatus, nextStatus: TaskStatus | u
 
 // Apply a versioned update: succeeds only if nobody changed the task since `expectedVersion`.
 // `alsoInTransaction` runs related writes (labels, subtasks following a project move) in the
-// SAME transaction, so a version conflict rolls them back too.
+// SAME transaction, so a version conflict rolls them back too. The before/after history
+// entry is written there as well — only when something actually changed.
 const updateWithVersionCheck = async (
     taskId: string,
     expectedVersion: number,
+    actorId: string,
     data: Prisma.TaskUncheckedUpdateManyInput,
     alsoInTransaction?: (tx: Prisma.TransactionClient) => Promise<unknown>
 ) => {
     await prisma.$transaction(async (tx) => {
+        const before = await tx.task.findUnique({ where: { id: taskId }, include: taskInclude });
         const { count } = await tx.task.updateMany({
             where: { id: taskId, version: expectedVersion },
             data: { ...data, version: { increment: 1 } },
         });
-        if (count === 0) {
+        if (count === 0 || !before) {
             throw new AppError("This task was changed by someone else. Refresh to see the latest version and try again.", 409);
         }
         if (alsoInTransaction) await alsoInTransaction(tx);
+
+        const after = await tx.task.findUniqueOrThrow({ where: { id: taskId }, include: taskInclude });
+        const changes = diffFields(toHistorySnapshot(before), toHistorySnapshot(after), [...HISTORY_FIELDS]);
+        if (Object.keys(changes).length > 0) {
+            await recordActivity(tx, {
+                workspaceId: after.workspaceId,
+                actorId,
+                entityType: "task",
+                entityId: taskId,
+                projectId: after.projectId,
+                action: "task.updated",
+                changes,
+                summary: after.title,
+            });
+        }
     });
     return findTaskResponse(taskId);
 };
@@ -304,25 +346,39 @@ export const createWorkspaceTask = catchAsync(async (req, res) => {
     const status = parseStatus(req.body.status) ?? TaskStatus.todo;
     const due = parseDue(req.body, user.timezone);
     const labelIds = await parseLabelIds(req.body.labelIds, membership.workspaceId);
+    const projectId = await parseProjectId(req.body.projectId, membership.workspaceId);
+    // Anyone may set an assignee on a task they create (they're its creator).
+    const assigneeMembershipId = await parseAssigneeMembershipId(req.body.assigneeMembershipId, membership.workspaceId);
 
     try {
-        const task = await prisma.task.create({
-            data: {
-                workspaceId: membership.workspaceId,
-                creatorId: membership.userId,
-                clientRequestId: clientRequestId || null,
-                projectId: await parseProjectId(req.body.projectId, membership.workspaceId),
-                ...(labelIds && { labels: { create: labelIds.map((labelId) => ({ labelId })) } }),
-                // Anyone may set an assignee on a task they create (they're its creator).
-                assigneeMembershipId: await parseAssigneeMembershipId(req.body.assigneeMembershipId, membership.workspaceId),
-                title: parseTitle(req.body.title, { required: true }) as string,
-                description: parseDescription(req.body.description),
-                status,
-                priority: parsePriority(req.body.priority),
-                ...(due ?? {}),
-                completedAt: status === TaskStatus.completed ? new Date() : null,
-            },
-            include: taskInclude,
+        const task = await prisma.$transaction(async (tx) => {
+            const createdTask = await tx.task.create({
+                data: {
+                    workspaceId: membership.workspaceId,
+                    creatorId: membership.userId,
+                    clientRequestId: clientRequestId || null,
+                    projectId,
+                    ...(labelIds && { labels: { create: labelIds.map((labelId) => ({ labelId })) } }),
+                    assigneeMembershipId,
+                    title: parseTitle(req.body.title, { required: true }) as string,
+                    description: parseDescription(req.body.description),
+                    status,
+                    priority: parsePriority(req.body.priority),
+                    ...(due ?? {}),
+                    completedAt: status === TaskStatus.completed ? new Date() : null,
+                },
+                include: taskInclude,
+            });
+            await recordActivity(tx, {
+                workspaceId: createdTask.workspaceId,
+                actorId: membership.userId,
+                entityType: "task",
+                entityId: createdTask.id,
+                projectId: createdTask.projectId,
+                action: "task.created",
+                summary: createdTask.title,
+            });
+            return createdTask;
         });
 
         logger.info(`Task created taskId=${task.id} workspaceId=${membership.workspaceId} userId=${membership.userId}`);
@@ -386,6 +442,7 @@ export const editTask = catchAsync(async (req, res) => {
     const task = await updateWithVersionCheck(
         id,
         expectedVersion,
+        user.id,
         {
             title: parseTitle(req.body.title, { required: false }),
             description: parseDescription(req.body.description),
@@ -421,7 +478,7 @@ export const updateTaskStatus = catchAsync(async (req, res) => {
     const status = parseStatus(req.body.status);
     const expectedVersion = parseExpectedVersion(req.body.version);
 
-    const task = await updateWithVersionCheck(id, expectedVersion, {
+    const task = await updateWithVersionCheck(id, expectedVersion, membership.userId, {
         status,
         ...completionChange(existingTask.status, status),
     });
@@ -441,7 +498,16 @@ export const deleteTask = catchAsync(async (req, res) => {
     }
     await assertTaskWritable(task);
 
-    await prisma.task.delete({ where: { id } });
+    // The history entry outlives the task (no foreign key), so "who deleted it" stays answerable.
+    await prisma.$transaction(async (tx) => {
+        await tx.task.delete({ where: { id } });
+        const entry = { workspaceId: task.workspaceId, actorId: membership.userId, projectId: task.projectId, summary: task.title } as const;
+        await recordActivity(tx, { ...entry, entityType: "task", entityId: id, action: "task.deleted" });
+        // A deleted subtask also shows on its parent's timeline.
+        if (task.parentTaskId) {
+            await recordActivity(tx, { ...entry, entityType: "task", entityId: task.parentTaskId, action: "task.deleted" });
+        }
+    });
 
     logger.info(`Task deleted taskId=${id} userId=${membership.userId}`);
     res.status(204).json({ status: "success", data: null });
@@ -461,21 +527,29 @@ export const createSubtask = catchAsync(async (req, res) => {
 
     const status = parseStatus(req.body.status) ?? TaskStatus.todo;
     const due = parseDue(req.body, user.timezone);
-    const subtask = await prisma.task.create({
-        data: {
-            workspaceId: parent.workspaceId,
-            projectId: parent.projectId,
-            parentTaskId: parent.id,
-            creatorId: membership.userId,
-            assigneeMembershipId: await parseAssigneeMembershipId(req.body.assigneeMembershipId, parent.workspaceId),
-            title: parseTitle(req.body.title, { required: true }) as string,
-            description: parseDescription(req.body.description),
-            status,
-            priority: parsePriority(req.body.priority),
-            ...(due ?? {}),
-            completedAt: status === TaskStatus.completed ? new Date() : null,
-        },
-        include: taskInclude,
+    const assigneeMembershipId = await parseAssigneeMembershipId(req.body.assigneeMembershipId, parent.workspaceId);
+    const subtask = await prisma.$transaction(async (tx) => {
+        const createdSubtask = await tx.task.create({
+            data: {
+                workspaceId: parent.workspaceId,
+                projectId: parent.projectId,
+                parentTaskId: parent.id,
+                creatorId: membership.userId,
+                assigneeMembershipId,
+                title: parseTitle(req.body.title, { required: true }) as string,
+                description: parseDescription(req.body.description),
+                status,
+                priority: parsePriority(req.body.priority),
+                ...(due ?? {}),
+                completedAt: status === TaskStatus.completed ? new Date() : null,
+            },
+            include: taskInclude,
+        });
+        const entry = { workspaceId: parent.workspaceId, actorId: membership.userId, projectId: parent.projectId, summary: createdSubtask.title } as const;
+        await recordActivity(tx, { ...entry, entityType: "task", entityId: createdSubtask.id, action: "task.created" });
+        // ...and on the parent's timeline, so its history shows the breakdown growing.
+        await recordActivity(tx, { ...entry, entityType: "task", entityId: parent.id, action: "subtask.created" });
+        return createdSubtask;
     });
 
     logger.info(`Subtask created taskId=${subtask.id} parentId=${parent.id} userId=${membership.userId}`);

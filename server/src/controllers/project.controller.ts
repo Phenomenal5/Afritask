@@ -8,6 +8,7 @@ import routeParam from "../utils/routeParam.js";
 import { normalizeWorkspaceName } from "../utils/workspaceValidation.js";
 import { requireUser } from "../middlewares/auth.middleware.js";
 import { requireActiveMembership, requireMembership } from "../middlewares/workspaceAccess.middleware.js";
+import { diffFields, recordActivity, type ActivityAction, type ActivityChanges } from "../services/activityService.js";
 
 // ─── Projects (SRS SR05, PRD FR05) ─────────────────────
 // Every active member can view; Owner/Admin create, edit, archive and restore.
@@ -57,6 +58,18 @@ const loadProjectForMember = async (projectId: string | undefined, userId: strin
     return { project, membership };
 };
 
+// A project event, filed under the project so its feed shows it.
+const projectActivity = (project: Project, actorId: string, action: ActivityAction, changes?: ActivityChanges) => ({
+    workspaceId: project.workspaceId,
+    actorId,
+    entityType: "project" as const,
+    entityId: project.id,
+    projectId: project.id,
+    action,
+    changes,
+    summary: project.name,
+});
+
 const assertManager = (membership: Membership) => {
     if (!isManager(membership)) throw new AppError("Only Owners and Admins can manage projects", 403);
 };
@@ -82,13 +95,14 @@ export const listWorkspaceProjects = catchAsync(async (req, res) => {
 export const createProject = catchAsync(async (req, res) => {
     const membership = requireMembership(req);
 
-    const project = await prisma.project.create({
-        data: {
-            workspaceId: membership.workspaceId,
-            name: normalizeWorkspaceName(req.body.name, "Project name"),
-            description: parseDescription(req.body.description),
-            createdById: membership.userId,
-        },
+    const name = normalizeWorkspaceName(req.body.name, "Project name");
+    const description = parseDescription(req.body.description);
+    const project = await prisma.$transaction(async (tx) => {
+        const createdProject = await tx.project.create({
+            data: { workspaceId: membership.workspaceId, name, description, createdById: membership.userId },
+        });
+        await recordActivity(tx, projectActivity(createdProject, membership.userId, "project.created"));
+        return createdProject;
     });
 
     logger.info(`Project created projectId=${project.id} workspaceId=${membership.workspaceId} by userId=${membership.userId}`);
@@ -117,13 +131,18 @@ export const updateProject = catchAsync(async (req, res) => {
 
     // NOTE: completing a project never completes its tasks (PRD FR05). The client warns
     // beforehand using taskCounts.open; the server just records the new state.
-    const updated = await prisma.project.update({
-        where: { id: project.id },
-        data: {
-            ...(name !== undefined && { name: normalizeWorkspaceName(name, "Project name") }),
-            description: parseDescription(description),
-            ...(state !== undefined && { state }),
-        },
+    const data = {
+        ...(name !== undefined && { name: normalizeWorkspaceName(name, "Project name") }),
+        description: parseDescription(description),
+        ...(state !== undefined && { state: state as ProjectState }),
+    };
+    const updated = await prisma.$transaction(async (tx) => {
+        const updatedProject = await tx.project.update({ where: { id: project.id }, data });
+        const changes = diffFields(project, updatedProject, ["name", "description", "state"]);
+        if (Object.keys(changes).length > 0) {
+            await recordActivity(tx, projectActivity(updatedProject, membership.userId, "project.updated", changes));
+        }
+        return updatedProject;
     });
 
     logger.info(`Project updated projectId=${project.id} by userId=${membership.userId}`);
@@ -135,11 +154,16 @@ export const archiveProject = catchAsync(async (req, res) => {
     assertManager(membership);
 
     // Conditional on "not archived yet" so a double click can't overwrite priorState with "archived".
-    const { count } = await prisma.project.updateMany({
-        where: { id: project.id, state: { not: ProjectState.archived } },
-        data: { priorState: project.state, state: ProjectState.archived },
+    await prisma.$transaction(async (tx) => {
+        const { count } = await tx.project.updateMany({
+            where: { id: project.id, state: { not: ProjectState.archived } },
+            data: { priorState: project.state, state: ProjectState.archived },
+        });
+        if (count === 0) throw new AppError("This project is already archived", 409);
+        await recordActivity(tx, projectActivity(project, membership.userId, "project.archived", {
+            state: { from: project.state, to: ProjectState.archived },
+        }));
     });
-    if (count === 0) throw new AppError("This project is already archived", 409);
 
     logger.info(`Project archived projectId=${project.id} by userId=${membership.userId}`);
     res.status(200).json({ status: "success", message: "Project archived" });
@@ -152,9 +176,15 @@ export const restoreProject = catchAsync(async (req, res) => {
 
     // Back to where it was before archiving (SRS SR05). Reminder recalculation on restore
     // lands with per-task reminders; the daily job simply resumes including these tasks.
-    const restored = await prisma.project.update({
-        where: { id: project.id },
-        data: { state: project.priorState ?? ProjectState.active, priorState: null },
+    const restored = await prisma.$transaction(async (tx) => {
+        const restoredProject = await tx.project.update({
+            where: { id: project.id },
+            data: { state: project.priorState ?? ProjectState.active, priorState: null },
+        });
+        await recordActivity(tx, projectActivity(restoredProject, membership.userId, "project.restored", {
+            state: { from: ProjectState.archived, to: restoredProject.state },
+        }));
+        return restoredProject;
     });
 
     logger.info(`Project restored projectId=${project.id} to ${restored.state} by userId=${membership.userId}`);

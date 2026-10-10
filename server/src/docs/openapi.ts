@@ -244,6 +244,38 @@ const schemas = {
         description: "Either the token from the emailed link, or the invitation id from /invitations/mine.",
         properties: { token: { type: "string" }, invitationId: { type: "string", format: "uuid" } },
     },
+    ActivityEntry: {
+        type: "object",
+        description: "One immutable history entry. `summary` is the task/project/member name at the time.",
+        properties: {
+            id: { type: "string", format: "uuid" },
+            action: { type: "string", example: "task.updated" },
+            entityType: { type: "string", enum: ["task", "project", "membership", "workspace"] },
+            entityId: { type: "string", format: "uuid" },
+            projectId: { type: ["string", "null"], format: "uuid" },
+            changes: {
+                type: ["object", "null"],
+                description: "Changed fields only, e.g. { \"status\": { \"from\": \"todo\", \"to\": \"completed\" } }",
+                additionalProperties: { type: "object", properties: { from: {}, to: {} } },
+            },
+            summary: { type: "string" },
+            createdAt: { type: "string", format: "date-time" },
+            actor: { type: "object", properties: { id: { type: "string" }, name: { type: "string" }, photo: { type: ["string", "null"] } } },
+        },
+    },
+    ActivityPage: {
+        type: "object",
+        properties: {
+            status: { type: "string", example: "success" },
+            data: {
+                type: "object",
+                properties: {
+                    entries: { type: "array", items: { $ref: "#/components/schemas/ActivityEntry" } },
+                    nextCursor: { type: ["string", "null"], description: "Pass as ?before= for the next (older) page" },
+                },
+            },
+        },
+    },
 };
 
 // ─── Paths ─────────────────────
@@ -737,6 +769,34 @@ const invitationPaths = {
     },
 };
 
+const activityPageParams = [
+    { name: "limit", in: "query", schema: { type: "integer", default: 30, maximum: 100 } },
+    { name: "before", in: "query", description: "nextCursor from the previous page", schema: { type: "string", format: "uuid" } },
+];
+
+const activityPaths = {
+    "/tasks/{id}/activity": {
+        parameters: [pathParam("id", "Task id")],
+        get: {
+            tags: ["Activity"],
+            summary: "A task's history, newest first (subtask additions/deletions included)",
+            security: signedIn,
+            parameters: activityPageParams,
+            responses: { 200: jsonResponse("History", ref("ActivityPage")), ...errorResponses(400, 401, 404) },
+        },
+    },
+    "/workspaces/{workspaceId}/activity": {
+        parameters: [workspaceIdParam],
+        get: {
+            tags: ["Activity"],
+            summary: "The workspace's history, or one project's with ?projectId=",
+            security: signedIn,
+            parameters: [{ name: "projectId", in: "query", schema: { type: "string", format: "uuid" } }, ...activityPageParams],
+            responses: { 200: jsonResponse("History", ref("ActivityPage")), ...errorResponses(401, 404) },
+        },
+    },
+};
+
 // operationId for every operation, derived from method + path, e.g.
 // POST /workspaces/{workspaceId}/tasks → postWorkspacesByWorkspaceIdTasks. Generated
 // clients use these as method names; deriving them means a new route can't forget one.
@@ -788,6 +848,7 @@ const openApiDocument = {
         { name: "Projects", description: "Groups of related tasks inside a workspace" },
         { name: "Tasks", description: "Tasks and subtasks: status, priority, assignee, due dates, labels, versioned updates" },
         { name: "Labels", description: "Workspace labels for tagging tasks" },
+        { name: "Activity", description: "Read-only history: who changed what, with before/after values" },
     ],
     security: signedIn,
     components: {
@@ -796,7 +857,7 @@ const openApiDocument = {
         },
         schemas,
     },
-    paths: withOperationIds({ ...authPaths, ...userPaths, ...workspacePaths, ...invitationPaths, ...projectPaths, ...labelPaths, ...taskPaths, ...subtaskPaths }),
+    paths: withOperationIds({ ...authPaths, ...userPaths, ...workspacePaths, ...invitationPaths, ...projectPaths, ...labelPaths, ...taskPaths, ...subtaskPaths, ...activityPaths }),
 };
 
 export default openApiDocument;

@@ -13,6 +13,8 @@ import { ROLE_LABELS } from "@/utils/roles";
 import WorkspaceInvitations from "@/components/WorkspaceInvitations";
 import WorkspaceMembers from "@/components/WorkspaceMembers";
 import WorkspaceLabels from "@/components/WorkspaceLabels";
+import ActivityFeed from "@/components/ActivityFeed";
+import { getWorkspaceActivity } from "@/lib/services/activityService";
 
 
 const sectionStyle = { background: "var(--paper-raised)", border: "1px solid var(--line)" };
@@ -39,6 +41,8 @@ function WorkspaceSettings() {
     setWorkspaceDetails(null);
     loadDetails().catch(() => setWorkspaceDetails(null));
   }, [loadDetails]);
+
+  const loadWorkspaceActivity = useCallback((page) => getWorkspaceActivity(workspaceId, page), [workspaceId]);
 
   const handleRename = async (e) => {
     e.preventDefault();
@@ -93,6 +97,13 @@ function WorkspaceSettings() {
         />
 
         <WorkspaceMembers workspace={workspaceDetails} onChanged={loadDetails} />
+
+        <section className="p-5 rounded-xl mt-6" style={{ background: "var(--paper-raised)", border: "1px solid var(--line)" }}>
+          <h2 className="font-display text-lg mb-4" style={{ color: "var(--ink)" }}>
+            Recent activity
+          </h2>
+          <ActivityFeed loadPage={loadWorkspaceActivity} reloadKey={`${workspaceDetails.name}-${workspaceDetails.members.map((member) => member.id + member.role).join()}`} />
+        </section>
       </main>
     </div>
   );

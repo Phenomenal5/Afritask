@@ -15,6 +15,8 @@ import TaskFormModal from "@/components/TaskFormModal";
 import EmptyState from "@/components/EmptyState";
 import Button from "@/components/Button";
 import LoadingScreen from "@/components/LoadingScreen";
+import ActivityFeed from "@/components/ActivityFeed";
+import { getWorkspaceActivity } from "@/lib/services/activityService";
 
 function ProjectDetail() {
   const { projectId } = useParams();
@@ -38,6 +40,13 @@ function ProjectDetail() {
   useEffect(() => {
     loadProject();
   }, [loadProject]);
+
+  // The project's own events plus its tasks'.
+  const workspaceId = project?.workspaceId;
+  const loadProjectActivity = useCallback(
+    (page) => getWorkspaceActivity(workspaceId, { ...page, projectId }),
+    [workspaceId, projectId]
+  );
 
   // The project's tasks (including when it's archived — shown read-only).
   useEffect(() => {
@@ -177,6 +186,14 @@ function ProjectDetail() {
             ))}
           </div>
         )}
+
+        <section className="mt-10">
+          <h2 className="font-display text-lg mb-3" style={{ color: "var(--ink)" }}>
+            Activity
+          </h2>
+          {/* Refetch whenever the task list or the project itself changes. */}
+          <ActivityFeed loadPage={loadProjectActivity} reloadKey={`${project.updatedAt}-${tasks.map((task) => task.version).join()}`} />
+        </section>
       </main>
 
       <TaskFormModal

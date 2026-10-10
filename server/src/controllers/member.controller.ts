@@ -6,6 +6,8 @@ import catchAsync from "../utils/catchAsync.js";
 import logger from "../utils/logger.js";
 import routeParam from "../utils/routeParam.js";
 import { requireMembership } from "../middlewares/workspaceAccess.middleware.js";
+import { requireUser } from "../middlewares/auth.middleware.js";
+import { recordActivity, type ActivityAction, type ActivityChanges } from "../services/activityService.js";
 
 // ─── Membership lifecycle (SRS SR04, PRD FR04 + §8 protection rules) ─────────────────────
 // - Owner sets Admin/Member roles and transfers ownership; Admin removes Members only.
@@ -34,14 +36,25 @@ const endMembership = async (tx: Prisma.TransactionClient, membershipId: string)
 
 // The target membership must belong to the SAME workspace as the caller's — a membership id
 // from another workspace answers 404, like any other cross-workspace id.
-const loadTargetMembership = async (membershipId: string | undefined, workspaceId: string): Promise<Membership> => {
+type TargetMembership = Membership & { user: { name: string } };
+const loadTargetMembership = async (membershipId: string | undefined, workspaceId: string): Promise<TargetMembership> => {
     if (!membershipId || !validator.isUUID(membershipId)) throw new AppError("Member not found", 404);
     const target = await prisma.membership.findFirst({
         where: { id: membershipId, workspaceId, status: "active" },
+        include: { user: { select: { name: true } } },
     });
     if (!target) throw new AppError("Member not found", 404);
     return target;
 };
+
+// A membership event; summary is the member's name at the time.
+const memberActivity = (
+    target: { id: string; workspaceId: string },
+    memberName: string,
+    actorId: string,
+    action: ActivityAction,
+    changes?: ActivityChanges
+) => ({ workspaceId: target.workspaceId, actorId, entityType: "membership" as const, entityId: target.id, action, changes, summary: memberName });
 
 // ─── Change a role: Owner only, admin ⇄ member ─────────────────────
 export const changeMemberRole = catchAsync(async (req, res) => {
@@ -54,7 +67,15 @@ export const changeMemberRole = catchAsync(async (req, res) => {
     }
     if (target.role === "owner") throw new AppError("The Owner's role can only change through ownership transfer", 409);
 
-    const updated = await prisma.membership.update({ where: { id: target.id }, data: { role } });
+    const updated = await prisma.$transaction(async (tx) => {
+        const updatedMembership = await tx.membership.update({ where: { id: target.id }, data: { role } });
+        if (target.role !== role) {
+            await recordActivity(tx, memberActivity(target, target.user.name, callerMembership.userId, "member.role_changed", {
+                role: { from: target.role, to: role },
+            }));
+        }
+        return updatedMembership;
+    });
 
     logger.info(`Member role changed membershipId=${target.id} ${target.role}→${role} by userId=${callerMembership.userId}`);
     res.status(200).json({ status: "success", data: { member: { id: updated.id, role: updated.role } } });
@@ -72,7 +93,10 @@ export const removeMember = catchAsync(async (req, res) => {
         throw new AppError("Only the Owner can remove an Admin", 403);
     }
 
-    await prisma.$transaction((tx) => endMembership(tx, target.id));
+    await prisma.$transaction(async (tx) => {
+        await endMembership(tx, target.id);
+        await recordActivity(tx, memberActivity(target, target.user.name, callerMembership.userId, "member.removed"));
+    });
 
     logger.info(`Member removed membershipId=${target.id} by userId=${callerMembership.userId}`);
     res.status(200).json({ status: "success", message: "Member removed" });
@@ -86,7 +110,10 @@ export const leaveWorkspace = catchAsync(async (req, res) => {
         throw new AppError("Transfer ownership to another member before leaving", 409);
     }
 
-    await prisma.$transaction((tx) => endMembership(tx, callerMembership.id));
+    await prisma.$transaction(async (tx) => {
+        await endMembership(tx, callerMembership.id);
+        await recordActivity(tx, memberActivity(callerMembership, requireUser(req).name, callerMembership.userId, "member.left"));
+    });
 
     logger.info(`Member left membershipId=${callerMembership.id} workspaceId=${callerMembership.workspaceId}`);
     res.status(200).json({ status: "success", message: "You left the workspace" });
@@ -115,6 +142,10 @@ export const transferOwnership = catchAsync(async (req, res) => {
             data: { role: "owner" },
         });
         if (promoted.count === 0) throw new AppError("That person is no longer a member", 409);
+
+        await recordActivity(tx, memberActivity(target, target.user.name, callerMembership.userId, "ownership.transferred", {
+            owner: { from: requireUser(req).name, to: target.user.name },
+        }));
     });
 
     logger.info(`Ownership transferred workspaceId=${callerMembership.workspaceId} from membershipId=${callerMembership.id} to membershipId=${target.id}`);

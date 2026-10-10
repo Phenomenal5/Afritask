@@ -3,7 +3,7 @@
 // Modal form used for both creating new tasks and editing existing ones.
 // Only the title is required; everything else is optional detail (PRD principle:
 // keep task creation quick, expose details progressively).
-import { useState, useEffect } from "react";
+import { useCallback, useState, useEffect } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { useTasks } from "@/context/TaskContext";
 import { useWorkspaces } from "@/context/WorkspaceContext";
@@ -12,6 +12,8 @@ import { getWorkspace } from "@/lib/services/workspaceService";
 import { getWorkspaceLabels } from "@/lib/services/labelService";
 import { labelStyle } from "@/utils/labels";
 import TaskSubtasks from "./TaskSubtasks";
+import ActivityFeed from "./ActivityFeed";
+import { getTaskActivity } from "@/lib/services/activityService";
 import { PRIORITY_STYLES, STATUS_LABELS, TASK_PRIORITIES, TASK_STATUSES, isoDateInZone, localTimeOf } from "@/utils/taskMeta";
 import FormField from "./FormField";
 import Button from "./Button";
@@ -44,6 +46,9 @@ const dueFieldsOf = (task) => {
 
 // defaultProjectId pre-selects a project (e.g. "Add task" from a project page).
 export default function TaskFormModal({ open, onClose, task, defaultProjectId = "" }) {
+  // Stable per task so the feed only refetches when a different task opens.
+  const taskId = task?.id;
+  const loadTaskHistory = useCallback((page) => getTaskActivity(taskId, page), [taskId]);
   const { user } = useAuth();
   const { createTask, updateTask } = useTasks();
   const { activeWorkspace } = useWorkspaces();
@@ -312,6 +317,17 @@ export default function TaskFormModal({ open, onClose, task, defaultProjectId = 
             <FormField label="Time (optional)" name="dueTime" type="time" value={form.dueTime} onChange={handleChange} />
           </div>
           {isEditing && !isSubtask && <TaskSubtasks parentTask={task} members={members} />}
+
+          {isEditing && (
+            <details className="pt-2" style={{ borderTop: "1px solid var(--line-soft)" }}>
+              <summary className="text-sm font-medium cursor-pointer" style={{ color: "var(--ink)" }}>
+                History
+              </summary>
+              <div className="mt-2">
+                <ActivityFeed loadPage={loadTaskHistory} emptyMessage="No changes recorded yet." />
+              </div>
+            </details>
+          )}
 
           {form.dueDate && !form.dueTime && (
             <p className="text-xs -mt-2" style={{ color: "var(--ink-soft)" }}>

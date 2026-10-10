@@ -540,6 +540,26 @@ sky, plum), `PATCH/DELETE /api/labels/:labelId` (Owner/Admin). Apply with
 `labelIds: [...]` on task create/edit (replaces the set; anyone who can edit the task).
 Filter lists with `?labelId=`. Deleting a label removes it from tasks; tasks stay.
 
+## Activity history
+
+Read-only, newest first, for every active member (outsiders get `404`):
+
+| Method | Path | Purpose |
+|---|---|---|
+| GET | `/api/tasks/:id/activity` | one task's history (subtask additions/deletions included) |
+| GET | `/api/workspaces/:workspaceId/activity` | the workspace's history; `?projectId=` narrows to one project and its tasks |
+
+Each entry: `{ id, action, entityType, entityId, projectId, actor { id, name, photo }, summary, changes, createdAt }`.
+`changes` lists only the fields that changed, as `{ field: { from, to } }`. Assignee, project
+and labels are stored as **names at the time**, so later renames don't rewrite history; long
+descriptions are clipped to 500 characters. Pages: `?limit=` (default 30, max 100) and
+`?before=<nextCursor>`. Entries are written in the same transaction as the change and the
+database refuses to edit them. A save that changes nothing, or loses a version conflict,
+records nothing.
+
+Actions: `task.created|updated|deleted`, `subtask.created`, `project.created|updated|archived|restored`,
+`member.joined|role_changed|removed|left`, `ownership.transferred`, `workspace.created|renamed`.
+
 ## Projects
 
 Projects group related tasks inside a workspace. Every active member can view

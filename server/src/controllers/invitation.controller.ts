@@ -1,5 +1,6 @@
 import validator from "validator";
 import prisma from "../config/prisma.js";
+import { recordActivity } from "../services/activityService.js";
 import type { Invitation, Membership, WorkspaceRole } from "../generated/prisma/client.js";
 import AppError from "../utils/AppError.js";
 import catchAsync from "../utils/catchAsync.js";
@@ -286,16 +287,25 @@ export const acceptInvitation = catchAsync(async (req, res) => {
         if (existingMembership?.status === "active") {
             throw new AppError("You're already a member of this workspace", 409);
         }
-        if (existingMembership) {
-            // A former member re-joining keeps their history row; it's reactivated with the new role.
-            return tx.membership.update({
+        // A former member re-joining keeps their history row; it's reactivated with the new role.
+        const joinedMembership = existingMembership
+            ? await tx.membership.update({
                 where: { id: existingMembership.id },
                 data: { status: "active", role: invitation.role, joinedAt: new Date(), removedAt: null },
+            })
+            : await tx.membership.create({
+                data: { workspaceId: invitation.workspaceId, userId: user.id, role: invitation.role },
             });
-        }
-        return tx.membership.create({
-            data: { workspaceId: invitation.workspaceId, userId: user.id, role: invitation.role },
+        await recordActivity(tx, {
+            workspaceId: invitation.workspaceId,
+            actorId: user.id,
+            entityType: "membership",
+            entityId: joinedMembership.id,
+            action: "member.joined",
+            changes: { role: { from: null, to: invitation.role } },
+            summary: user.name,
         });
+        return joinedMembership;
     });
 
     logger.info(`Invitation accepted invitationId=${invitation.id} userId=${user.id}`);

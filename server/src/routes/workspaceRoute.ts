@@ -7,6 +7,7 @@ import { createInvitation, listWorkspaceInvitations } from "../controllers/invit
 import { invitationLimiter } from "../middlewares/rateLimiter.js";
 import { createProject, listWorkspaceProjects } from "../controllers/project.controller.js";
 import { createLabel, listLabels } from "../controllers/label.controller.js";
+import { listWorkspaceActivity } from "../controllers/activity.controller.js";
 import { changeMemberRole, leaveWorkspace, removeMember, transferOwnership } from "../controllers/member.controller.js";
 
 
@@ -42,6 +43,9 @@ router.patch("/:workspaceId/members/:membershipId", requireWorkspaceMember, requ
 router.delete("/:workspaceId/members/:membershipId", requireWorkspaceMember, requireWorkspaceRole("owner", "admin"), removeMember);
 router.post("/:workspaceId/leave", requireWorkspaceMember, leaveWorkspace);
 router.post("/:workspaceId/transfer-ownership", requireWorkspaceMember, requireWorkspaceRole("owner"), transferOwnership);
+
+// Activity history: every member reads it; ?projectId= narrows to one project.
+router.get("/:workspaceId/activity", requireWorkspaceMember, listWorkspaceActivity);
 
 
 export default router;

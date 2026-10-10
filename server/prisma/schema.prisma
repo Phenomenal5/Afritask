@@ -117,6 +117,7 @@ model User {
   projects      Project[]      @relation("ProjectCreator")
   sessions      Session[]
   accountTokens AccountToken[]
+  activities    Activity[]     @relation("ActivityActor")
 }
 
 // A signed-in browser. The cookie holds a random secret; only its SHA-256 hash is stored,
@@ -164,6 +165,7 @@ model Workspace {
   projects    Project[]
   labels      Label[]
   tasks       Task[]
+  activities  Activity[]
 }
 
 // Workspace-scoped tags for tasks (PRD FR07). Owners/Admins manage them; anyone who can
@@ -324,4 +326,33 @@ model Task {
   @@index([workspaceId, assigneeMembershipId, status, dueAt])
   // Daily reminder scan: incomplete tasks by due date.
   @@index([dueAt, status])
+}
+
+// Append-only history of who changed what (SRS SR09). Written in the SAME transaction as
+// the change it describes, so a rolled-back write never leaves a ghost entry.
+// NOTE: no foreign key to the task/project/membership it describes — history must outlive
+// a deleted task. A database trigger refuses UPDATE (see the activity migration).
+model Activity {
+  id          String   @id @default(uuid(7)) @db.Uuid
+  workspaceId String   @db.Uuid
+  actorId     String   @db.Uuid
+  // "task" | "project" | "membership" | "workspace"
+  entityType  String
+  entityId    String   @db.Uuid
+  // Denormalized so a project's feed includes its tasks' events without a join.
+  projectId   String?  @db.Uuid
+  // e.g. "task.created", "task.updated", "project.archived", "member.removed".
+  action      String
+  // Field-level before/after values: { status: { from: "todo", to: "completed" } }.
+  changes     Json?
+  // Snapshot for display (title/name at the time), so a later rename doesn't rewrite history.
+  summary     String   @default("")
+  createdAt   DateTime @default(now()) @db.Timestamptz(3)
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  actor     User      @relation("ActivityActor", fields: [actorId], references: [id], onDelete: Restrict)
+
+  @@index([workspaceId, createdAt])
+  @@index([entityType, entityId, createdAt])
+  @@index([projectId, createdAt])
 }
