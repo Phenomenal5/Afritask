@@ -565,11 +565,14 @@ const taskPaths = {
             summary: "A workspace's tasks (archived projects' tasks left out unless filtered by projectId)",
             security: signedIn,
             parameters: [
-                { name: "status", in: "query", schema: ref("TaskStatus") },
-                { name: "priority", in: "query", schema: ref("TaskPriority") },
-                { name: "projectId", in: "query", schema: { type: "string" }, description: "A project id, or `none`" },
-                { name: "assignee", in: "query", schema: { type: "string" }, description: "`me`, `none`, or a membership id. Filtering by assignee also returns their subtasks (with `parent`)." },
-                { name: "labelId", in: "query", schema: { type: "string" } },
+                { name: "q", in: "query", schema: { type: "string", maxLength: 200 }, description: "Search task titles, descriptions and project names (case-insensitive). Includes matching subtasks, with `parent`." },
+                { name: "status", in: "query", schema: { type: "string" }, description: "One or more statuses, comma-separated or repeated (OR)" },
+                { name: "priority", in: "query", schema: { type: "string" }, description: "One or more priorities (OR)" },
+                { name: "projectId", in: "query", schema: { type: "string" }, description: "Project ids and/or `none` (OR). Without it, archived projects' tasks are left out." },
+                { name: "assignee", in: "query", schema: { type: "string" }, description: "`me`, `none` and/or membership ids (OR). Filtering by assignee also returns their subtasks (with `parent`)." },
+                { name: "labelId", in: "query", schema: { type: "string" }, description: "One or more label ids (OR)" },
+                { name: "page", in: "query", schema: { type: "integer", minimum: 1 } },
+                { name: "limit", in: "query", schema: { type: "integer", minimum: 1, maximum: 100 }, description: "Page size; enables `data.pagination`. Without it, every match is returned." },
                 { name: "includeSubtasks", in: "query", schema: { type: "boolean" }, description: "Lists show top-level tasks only unless true" },
                 { name: "sort", in: "query", schema: { type: "string", example: "-createdAt,title" } },
                 {
@@ -592,6 +595,11 @@ const taskPaths = {
                             properties: {
                                 tasks: { type: "array", items: ref("Task") },
                                 counts: { type: "object", additionalProperties: { type: "integer" }, description: "Only with counts=true" },
+                                pagination: {
+                                    type: "object",
+                                    description: "Only with limit/page",
+                                    properties: { page: { type: "integer" }, limit: { type: "integer" }, total: { type: "integer" }, totalPages: { type: "integer" } },
+                                },
                             },
                         },
                     },
@@ -715,7 +723,7 @@ const projectPaths = {
             tags: ["Projects"],
             summary: "A workspace's projects with task counts",
             security: signedIn,
-            parameters: [{ name: "includeArchived", in: "query", schema: { type: "boolean" } }],
+            parameters: [{ name: "includeArchived", in: "query", schema: { type: "boolean" } }, { name: "q", in: "query", schema: { type: "string" }, description: "Search project names" }],
             responses: { 200: jsonResponse("Projects", listEnvelope("projects", ref("Project"))), ...errorResponses(401, 404) },
         },
         post: {

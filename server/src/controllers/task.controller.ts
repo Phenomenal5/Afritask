@@ -303,54 +303,130 @@ const replaceLabels = (tx: Prisma.TransactionClient, taskId: string, labelIds: s
 
 // ─── Workspace collection: /api/workspaces/:workspaceId/tasks ─────────────────────
 
+// ─── List query parsing (SRS SR13) ─────────────────────
+// Filters accept several values, comma-separated or repeated (?status=todo,in_review or
+// ?status=todo&status=in_review): OR within one filter, AND across filters.
+const SEARCH_MAX_LENGTH = 200;
+const DEFAULT_PAGE_LIMIT = 50;
+const MAX_PAGE_LIMIT = 100;
+
+// NOTE: only plain strings count. Operator-shaped params (?status[$ne]=x parse to objects)
+// are dropped, so they can never reach the query as anything but "no filter".
+const queryValues = (value: unknown): string[] =>
+    (Array.isArray(value) ? value : value === undefined ? [] : [value])
+        .filter((entry): entry is string => typeof entry === "string")
+        .flatMap((entry) => entry.split(","))
+        .map((entry) => entry.trim())
+        .filter(Boolean);
+
+// One filter type → one OR group. Unknown ids are rejected rather than silently ignored,
+// so a typo never looks like "no results".
+const uuidValues = (values: string[], name: string) => {
+    if (!values.every((value) => validator.isUUID(value))) throw new AppError(`${name} must be ids`, 400);
+    return values;
+};
+
+// ?page=&limit=: offset paging over a STABLE order (the sort, then id), so walking the pages
+// of unchanged data never repeats or skips a task (SRS SR13 acceptance). No limit = all.
+const parsePaging = (pageParam: unknown, limitParam: unknown) => {
+    if (limitParam === undefined) return null;
+    const limit = Number(limitParam);
+    const page = pageParam === undefined ? 1 : Number(pageParam);
+    if (!Number.isInteger(limit) || limit < 1 || limit > MAX_PAGE_LIMIT) throw new AppError(`limit must be 1–${MAX_PAGE_LIMIT}`, 400);
+    if (!Number.isInteger(page) || page < 1) throw new AppError("page must be 1 or more", 400);
+    return { page, limit };
+};
+
 export const listWorkspaceTasks = catchAsync(async (req, res) => {
     const membership = requireMembership(req);
     const user = requireUser(req);
-    const { status, priority, sort, projectId, assignee, labelId, includeSubtasks, due, counts } = req.query;
+    const { sort, includeSubtasks, due, counts } = req.query;
     if (due !== undefined && !isDueView(due)) {
         throw new AppError(`due must be one of ${DUE_VIEWS.join(", ")}`, 400);
     }
+    const paging = parsePaging(req.query.page, req.query.limit ?? (req.query.page !== undefined ? DEFAULT_PAGE_LIMIT : undefined));
+    const search = typeof req.query.q === "string" ? req.query.q.trim().slice(0, SEARCH_MAX_LENGTH) : "";
 
     // Every active member sees every task in the workspace (PRD §8: all projects are
-    // shared in V1). The workspaceId filter is the isolation boundary.
-    const filter: Prisma.TaskWhereInput = { workspaceId: membership.workspaceId };
-    if (projectId === "none") {
-        filter.projectId = null;
-    } else if (typeof projectId === "string" && validator.isUUID(projectId)) {
-        filter.projectId = projectId;
+    // shared in V1). The workspaceId condition is the isolation boundary — every other
+    // condition is AND-ed onto it, so no filter can widen the search beyond it.
+    const conditions: Prisma.TaskWhereInput[] = [{ workspaceId: membership.workspaceId }];
+
+    const projectValues = queryValues(req.query.projectId);
+    if (projectValues.length > 0) {
+        // Asking for projects by id still shows archived ones, read-only.
+        const projectIds = uuidValues(projectValues.filter((value) => value !== "none"), "projectId");
+        conditions.push({
+            OR: [
+                ...(projectValues.includes("none") ? [{ projectId: null }] : []),
+                ...(projectIds.length ? [{ projectId: { in: projectIds } }] : []),
+            ],
+        });
     } else {
-        // Workspace-wide lists leave out archived projects' tasks (PRD FR14: archived
-        // excluded by default). Asking for one project by id still shows them, read-only.
-        filter.OR = [{ projectId: null }, { project: { state: { not: "archived" } } }];
+        // Workspace-wide lists leave out archived projects' tasks (PRD FR14).
+        conditions.push({ OR: [{ projectId: null }, { project: { state: { not: "archived" } } }] });
     }
-    // Query values can arrive as arrays (?status=a&status=b); only a single string is a valid filter.
-    if (typeof status === "string" && status) filter.status = parseStatus(status);
-    if (typeof priority === "string" && priority) filter.priority = parsePriority(priority);
-    if (assignee === "me") filter.assigneeMembershipId = membership.id;
-    else if (assignee === "none") filter.assigneeMembershipId = null;
-    else if (typeof assignee === "string" && validator.isUUID(assignee)) filter.assigneeMembershipId = assignee;
-    if (typeof labelId === "string" && validator.isUUID(labelId)) filter.labels = { some: { labelId } };
+
+    const statuses = queryValues(req.query.status).map((value) => parseStatus(value) as TaskStatus);
+    if (statuses.length) conditions.push({ status: { in: statuses } });
+
+    const priorities = queryValues(req.query.priority).map((value) => parsePriority(value) as TaskPriority);
+    if (priorities.length) conditions.push({ priority: { in: priorities } });
+
+    const assigneeValues = queryValues(req.query.assignee);
+    if (assigneeValues.length) {
+        const membershipIds = uuidValues(
+            assigneeValues.filter((value) => value !== "me" && value !== "none"),
+            "assignee"
+        );
+        if (assigneeValues.includes("me")) membershipIds.push(membership.id);
+        conditions.push({
+            OR: [
+                ...(assigneeValues.includes("none") ? [{ assigneeMembershipId: null }] : []),
+                ...(membershipIds.length ? [{ assigneeMembershipId: { in: membershipIds } }] : []),
+            ],
+        });
+    }
+
+    const labelIds = uuidValues(queryValues(req.query.labelId), "labelId");
+    if (labelIds.length) conditions.push({ labels: { some: { labelId: { in: labelIds } } } });
+
+    if (search) {
+        conditions.push({
+            OR: [
+                { title: { contains: search, mode: "insensitive" } },
+                { description: { contains: search, mode: "insensitive" } },
+                { project: { name: { contains: search, mode: "insensitive" } } },
+            ],
+        });
+    }
 
     // Lists and boards show TOP-LEVEL tasks; subtasks live inside their parent (PRD FR12).
     // Asking "what's assigned to someone" includes separately assigned subtasks (PRD FR11),
-    // which carry `parent` for context.
-    const wantsSubtasks = includeSubtasks === "true" || (typeof assignee === "string" && assignee !== "none");
-    if (!wantsSubtasks) filter.parentTaskId = null;
+    // and so does a search — a matching subtask shouldn't be invisible. Both carry `parent`.
+    const wantsSubtasks = includeSubtasks === "true" || assigneeValues.some((value) => value !== "none") || !!search;
+    if (!wantsSubtasks) conditions.push({ parentTaskId: null });
 
     // Due views (SRS SR11) are judged in the viewer's profile timezone, at request time.
     const now = new Date();
     const timeZone = user.timezone || "UTC";
-    const tasks = await prisma.task.findMany({
-        where: isDueView(due) ? { AND: [filter, dueViewWhere(due, now, timeZone)] } : filter,
-        orderBy: parseSort(sort),
-        include: taskInclude,
-    });
+    const where: Prisma.TaskWhereInput = { AND: isDueView(due) ? [...conditions, dueViewWhere(due, now, timeZone)] : conditions };
+
+    const [tasks, total] = await Promise.all([
+        prisma.task.findMany({
+            where,
+            orderBy: parseSort(sort),
+            include: taskInclude,
+            ...(paging && { skip: (paging.page - 1) * paging.limit, take: paging.limit }),
+        }),
+        paging ? prisma.task.count({ where }) : Promise.resolve(null),
+    ]);
 
     // ?counts=true: how many tasks each due view holds under the SAME other filters, so a
     // count and the list it links to can never disagree (SRS SR14 acceptance).
     const viewCounts = counts === "true"
         ? Object.fromEntries(
-            await Promise.all(DUE_VIEWS.map(async (view) => [view, await prisma.task.count({ where: { AND: [filter, dueViewWhere(view, now, timeZone)] } })] as const))
+            await Promise.all(DUE_VIEWS.map(async (view) => [view, await prisma.task.count({ where: { AND: [...conditions, dueViewWhere(view, now, timeZone)] } })] as const))
         )
         : undefined;
 
@@ -358,7 +434,13 @@ export const listWorkspaceTasks = catchAsync(async (req, res) => {
     res.status(200).json({
         status: "success",
         results: tasks.length,
-        data: { tasks: tasks.map(toTaskResponse), ...(viewCounts && { counts: viewCounts }) }
+        data: {
+            tasks: tasks.map(toTaskResponse),
+            ...(viewCounts && { counts: viewCounts }),
+            ...(paging && total !== null && {
+                pagination: { page: paging.page, limit: paging.limit, total, totalPages: Math.max(1, Math.ceil(total / paging.limit)) },
+            }),
+        },
     });
 });
 

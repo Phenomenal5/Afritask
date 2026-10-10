@@ -81,11 +81,14 @@ export const listWorkspaceProjects = catchAsync(async (req, res) => {
     const membership = requireMembership(req);
     // Archived projects are excluded by default (PRD FR14); ?includeArchived=true shows them.
     const includeArchived = req.query.includeArchived === "true";
+    // ?q= matches project names (SRS SR13), case-insensitively.
+    const search = typeof req.query.q === "string" ? req.query.q.trim().slice(0, 200) : "";
 
     const projects = await prisma.project.findMany({
         where: {
             workspaceId: membership.workspaceId,
             ...(!includeArchived && { state: { not: ProjectState.archived } }),
+            ...(search && { name: { contains: search, mode: "insensitive" as const } }),
         },
         orderBy: [{ state: "asc" }, { createdAt: "desc" }],
     });

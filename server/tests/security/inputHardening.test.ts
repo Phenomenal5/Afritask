@@ -43,10 +43,16 @@ describe("query/filter injection", () => {
     it("ignores operator-shaped and unknown query parameters", async () => {
         const team = await createTeam();
         await createTask(team.workspace.id, team.owner.user.id);
-        for (const query of ["?status[$ne]=x", "?sort=title;DROP TABLE x", "?assignee=' OR 1=1", "?projectId[not]=1", "?sort=password"]) {
+        for (const query of ["?status[$ne]=x", "?sort=title;DROP TABLE x", "?projectId[not]=1", "?sort=password"]) {
             const response = await team.owner.client.get(`/workspaces/${team.workspace.id}/tasks${query}`);
             expect({ query, status: response.status }).toEqual({ query, status: 200 });
         }
+    });
+
+    it("refuses malformed filter values with 400 rather than matching anything", async () => {
+        const team = await createTeam();
+        const response = await team.owner.client.get(`/workspaces/${team.workspace.id}/tasks?assignee=' OR 1=1`);
+        expect(response.status).toBe(400);
     });
 
     it("rejects path-traversal-looking ids", async () => {

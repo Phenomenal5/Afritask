@@ -46,5 +46,7 @@ describe("rate limits", () => {
         const workspaceId = workspace.body.data.workspace.id;
         const statuses = await statusesOf(12, () => client.post(`/workspaces/${workspaceId}/invitations`, { email: uniqueEmail() }));
         expect(statuses.every((status) => status === 201)).toBe(true);
-    });
+        // NOTE: 12 sequential invitations, each several round trips to the remote test
+        // database, can exceed Jest's 60s default on a slow link — the limit isn't the point.
+    }, 180_000);
 });

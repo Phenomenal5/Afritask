@@ -523,6 +523,22 @@ they created or are currently assigned to, and delete only tasks they created.
 When a member leaves or is removed, their **open** tasks become unassigned.
 Task lists also filter by `?assignee=me|none|<membershipId>`.
 
+## Search, filters and paging
+
+`GET /api/workspaces/:workspaceId/tasks` also takes:
+
+- `q` — searches task titles, descriptions and project names (case-insensitive, up to 200
+  characters). Matching subtasks are included, each with `parent`.
+- `status`, `priority`, `assignee` (`me`, `none`, membership ids), `projectId` (`none`,
+  project ids) and `labelId` accept several values, comma-separated or repeated:
+  **OR within one filter, AND across filters**. Malformed values answer `400`.
+- `limit` (1–100) and `page` (from 1) — offset paging over a stable order (the `sort`, then
+  id), returning `data.pagination: { page, limit, total, totalPages }`. Without `limit`
+  every match is returned.
+
+Results never leave the workspace in the URL, whatever the filters.
+`GET /api/workspaces/:workspaceId/projects?q=` searches project names.
+
 ## My Tasks views
 
 `GET /api/workspaces/:workspaceId/tasks?assignee=me&due=<view>` is My Tasks: everything

@@ -3,6 +3,7 @@
 // My Tasks (PRD FR11) with a switch to everyone's tasks. "Assigned to me" includes
 // separately assigned subtasks (with their parent shown); "Everyone" shows top-level tasks,
 // as boards do. Both feed the same List/Board + filters.
+import { useMemo } from "react";
 import { ListChecks, Plus, Users } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { useWorkspaces } from "@/context/WorkspaceContext";
@@ -10,23 +11,27 @@ import { useMyWork } from "@/context/MyWorkContext";
 import { useTaskPanels } from "@/context/TaskPanelContext";
 import { useWorkspaceTasks } from "@/hooks/useWorkspaceTasks";
 import { useTaskFilters } from "@/hooks/useTaskFilters";
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { cx } from "@/lib/cx";
 import PageHeader from "@/components/layout/PageHeader";
 import Button, { ButtonLink } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/States";
 import TaskWorkspace from "@/components/tasks/TaskWorkspace";
 
-const EVERYONE = {} as const;
 
 export default function TasksPage() {
   const searchParams = useSearchParams();
   const scope = searchParams.get("scope") === "all" ? "all" : "mine";
   const { activeWorkspace } = useWorkspaces();
   const { openComposer } = useTaskPanels();
-  const { setParams } = useTaskFilters();
+  const { filters, setParams } = useTaskFilters();
   const myWork = useMyWork();
+  // Everyone's list holds top-level tasks only, so a search there asks the server, which
+  // also matches subtasks (shown with their parent). Debounced: one request per pause.
+  const searchText = useDebouncedValue(filters.search.trim());
+  const everyoneQuery = useMemo(() => (searchText ? { q: searchText } : {}), [searchText]);
   // Only fetch everyone's tasks when that scope is showing.
-  const everyone = useWorkspaceTasks(scope === "all" ? activeWorkspace?.id : null, EVERYONE);
+  const everyone = useWorkspaceTasks(scope === "all" ? activeWorkspace?.id : null, everyoneQuery);
 
   const source =
     scope === "mine"

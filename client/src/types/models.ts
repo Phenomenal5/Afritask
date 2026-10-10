@@ -171,4 +171,6 @@ export interface TaskServerQuery {
   projectId?: string;
   assignee?: "me" | "none" | string;
   includeSubtasks?: "true";
+  // Server-side search (titles, descriptions, project names) — also finds subtasks.
+  q?: string;
 }
