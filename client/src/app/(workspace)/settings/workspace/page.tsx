@@ -14,6 +14,7 @@ import PageHeader from "@/components/layout/PageHeader";
 import SettingsNav from "@/components/settings/SettingsNav";
 import SettingsSection from "@/components/settings/SettingsSection";
 import LabelsManager from "@/components/settings/LabelsManager";
+import BillingComingSoon from "@/components/settings/BillingComingSoon";
 import ActivityFeed from "@/components/activity/ActivityFeed";
 import Button, { ButtonLink } from "@/components/ui/Button";
 import { TextField } from "@/components/ui/Field";
@@ -101,6 +102,10 @@ export default function WorkspaceSettingsPage() {
           <div className="rounded-[14px] border border-line bg-surface p-5">
             <ActivityFeed loadPage={loadActivity} reloadKey={workspaceId} />
           </div>
+        </SettingsSection>
+
+        <SettingsSection id="billing" title="Billing" description="Plans and payment for this workspace.">
+          <BillingComingSoon />
         </SettingsSection>
 
         <SettingsSection title="More workspaces" description="Keep separate work separate — each workspace has its own people, projects and tasks.">
