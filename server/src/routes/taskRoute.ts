@@ -1,4 +1,5 @@
 import { listTaskActivity } from "../controllers/activity.controller.js";
+import { createComment, listTaskComments } from "../controllers/comment.controller.js";
 import { createSubtask, deleteTask, editTask, getTaskById, updateTaskStatus } from "../controllers/task.controller.js";
 import protect from "../middlewares/auth.middleware.js";
 import express from "express"
@@ -19,6 +20,9 @@ router.delete("/:id", protect, deleteTask)
 router.post("/:id/subtasks", protect, createSubtask)
 // Read-only history of this task (who changed what, before/after).
 router.get("/:id/activity", protect, listTaskActivity)
+// Discussion on this task (any active member; archived projects are read-only).
+router.get("/:id/comments", protect, listTaskComments)
+router.post("/:id/comments", protect, createComment)
 
 
 export default router

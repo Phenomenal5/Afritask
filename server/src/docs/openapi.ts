@@ -263,6 +263,38 @@ const schemas = {
             actor: { type: "object", properties: { id: { type: "string" }, name: { type: "string" }, photo: { type: ["string", "null"] } } },
         },
     },
+    Comment: {
+        type: "object",
+        description: "A task comment. Deleted comments keep their place with `deletedAt`/`deletedBy` and an empty body.",
+        properties: {
+            id: { type: "string", format: "uuid" },
+            taskId: { type: "string", format: "uuid" },
+            body: { type: "string", maxLength: 5000 },
+            author: { type: "object", properties: { id: { type: "string" }, name: { type: "string" }, photo: { type: ["string", "null"] } } },
+            createdAt: { type: "string", format: "date-time" },
+            editedAt: { type: ["string", "null"], format: "date-time", description: "Set when the author changed the text" },
+            deletedAt: { type: ["string", "null"], format: "date-time" },
+            deletedBy: { type: ["object", "null"], properties: { id: { type: "string" }, name: { type: "string" } } },
+            mentions: {
+                type: "array",
+                items: { type: "object", properties: { membershipId: { type: "string" }, userId: { type: "string" }, name: { type: "string" } } },
+            },
+            canEdit: { type: "boolean", description: "You wrote it (and it isn't deleted)" },
+            canDelete: { type: "boolean", description: "You wrote it, or you're an Owner/Admin" },
+        },
+    },
+    CommentWrite: {
+        type: "object",
+        required: ["body"],
+        properties: {
+            body: { type: "string", minLength: 1, maxLength: 5000 },
+            mentionMembershipIds: {
+                type: "array",
+                items: { type: "string", format: "uuid" },
+                description: "Active members of the task's workspace. Duplicates collapse. On edit, omit to keep the current mentions.",
+            },
+        },
+    },
     ActivityPage: {
         type: "object",
         properties: {
@@ -769,6 +801,41 @@ const invitationPaths = {
     },
 };
 
+const commentPaths = {
+    "/tasks/{id}/comments": {
+        parameters: [pathParam("id", "Task id")],
+        get: {
+            tags: ["Comments"],
+            summary: "A task's comments, oldest first",
+            security: signedIn,
+            responses: { 200: jsonResponse("Comments", listEnvelope("comments", ref("Comment"))), ...errorResponses(400, 401, 404) },
+        },
+        post: {
+            tags: ["Comments"],
+            summary: "Comment on a task (any active member; not in archived projects)",
+            security: signedIn,
+            requestBody: jsonBody(ref("CommentWrite")),
+            responses: { 201: jsonResponse("Created", dataEnvelope("comment", ref("Comment"))), ...errorResponses(400, 401, 404, 409) },
+        },
+    },
+    "/comments/{commentId}": {
+        parameters: [pathParam("commentId", "Comment id")],
+        patch: {
+            tags: ["Comments"],
+            summary: "Edit your own comment (shows an edited marker)",
+            security: signedIn,
+            requestBody: jsonBody(ref("CommentWrite")),
+            responses: { 200: jsonResponse("Updated", dataEnvelope("comment", ref("Comment"))), ...errorResponses(400, 401, 403, 404, 409) },
+        },
+        delete: {
+            tags: ["Comments"],
+            summary: "Delete your own comment, or anyone's as Owner/Admin (attribution kept)",
+            security: signedIn,
+            responses: { 200: jsonResponse("Deleted", dataEnvelope("comment", ref("Comment"))), ...errorResponses(401, 403, 404, 409) },
+        },
+    },
+};
+
 const activityPageParams = [
     { name: "limit", in: "query", schema: { type: "integer", default: 30, maximum: 100 } },
     { name: "before", in: "query", description: "nextCursor from the previous page", schema: { type: "string", format: "uuid" } },
@@ -848,6 +915,7 @@ const openApiDocument = {
         { name: "Projects", description: "Groups of related tasks inside a workspace" },
         { name: "Tasks", description: "Tasks and subtasks: status, priority, assignee, due dates, labels, versioned updates" },
         { name: "Labels", description: "Workspace labels for tagging tasks" },
+        { name: "Comments", description: "Discussion on tasks, with @mentions of workspace members" },
         { name: "Activity", description: "Read-only history: who changed what, with before/after values" },
     ],
     security: signedIn,
@@ -857,7 +925,7 @@ const openApiDocument = {
         },
         schemas,
     },
-    paths: withOperationIds({ ...authPaths, ...userPaths, ...workspacePaths, ...invitationPaths, ...projectPaths, ...labelPaths, ...taskPaths, ...subtaskPaths, ...activityPaths }),
+    paths: withOperationIds({ ...authPaths, ...userPaths, ...workspacePaths, ...invitationPaths, ...projectPaths, ...labelPaths, ...taskPaths, ...subtaskPaths, ...commentPaths, ...activityPaths }),
 };
 
 export default openApiDocument;

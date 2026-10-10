@@ -16,6 +16,7 @@ import workspaceRoute from "./routes/workspaceRoute.js";
 import invitationRoute from "./routes/invitationRoute.js";
 import projectRoute from "./routes/projectRoute.js";
 import labelRoute from "./routes/labelRoute.js";
+import commentRoute from "./routes/commentRoute.js";
 import logger from "./utils/logger.js";
 import globalErrorHandler from "./middlewares/error.Middleware.js";
 import CLIENT_URL from "./config/clientUrl.js";
@@ -105,6 +106,9 @@ app.use("/api/projects", projectRoute);
 
 // Single-label routes
 app.use("/api/labels", labelRoute);
+
+// Edit/delete one comment (list/create are under /api/tasks/:id/comments).
+app.use("/api/comments", commentRoute);
 
 // Invitation preview / accept / decline / resend / revoke
 app.use("/api/invitations", invitationRoute);

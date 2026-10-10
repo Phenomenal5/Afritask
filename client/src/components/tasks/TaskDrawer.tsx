@@ -18,7 +18,6 @@ import {
   CornerDownRight,
   FolderOpen,
   Lock,
-  MessageSquare,
   Trash2,
   UserRound,
 } from "lucide-react";
@@ -47,6 +46,7 @@ import ActivityFeed from "@/components/activity/ActivityFeed";
 import StatusSelect from "./StatusSelect";
 import LabelPicker from "./LabelPicker";
 import SubtaskList from "./SubtaskList";
+import TaskComments from "./TaskComments";
 import type { Task, TaskPriority } from "@/types/models";
 
 interface DetailForm {
@@ -471,16 +471,10 @@ export default function TaskDrawer({ taskId, onClose, onOpenTask }: TaskDrawerPr
 
         {!isSubtask &&<SubtaskList parent={task} onOpenSubtask={openOther} />}
 
-        <section aria-labelledby="task-comments-heading">
-          <h3 id="task-comments-heading" className="mb-2 flex items-center gap-2 text-[16px] font-semibold text-ink">
-            <MessageSquare size={18} aria-hidden="true" />
-            Comments
-          </h3>
-          <Notice tone="neutral">
-            Comments aren&apos;t available in this version of Afritask yet, so nothing typed here could be saved. For now, add context to the
-            description so everyone on the task sees it.
-          </Notice>
-        </section>
+        <TaskComments
+          taskId={task.id}
+          readOnlyReason={isArchived ? "This task's project is archived, so its discussion is read-only. Restore the project to comment." : null}
+        />
 
         <section aria-labelledby="task-activity-heading">
           <h3 id="task-activity-heading" className="mb-3 text-[16px] font-semibold text-ink">

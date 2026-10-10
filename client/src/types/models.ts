@@ -94,6 +94,27 @@ export interface Invitation {
   workspaceName?: string;
 }
 
+export interface CommentMention {
+  membershipId: string;
+  userId: string;
+  name: string;
+}
+
+export interface Comment {
+  id: string;
+  taskId: string;
+  // Empty once deleted — the server never returns a deleted comment's text.
+  body: string;
+  author: PublicUser;
+  createdAt: string;
+  editedAt: string | null;
+  deletedAt: string | null;
+  deletedBy: { id: string; name: string } | null;
+  mentions: CommentMention[];
+  canEdit: boolean;
+  canDelete: boolean;
+}
+
 export interface ActivityEntry {
   id: string;
   action: string;

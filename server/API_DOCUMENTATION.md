@@ -540,6 +540,21 @@ sky, plum), `PATCH/DELETE /api/labels/:labelId` (Owner/Admin). Apply with
 `labelIds: [...]` on task create/edit (replaces the set; anyone who can edit the task).
 Filter lists with `?labelId=`. Deleting a label removes it from tasks; tasks stay.
 
+## Comments and mentions
+
+| Method | Path | Who | Purpose |
+|---|---|---|---|
+| GET | `/api/tasks/:id/comments` | any active member | the thread, oldest first |
+| POST | `/api/tasks/:id/comments` | any active member | `{ body, mentionMembershipIds? }` |
+| PATCH | `/api/comments/:commentId` | the author | edit; omit `mentionMembershipIds` to keep the current mentions |
+| DELETE | `/api/comments/:commentId` | the author, or an Owner/Admin | soft delete: text and mentions removed, `deletedBy` kept |
+
+`body` is trimmed, 1–5,000 characters, stored and returned as plain text. Mentions are
+**membership ids** of active members of the task's workspace (duplicates collapse; anyone
+else answers `400`). Each comment carries `editedAt` (set only when the text actually
+changed), `canEdit` and `canDelete`. Tasks in archived projects answer `409` to new
+comments, edits and deletes; reading still works. Comments aren't part of the activity log.
+
 ## Activity history
 
 Read-only, newest first, for every active member (outsiders get `404`):

@@ -111,13 +111,15 @@ model User {
   createdAt     DateTime     @default(now()) @db.Timestamptz(3)
   updatedAt     DateTime     @updatedAt @db.Timestamptz(3)
 
-  createdTasks  Task[]         @relation("TaskCreator")
-  memberships   Membership[]
-  sentInvites   Invitation[]   @relation("InvitationInviter")
-  projects      Project[]      @relation("ProjectCreator")
-  sessions      Session[]
-  accountTokens AccountToken[]
-  activities    Activity[]     @relation("ActivityActor")
+  createdTasks    Task[]         @relation("TaskCreator")
+  memberships     Membership[]
+  sentInvites     Invitation[]   @relation("InvitationInviter")
+  projects        Project[]      @relation("ProjectCreator")
+  sessions        Session[]
+  accountTokens   AccountToken[]
+  activities      Activity[]     @relation("ActivityActor")
+  comments        Comment[]      @relation("CommentAuthor")
+  deletedComments Comment[]      @relation("CommentDeleter")
 }
 
 // A signed-in browser. The cookie holds a random secret; only its SHA-256 hash is stored,
@@ -166,6 +168,7 @@ model Workspace {
   labels      Label[]
   tasks       Task[]
   activities  Activity[]
+  comments    Comment[]
 }
 
 // Workspace-scoped tags for tasks (PRD FR07). Owners/Admins manage them; anyone who can
@@ -258,9 +261,10 @@ model Membership {
   createdAt   DateTime         @default(now()) @db.Timestamptz(3)
   updatedAt   DateTime         @updatedAt @db.Timestamptz(3)
 
-  workspace     Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  assignedTasks Task[]    @relation("TaskAssignee")
+  workspace     Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user          User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  assignedTasks Task[]           @relation("TaskAssignee")
+  mentions      CommentMention[]
 
   // One row per person per workspace — re-joining reactivates it instead of duplicating.
   @@unique([workspaceId, userId])
@@ -315,6 +319,7 @@ model Task {
   parent    Task?       @relation("Subtasks", fields: [parentTaskId], references: [id], onDelete: Cascade)
   subtasks  Task[]      @relation("Subtasks")
   labels    TaskLabel[]
+  comments  Comment[]
 
   @@unique([workspaceId, clientRequestId])
   // Every task query is workspace-scoped, newest first.
@@ -355,4 +360,45 @@ model Activity {
   @@index([workspaceId, createdAt])
   @@index([entityType, entityId, createdAt])
   @@index([projectId, createdAt])
+}
+
+// A discussion entry on a task or subtask (SRS SR08). Plain text, 1–5,000 characters,
+// rendered escaped. Deleting keeps the row (deletedAt + deletedById, body cleared) so the
+// thread shows "comment deleted by …" instead of silently losing its shape.
+model Comment {
+  id          String    @id @default(uuid(7)) @db.Uuid
+  taskId      String    @db.Uuid
+  workspaceId String    @db.Uuid
+  authorId    String    @db.Uuid
+  body        String
+  // Set on every edit by the author; the UI shows "edited".
+  editedAt    DateTime? @db.Timestamptz(3)
+  deletedAt   DateTime? @db.Timestamptz(3)
+  // The author, or an Owner/Admin moderating (attribution kept per SRS SR08).
+  deletedById String?   @db.Uuid
+  createdAt   DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt   DateTime  @updatedAt @db.Timestamptz(3)
+
+  task      Task             @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  workspace Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  author    User             @relation("CommentAuthor", fields: [authorId], references: [id], onDelete: Restrict)
+  deletedBy User?            @relation("CommentDeleter", fields: [deletedById], references: [id], onDelete: SetNull)
+  mentions  CommentMention[]
+
+  // A task's thread, oldest first.
+  @@index([taskId, createdAt])
+}
+
+// Who a comment mentions. A MEMBERSHIP, so only people in the task's workspace can be
+// mentioned. One row per person per comment — repeating "@Ada" twice still mentions once.
+model CommentMention {
+  commentId    String   @db.Uuid
+  membershipId String   @db.Uuid
+  createdAt    DateTime @default(now()) @db.Timestamptz(3)
+
+  comment    Comment    @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  membership Membership @relation(fields: [membershipId], references: [id], onDelete: Cascade)
+
+  @@id([commentId, membershipId])
+  @@index([membershipId])
 }
