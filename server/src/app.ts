@@ -17,6 +17,7 @@ import invitationRoute from "./routes/invitationRoute.js";
 import projectRoute from "./routes/projectRoute.js";
 import labelRoute from "./routes/labelRoute.js";
 import commentRoute from "./routes/commentRoute.js";
+import notificationRoute from "./routes/notificationRoute.js";
 import logger from "./utils/logger.js";
 import globalErrorHandler from "./middlewares/error.Middleware.js";
 import CLIENT_URL from "./config/clientUrl.js";
@@ -109,6 +110,9 @@ app.use("/api/labels", labelRoute);
 
 // Edit/delete one comment (list/create are under /api/tasks/:id/comments).
 app.use("/api/comments", commentRoute);
+
+// The signed-in account's in-app notifications.
+app.use("/api/notifications", notificationRoute);
 
 // Invitation preview / accept / decline / resend / revoke
 app.use("/api/invitations", invitationRoute);

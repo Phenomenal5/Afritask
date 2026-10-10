@@ -7,6 +7,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { getMyInvitations } from "@/lib/services/invitationService";
+import { getUnreadNotificationCount } from "@/lib/services/notificationService";
 import { useWorkspaces } from "@/context/WorkspaceContext";
 import { useWorkspaceTasks, type LoadStatus } from "@/hooks/useWorkspaceTasks";
 import { useNow } from "@/hooks/useNow";
@@ -26,9 +27,16 @@ interface MyWork {
   removeInvitation: (invitationId: string) => void;
   overdueCount: number;
   dueTodayCount: number;
-  // Invitations + overdue: what the Notifications badge counts.
+  // Invitations + overdue: what Notifications lists under "Also needs you".
   attentionCount: number;
+  // The server's unread in-app notifications (all workspaces) — the bell badge.
+  unreadNotifications: number;
+  refreshUnreadNotifications: () => Promise<void>;
+  setUnreadNotifications: (count: number) => void;
 }
+
+// How often the bell re-checks while the tab is open. Also refreshed on tab focus.
+const UNREAD_POLL_MS = 60_000;
 
 const MyWorkContext = createContext<MyWork | null>(null);
 
@@ -57,6 +65,28 @@ export function MyWorkProvider({ children }: { children: ReactNode }) {
     reloadInvitations();
   }, [reloadInvitations]);
 
+  const [unreadNotifications, setUnreadNotifications] = useState(0);
+  const refreshUnreadNotifications = useCallback(async () => {
+    try {
+      const res = await getUnreadNotificationCount();
+      setUnreadNotifications(res.data.data.unreadCount);
+    } catch {
+      // Keep the last known count; the next poll tries again.
+    }
+  }, []);
+
+  useEffect(() => {
+    refreshUnreadNotifications();
+    const timer = window.setInterval(() => {
+      if (document.visibilityState === "visible") refreshUnreadNotifications();
+    }, UNREAD_POLL_MS);
+    window.addEventListener("focus", refreshUnreadNotifications);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener("focus", refreshUnreadNotifications);
+    };
+  }, [refreshUnreadNotifications]);
+
   const removeInvitation = useCallback((invitationId: string) => {
     setInvitations((current) => current.filter((invitation) => invitation.id !== invitationId));
   }, []);
@@ -77,8 +107,11 @@ export function MyWorkProvider({ children }: { children: ReactNode }) {
       overdueCount,
       dueTodayCount,
       attentionCount: invitations.length + overdueCount,
+      unreadNotifications,
+      refreshUnreadNotifications,
+      setUnreadNotifications,
     };
-  }, [tasks, status, failure, reload, invitations, invitationsStatus, reloadInvitations, removeInvitation, now, timezone]);
+  }, [tasks, status, failure, reload, invitations, invitationsStatus, reloadInvitations, removeInvitation, now, timezone, unreadNotifications, refreshUnreadNotifications]);
 
   return <MyWorkContext.Provider value={value}>{children}</MyWorkContext.Provider>;
 }

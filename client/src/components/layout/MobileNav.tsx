@@ -18,7 +18,7 @@ export default function MobileNav() {
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
   const { activeWorkspace } = useWorkspaces();
-  const { attentionCount } = useMyWork();
+  const { unreadNotifications } = useMyWork();
   const { openComposer } = useTaskPanels();
   const panelRef = useRef<HTMLDivElement>(null);
   useModalBehavior(open, panelRef, () => setOpen(false));
@@ -49,13 +49,13 @@ export default function MobileNav() {
         </Link>
         <Link
           href="/notifications"
-          aria-label={attentionCount ? `Notifications, ${attentionCount} need attention` : "Notifications"}
+          aria-label={unreadNotifications ? `Notifications, ${unreadNotifications} unread` : "Notifications"}
           className="relative inline-flex h-11 w-11 items-center justify-center rounded-[10px] text-ink hover:bg-surface-muted"
         >
           <Bell size={21} aria-hidden="true" />
-          {attentionCount > 0 && (
+          {unreadNotifications > 0 && (
             <span aria-hidden="true" className="absolute right-1.5 top-1.5 min-w-5 rounded-full bg-brick px-1 text-center text-[11px] font-bold leading-5 text-white">
-              {attentionCount}
+              {unreadNotifications}
             </span>
           )}
         </Link>

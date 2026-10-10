@@ -22,7 +22,7 @@ const PROJECT_SHORTCUT_LIMIT = 6;
 
 export function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname();
-  const { attentionCount } = useMyWork();
+  const { unreadNotifications } = useMyWork();
   const { projects, status: resourcesStatus } = useWorkspaceResources();
   const { openComposer } = useTaskPanels();
 
@@ -55,7 +55,7 @@ export function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
           {WORKSPACE_NAV.map((item) => {
             const active = isNavItemActive(item, pathname);
             const Icon = item.icon;
-            const showBadge = item.href === "/notifications" && attentionCount > 0;
+            const showBadge = item.href === "/notifications" && unreadNotifications > 0;
             return (
               <li key={item.href}>
                 <Link
@@ -71,8 +71,8 @@ export function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
                   <span className="flex-1">{item.label}</span>
                   {showBadge && (
                     <span className={cx("min-w-6 rounded-full px-1.5 text-center text-[12px] font-bold leading-6", active ? "bg-forest text-on-forest" : "bg-harvest text-forest-deep")}>
-                      {attentionCount}
-                      <span className="sr-only"> need attention</span>
+                      {unreadNotifications}
+                      <span className="sr-only"> unread</span>
                     </span>
                   )}
                 </Link>

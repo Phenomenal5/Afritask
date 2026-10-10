@@ -10,6 +10,7 @@ import { canAssignTask, canDeleteTask, canEditTask } from "../utils/taskPermissi
 import { parseDue } from "../utils/dueDate.js";
 import routeParam from "../utils/routeParam.js";
 import { diffFields, recordActivity } from "../services/activityService.js";
+import { notifyTaskAssigned } from "../services/notificationService.js";
 
 // ─── Input parsing ─────────────────────
 // Each helper throws an operational 400 so bad input never reaches Prisma as a 500.
@@ -251,6 +252,7 @@ const updateWithVersionCheck = async (
         if (alsoInTransaction) await alsoInTransaction(tx);
 
         const after = await tx.task.findUniqueOrThrow({ where: { id: taskId }, include: taskInclude });
+        await notifyTaskAssigned(tx, after, before.assigneeMembershipId, actorId);
         const changes = diffFields(toHistorySnapshot(before), toHistorySnapshot(after), [...HISTORY_FIELDS]);
         if (Object.keys(changes).length > 0) {
             await recordActivity(tx, {
@@ -378,6 +380,7 @@ export const createWorkspaceTask = catchAsync(async (req, res) => {
                 action: "task.created",
                 summary: createdTask.title,
             });
+            await notifyTaskAssigned(tx, createdTask, null, membership.userId);
             return createdTask;
         });
 
@@ -549,6 +552,7 @@ export const createSubtask = catchAsync(async (req, res) => {
         await recordActivity(tx, { ...entry, entityType: "task", entityId: createdSubtask.id, action: "task.created" });
         // ...and on the parent's timeline, so its history shows the breakdown growing.
         await recordActivity(tx, { ...entry, entityType: "task", entityId: parent.id, action: "subtask.created" });
+        await notifyTaskAssigned(tx, createdSubtask, null, membership.userId);
         return createdSubtask;
     });
 

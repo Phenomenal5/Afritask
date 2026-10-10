@@ -8,6 +8,7 @@ import routeParam from "../utils/routeParam.js";
 import { requireUser } from "../middlewares/auth.middleware.js";
 import { requireActiveMembership } from "../middlewares/workspaceAccess.middleware.js";
 import { loadTaskForMember } from "./task.controller.js";
+import { notifyMentions } from "../services/notificationService.js";
 
 // ─── Comments and mentions (SRS SR08) ─────────────────────
 // - Any active member comments on work that isn't in an archived project.
@@ -87,7 +88,10 @@ const toCommentResponse = (comment: CommentRow, viewer: Membership) => {
 // Missing, deleted-task and "not your workspace" all answer the same 404.
 const loadCommentForMember = async (commentId: string | undefined, userId: string) => {
     if (!commentId || !validator.isUUID(commentId)) throw new AppError("Comment not found", 404);
-    const comment = await prisma.comment.findUnique({ where: { id: commentId }, include: { task: { select: { projectId: true } } } });
+    const comment = await prisma.comment.findUnique({
+        where: { id: commentId },
+        include: { task: { select: { projectId: true, title: true } }, mentions: { select: { membershipId: true } } },
+    });
     if (!comment) throw new AppError("Comment not found", 404);
     const membership = await requireActiveMembership(comment.workspaceId, userId).catch(() => {
         throw new AppError("Comment not found", 404);
@@ -123,15 +127,19 @@ export const createComment = catchAsync(async (req, res) => {
     const body = parseBody(req.body.body);
     const mentionIds = (await parseMentionIds(req.body.mentionMembershipIds, task.workspaceId)) ?? [];
 
-    const comment = await prisma.comment.create({
-        data: {
-            taskId: task.id,
-            workspaceId: task.workspaceId,
-            authorId: membership.userId,
-            body,
-            mentions: { create: mentionIds.map((membershipId) => ({ membershipId })) },
-        },
-        include: commentInclude,
+    const comment = await prisma.$transaction(async (tx) => {
+        const createdComment = await tx.comment.create({
+            data: {
+                taskId: task.id,
+                workspaceId: task.workspaceId,
+                authorId: membership.userId,
+                body,
+                mentions: { create: mentionIds.map((membershipId) => ({ membershipId })) },
+            },
+            include: commentInclude,
+        });
+        await notifyMentions(tx, createdComment, task.title, mentionIds, membership.userId, "created");
+        return createdComment;
     });
 
     logger.info(`Comment created commentId=${comment.id} taskId=${task.id} userId=${membership.userId} mentions=${mentionIds.length}`);
@@ -158,11 +166,18 @@ export const editComment = catchAsync(async (req, res) => {
             });
         }
         // Only a real text change counts as an edit (no "edited" marker for a no-op save).
-        return tx.comment.update({
+        const updatedComment = await tx.comment.update({
             where: { id: comment.id },
             data: body !== comment.body ? { body, editedAt: new Date() } : {},
             include: commentInclude,
         });
+        // SRS SR08: only people who weren't already mentioned hear about this edit.
+        if (mentionIds) {
+            const previouslyMentioned = new Set(comment.mentions.map((mention) => mention.membershipId));
+            const newlyMentioned = mentionIds.filter((membershipId) => !previouslyMentioned.has(membershipId));
+            await notifyMentions(tx, updatedComment, comment.task.title, newlyMentioned, membership.userId, `edit-${updatedComment.updatedAt.getTime()}`);
+        }
+        return updatedComment;
     });
 
     logger.info(`Comment edited commentId=${comment.id} userId=${membership.userId}`);

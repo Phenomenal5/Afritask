@@ -1,32 +1,162 @@
 "use client";
 
-// Notifications. The server has no notification inbox yet (no endpoint for assignment or
-// mention alerts, and no read/unread state), so this page does NOT fake one. It gathers
-// what genuinely needs you from data that exists — invitations addressed to you and your
-// overdue / due-today tasks — explains why each matters, and links straight to it.
-import { useMemo, type ReactNode } from "react";
+// Notifications: the account's in-app inbox (assignments, mentions, invitations — across
+// all workspaces), then what needs you in this workspace right now (invitations waiting,
+// overdue and due-today work). Opening an item re-checks access: a deleted task or a
+// workspace you've left shows why it can't open instead of its content.
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import Link from "next/link";
-import { CalendarClock, CheckCheck, Info, Mail, TriangleAlert, type LucideIcon } from "lucide-react";
+import toast from "react-hot-toast";
+import {
+  AtSign,
+  BellOff,
+  CalendarClock,
+  CheckCheck,
+  CircleSlash,
+  Mail,
+  TriangleAlert,
+  UserRoundCheck,
+  type LucideIcon,
+} from "lucide-react";
 import { useWorkspaces } from "@/context/WorkspaceContext";
 import { useMyWork } from "@/context/MyWorkContext";
 import { useTaskPanels } from "@/context/TaskPanelContext";
 import { useViewer } from "@/hooks/useViewer";
 import { useNow } from "@/hooks/useNow";
+import { getNotifications, markAllNotificationsRead, markNotificationRead } from "@/lib/services/notificationService";
+import { describeFailure, failureMessage, type Failure } from "@/lib/errors";
 import { compareByUrgency, dueBucketOf } from "@/utils/taskBuckets";
 import { describeDue } from "@/utils/taskMeta";
+import { timeAgo } from "@/utils/activity";
+import { cx } from "@/lib/cx";
 import PageHeader from "@/components/layout/PageHeader";
 import InvitationResponses from "@/components/people/InvitationResponses";
+import Avatar from "@/components/ui/Avatar";
+import Button from "@/components/ui/Button";
 import { StatusBadge } from "@/components/ui/Badges";
-import { EmptyState, FailurePanel, Notice, SkeletonRows } from "@/components/ui/States";
+import { EmptyState, FailurePanel, SkeletonRows } from "@/components/ui/States";
 import { ParentContext, ProjectTag } from "@/components/tasks/TaskMeta";
-import type { Task } from "@/types/models";
+import type { AppNotification, Task } from "@/types/models";
+
+type InboxFilter = "all" | "unread";
+
+const TYPE_META: Record<AppNotification["type"], { icon: LucideIcon; label: string }> = {
+  task_assigned: { icon: UserRoundCheck, label: "Assignment" },
+  comment_mention: { icon: AtSign, label: "Mention" },
+  invitation_received: { icon: Mail, label: "Invitation" },
+};
+
+// One sentence that says what happened and why it matters to you.
+function describeNotification(notification: AppNotification): ReactNode {
+  const actor = notification.actor?.name ?? "Someone";
+  const subject = notification.summary ? <strong className="font-semibold">“{notification.summary}”</strong> : "a task";
+  switch (notification.type) {
+    case "task_assigned":
+      return <>{actor} assigned you {subject}. You&apos;re now responsible for moving it forward.</>;
+    case "comment_mention":
+      return <>{actor} mentioned you in a comment on {subject}.</>;
+    case "invitation_received":
+      return (
+        <>
+          {actor} invited you to join <strong className="font-semibold">{notification.summary || "a workspace"}</strong>. You only become a member if you
+          accept.
+        </>
+      );
+  }
+}
 
 export default function NotificationsPage() {
-  const { activeWorkspace } = useWorkspaces();
-  const { myTasks, myTasksStatus, myTasksFailure, reloadMyTasks, invitations, invitationsStatus, removeInvitation } = useMyWork();
+  const { activeWorkspace, switchWorkspace, workspaces } = useWorkspaces();
+  const { myTasks, myTasksStatus, myTasksFailure, reloadMyTasks, invitations, invitationsStatus, removeInvitation, setUnreadNotifications } = useMyWork();
+  const { openTask } = useTaskPanels();
   const { timezone } = useViewer();
   const now = useNow();
 
+  // ─── Inbox ─────────────────────
+  const [filter, setFilter] = useState<InboxFilter>("all");
+  const [notifications, setNotifications] = useState<AppNotification[] | null>(null);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [inboxFailure, setInboxFailure] = useState<Failure | null>(null);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [markingAll, setMarkingAll] = useState(false);
+
+  const loadInbox = useCallback(async () => {
+    try {
+      const res = await getNotifications({ unread: filter === "unread" });
+      setNotifications(res.data.data.notifications);
+      setNextCursor(res.data.data.nextCursor);
+      setUnreadNotifications(res.data.data.unreadCount);
+      setInboxFailure(null);
+    } catch (error) {
+      setInboxFailure(describeFailure(error, "Couldn't load your notifications."));
+    }
+  }, [filter, setUnreadNotifications]);
+
+  useEffect(() => {
+    setNotifications(null);
+    loadInbox();
+  }, [loadInbox]);
+
+  const loadOlder = async () => {
+    if (!nextCursor) return;
+    setLoadingMore(true);
+    try {
+      const res = await getNotifications({ unread: filter === "unread", before: nextCursor });
+      setNotifications((current) => [...(current ?? []), ...res.data.data.notifications]);
+      setNextCursor(res.data.data.nextCursor);
+    } catch (error) {
+      toast.error(failureMessage(error, "Couldn't load older notifications."));
+    } finally {
+      setLoadingMore(false);
+    }
+  };
+
+  const markRead = async (notification: AppNotification) => {
+    if (notification.readAt) return;
+    // Show it read straight away; restore if the server refuses.
+    setNotifications((current) => (current ?? []).map((item) => (item.id === notification.id ? { ...item, readAt: new Date().toISOString() } : item)));
+    try {
+      const res = await markNotificationRead(notification.id);
+      setUnreadNotifications(res.data.data.unreadCount);
+    } catch (error) {
+      setNotifications((current) => (current ?? []).map((item) => (item.id === notification.id ? notification : item)));
+      toast.error(failureMessage(error, "Couldn't mark that as read."));
+    }
+  };
+
+  const markAll = async () => {
+    setMarkingAll(true);
+    try {
+      await markAllNotificationsRead();
+      setUnreadNotifications(0);
+      toast.success("All caught up");
+      await loadInbox();
+    } catch (error) {
+      toast.error(failureMessage(error, "Couldn't mark everything as read."));
+    } finally {
+      setMarkingAll(false);
+    }
+  };
+
+  const open = (notification: AppNotification) => {
+    markRead(notification);
+    if (notification.type === "invitation_received") {
+      document.getElementById("waiting-invitations")?.scrollIntoView({ behavior: "smooth", block: "start" });
+      return;
+    }
+    if (!notification.taskId) return;
+    // A notification can come from another workspace you belong to: switch first, so the
+    // task opens in its own context. The drawer re-checks access when it loads.
+    const targetWorkspaceId = notification.workspace?.id;
+    if (targetWorkspaceId && targetWorkspaceId !== activeWorkspace?.id && workspaces.some((workspace) => workspace.id === targetWorkspaceId)) {
+      switchWorkspace(targetWorkspaceId);
+    }
+    openTask(notification.taskId);
+  };
+
+  const hasUnread = (notifications ?? []).some((notification) => !notification.readAt);
+
+  // ─── Also needs you (this workspace) ─────────────────────
   const attention = useMemo(() => {
     if (!now) return { overdue: [] as Task[], today: [] as Task[] };
     const sorted = [...myTasks].sort(compareByUrgency);
@@ -35,9 +165,7 @@ export default function NotificationsPage() {
       today: sorted.filter((task) => dueBucketOf(task, now, timezone) === "today"),
     };
   }, [myTasks, now, timezone]);
-
-  const loading = myTasksStatus === "loading" || invitationsStatus === "loading" || !now;
-  const nothingNeedsYou = !loading && invitations.length === 0 && attention.overdue.length === 0 && attention.today.length === 0;
+  const attentionLoading = myTasksStatus === "loading" || invitationsStatus === "loading" || !now;
 
   return (
     <>
@@ -45,74 +173,197 @@ export default function NotificationsPage() {
       <PageHeader
         eyebrow={activeWorkspace?.name}
         title="Notifications"
-        description="What needs you right now, and why. Each item links straight to the work."
+        description="What happened that involves you, and what needs you next. Each item links straight to the work."
+        actions={
+          hasUnread && (
+            <Button variant="secondary" icon={<CheckCheck size={17} aria-hidden="true" />} loading={markingAll} onClick={markAll}>
+              Mark all as read
+            </Button>
+          )
+        }
       />
 
-      <Notice icon={Info} tone="neutral" className="mb-6">
-        <p>
-          <strong>A full notification inbox isn&apos;t available yet.</strong> Alerts for new assignments and mentions, with read and unread
-          tracking, need server support that Afritask doesn&apos;t have yet. Until then, this page lists your invitations and your tasks that
-          are overdue or due today. The server also emails you a daily reminder for tasks due the next day.
-        </p>
-      </Notice>
-
-      {loading ? (
-        <SkeletonRows rows={3} label="Loading what needs you" />
-      ) : nothingNeedsYou ? (
-        <div className="rounded-[14px] border border-line bg-surface">
-          <EmptyState
-            icon={CheckCheck}
-            title="Nothing needs you right now"
-            body="No invitations are waiting, and none of your tasks are overdue or due today. When that changes, it will show up here and in the sidebar badge."
-            action={
-              <Link href="/tasks?due=upcoming" className="inline-flex h-11 items-center rounded-[10px] border border-line bg-surface px-4 text-[15px] font-medium text-ink hover:bg-surface-muted">
-                See what&apos;s coming up
-              </Link>
-            }
-          />
+      <section aria-labelledby="inbox-heading" className="mb-10">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+          <h2 id="inbox-heading" className="text-[17px] font-semibold text-ink">
+            Inbox
+          </h2>
+          <div role="group" aria-label="Show" className="inline-flex rounded-[10px] border border-line bg-surface p-1">
+            {(["all", "unread"] as const).map((option) => (
+              <button
+                key={option}
+                type="button"
+                aria-pressed={filter === option}
+                onClick={() => setFilter(option)}
+                className={cx(
+                  "h-9 cursor-pointer rounded-[8px] px-3 text-[14px] font-medium",
+                  filter === option ? "bg-forest text-on-forest" : "text-muted hover:text-ink"
+                )}
+              >
+                {option === "all" ? "All" : "Unread"}
+              </button>
+            ))}
+          </div>
         </div>
-      ) : (
-        <div className="flex flex-col gap-8">
-          {invitations.length > 0 && (
-            <NotificationGroup icon={Mail} title="Invitations" why="Someone wants you in their workspace. You only become a member if you accept.">
-              <InvitationResponses invitations={invitations} onResolved={(invitation) => removeInvitation(invitation.id)} />
-            </NotificationGroup>
-          )}
 
-          {myTasksStatus === "error" && myTasksFailure ? (
-            <FailurePanel compact failure={myTasksFailure} onRetry={reloadMyTasks} />
-          ) : (
-            <>
-              {attention.overdue.length > 0 && (
-                <NotificationGroup
-                  icon={TriangleAlert}
-                  tone="danger"
-                  title={`Overdue (${attention.overdue.length})`}
-                  why="You're the assignee and the due time has passed. Finish it, move the date, or hand it to someone else."
-                >
-                  <AttentionList tasks={attention.overdue} now={now} kind="overdue" />
+        {inboxFailure ? (
+          <FailurePanel compact failure={inboxFailure} onRetry={loadInbox} />
+        ) : notifications === null ? (
+          <SkeletonRows rows={3} label="Loading notifications" />
+        ) : notifications.length === 0 ? (
+          <div className="rounded-[14px] border border-line bg-surface">
+            <EmptyState
+              compact
+              icon={filter === "unread" ? CheckCheck : BellOff}
+              title={filter === "unread" ? "You're all caught up" : "No notifications yet"}
+              body={
+                filter === "unread"
+                  ? "Nothing unread. Earlier notifications are under All."
+                  : "You'll hear here when someone assigns you a task, mentions you in a comment or invites you to a workspace."
+              }
+            />
+          </div>
+        ) : (
+          <>
+            <ul className="overflow-hidden rounded-[14px] border border-line bg-surface">
+              {notifications.map((notification) => (
+                <NotificationItem key={notification.id} notification={notification} now={now} onOpen={open} onMarkRead={markRead} />
+              ))}
+            </ul>
+            {nextCursor && (
+              <div className="mt-3">
+                <Button variant="secondary" loading={loadingMore} onClick={loadOlder}>
+                  Show older
+                </Button>
+              </div>
+            )}
+          </>
+        )}
+      </section>
+
+      <section aria-labelledby="needs-you-heading">
+        <h2 id="needs-you-heading" className="mb-1 text-[17px] font-semibold text-ink">
+          Also needs you
+        </h2>
+        <p className="mb-4 text-[14px] text-muted">Invitations waiting for an answer, and your work in {activeWorkspace?.name ?? "this workspace"} that is overdue or due today.</p>
+
+        {attentionLoading ? (
+          <SkeletonRows rows={2} label="Loading what needs you" />
+        ) : invitations.length === 0 && attention.overdue.length === 0 && attention.today.length === 0 && myTasksStatus !== "error" ? (
+          <p className="rounded-[14px] border border-line bg-surface px-5 py-4 text-[15px] text-muted">
+            Nothing is overdue or due today, and no invitations are waiting.{" "}
+            <Link href="/tasks?due=upcoming" className="font-medium text-forest underline underline-offset-2">
+              See what&apos;s coming up
+            </Link>
+          </p>
+        ) : (
+          <div className="flex flex-col gap-8">
+            {invitations.length > 0 && (
+              <div id="waiting-invitations" className="scroll-mt-24">
+                <NotificationGroup icon={Mail} title="Invitations" why="Someone wants you in their workspace. You only become a member if you accept.">
+                  <InvitationResponses invitations={invitations} onResolved={(invitation) => removeInvitation(invitation.id)} />
                 </NotificationGroup>
-              )}
-              {attention.today.length > 0 && (
-                <NotificationGroup icon={CalendarClock} title={`Due today (${attention.today.length})`} why="Still on time — these are due before the end of today.">
-                  <AttentionList tasks={attention.today} now={now} kind="today" />
-                </NotificationGroup>
-              )}
-            </>
-          )}
-        </div>
-      )}
+              </div>
+            )}
+
+            {myTasksStatus === "error" && myTasksFailure ? (
+              <FailurePanel compact failure={myTasksFailure} onRetry={reloadMyTasks} />
+            ) : (
+              <>
+                {attention.overdue.length > 0 && (
+                  <NotificationGroup
+                    icon={TriangleAlert}
+                    tone="danger"
+                    title={`Overdue (${attention.overdue.length})`}
+                    why="You're the assignee and the due time has passed. Finish it, move the date, or hand it to someone else."
+                  >
+                    <AttentionList tasks={attention.overdue} now={now} kind="overdue" />
+                  </NotificationGroup>
+                )}
+                {attention.today.length > 0 && (
+                  <NotificationGroup icon={CalendarClock} title={`Due today (${attention.today.length})`} why="Still on time — these are due before the end of today.">
+                    <AttentionList tasks={attention.today} now={now} kind="today" />
+                  </NotificationGroup>
+                )}
+              </>
+            )}
+          </div>
+        )}
+      </section>
     </>
+  );
+}
+
+// ─── One inbox row ─────────────────────
+function NotificationItem({
+  notification,
+  now,
+  onOpen,
+  onMarkRead,
+}: {
+  notification: AppNotification;
+  now: Date | null;
+  onOpen: (notification: AppNotification) => void;
+  onMarkRead: (notification: AppNotification) => void;
+}) {
+  const meta = TYPE_META[notification.type];
+  const Icon = notification.available ? meta.icon : CircleSlash;
+  const isUnread = !notification.readAt;
+  const canOpen = notification.available && (notification.type === "invitation_received" || !!notification.taskId);
+
+  return (
+    <li className={cx("flex gap-3 border-t border-line-soft px-4 py-4 first:border-t-0 sm:px-5", isUnread && "bg-lime/25")}>
+      <span className="relative mt-0.5 shrink-0">
+        {notification.actor ? <Avatar user={notification.actor} size={36} /> : <span className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-surface-muted" />}
+        <span className="absolute -bottom-1 -right-1 inline-flex h-5 w-5 items-center justify-center rounded-full border border-line bg-surface text-forest">
+          <Icon size={12} aria-hidden="true" />
+        </span>
+      </span>
+
+      <div className="min-w-0 flex-1">
+        <p className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[13px] text-muted">
+          {isUnread && (
+            <span className="inline-flex items-center gap-1 font-semibold text-forest">
+              <span aria-hidden="true" className="h-2 w-2 rounded-full bg-brick" />
+              Unread
+            </span>
+          )}
+          <span>{meta.label}</span>
+          {notification.workspace && <span>· {notification.workspace.name}</span>}
+          <span>·</span>
+          <time dateTime={notification.createdAt} title={new Date(notification.createdAt).toLocaleString()}>
+            {now ? timeAgo(notification.createdAt, now) : new Date(notification.createdAt).toLocaleDateString()}
+          </time>
+        </p>
+
+        <p className={cx("mt-1 text-[15px] leading-snug", notification.available ? "text-ink" : "text-muted")}>
+          {notification.available ? describeNotification(notification) : `${meta.label}: ${notification.unavailableReason ?? "This item can't be opened."}`}
+        </p>
+
+        <div className="mt-2 flex flex-wrap gap-2">
+          {canOpen && (
+            <Button size="sm" variant={isUnread ? "primary" : "secondary"} onClick={() => onOpen(notification)}>
+              {notification.type === "invitation_received" ? "Respond" : notification.type === "comment_mention" ? "Open comment" : "Open task"}
+            </Button>
+          )}
+          {isUnread && (
+            <Button size="sm" variant="ghost" onClick={() => onMarkRead(notification)}>
+              Mark as read
+            </Button>
+          )}
+        </div>
+      </div>
+    </li>
   );
 }
 
 function NotificationGroup({ icon: Icon, title, why, tone = "neutral", children }: { icon: LucideIcon; title: string; why: string; tone?: "neutral" | "danger"; children: ReactNode }) {
   return (
     <section aria-label={title}>
-      <h2 className={`flex items-center gap-2 text-[17px] font-semibold ${tone === "danger" ? "text-brick" : "text-ink"}`}>
+      <h3 className={`flex items-center gap-2 text-[16px] font-semibold ${tone === "danger" ? "text-brick" : "text-ink"}`}>
         <Icon size={19} aria-hidden="true" />
         {title}
-      </h2>
+      </h3>
       <p className="mb-3 mt-0.5 text-[14px] text-muted">{why}</p>
       {children}
     </section>

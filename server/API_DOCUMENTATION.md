@@ -555,6 +555,26 @@ else answers `400`). Each comment carries `editedAt` (set only when the text act
 changed), `canEdit` and `canDelete`. Tasks in archived projects answer `409` to new
 comments, edits and deletes; reading still works. Comments aren't part of the activity log.
 
+## Notifications
+
+In-app notifications belong to the signed-in account, across all its workspaces.
+
+| Method | Path | Purpose |
+|---|---|---|
+| GET | `/api/notifications?unread=true&limit=&before=` | newest first, with `unreadCount` and `nextCursor` |
+| GET | `/api/notifications/unread-count` | `{ unreadCount }` for the bell badge |
+| POST | `/api/notifications/:id/read` | mark one read (keeps the first read time) |
+| POST | `/api/notifications/read-all` | mark all read |
+
+Types: `task_assigned` (someone else made you the assignee of a task or subtask),
+`comment_mention` (you were newly mentioned — unchanged mentions on edit don't re-notify),
+`invitation_received` (a workspace invited your email and you already have an account; a
+resend doesn't add another). You're never notified of your own actions. Each notification
+is written in the same transaction as the change that caused it and has a unique
+`deliveryKey`, so a repeated event can't duplicate it. Every read re-checks access: if the
+task was deleted, you left the workspace, or the invitation closed, `available` is `false`,
+`unavailableReason` says why, and the stored `summary` and links are withheld.
+
 ## Activity history
 
 Read-only, newest first, for every active member (outsiders get `404`):

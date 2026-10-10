@@ -295,6 +295,28 @@ const schemas = {
             },
         },
     },
+    Notification: {
+        type: "object",
+        description: "One in-app notification. `available` is re-checked on every read: deleted tasks, lost access or closed invitations make it false and withhold `summary`/links.",
+        properties: {
+            id: { type: "string", format: "uuid" },
+            type: { type: "string", enum: ["task_assigned", "comment_mention", "invitation_received"] },
+            createdAt: { type: "string", format: "date-time" },
+            readAt: { type: ["string", "null"], format: "date-time" },
+            actor: { type: ["object", "null"], properties: { id: { type: "string" }, name: { type: "string" }, photo: { type: ["string", "null"] } } },
+            workspace: { type: ["object", "null"], properties: { id: { type: "string" }, name: { type: "string" } } },
+            taskId: { type: ["string", "null"], format: "uuid" },
+            commentId: { type: ["string", "null"], format: "uuid" },
+            invitationId: { type: ["string", "null"], format: "uuid" },
+            summary: { type: "string", description: "Task title (or workspace name for invitations) at the time" },
+            available: { type: "boolean" },
+            unavailableReason: { type: ["string", "null"] },
+        },
+    },
+    UnreadCount: {
+        type: "object",
+        properties: { status: { type: "string" }, data: { type: "object", properties: { unreadCount: { type: "integer" } } } },
+    },
     ActivityPage: {
         type: "object",
         properties: {
@@ -836,6 +858,63 @@ const commentPaths = {
     },
 };
 
+const notificationPaths = {
+    "/notifications": {
+        get: {
+            tags: ["Notifications"],
+            summary: "My notifications across all my workspaces, newest first",
+            security: signedIn,
+            parameters: [
+                { name: "unread", in: "query", schema: { type: "boolean" } },
+                { name: "limit", in: "query", schema: { type: "integer", default: 30, maximum: 100 } },
+                { name: "before", in: "query", description: "nextCursor from the previous page", schema: { type: "string", format: "uuid" } },
+            ],
+            responses: {
+                200: jsonResponse("Notifications", {
+                    type: "object",
+                    properties: {
+                        status: { type: "string" },
+                        data: {
+                            type: "object",
+                            properties: {
+                                notifications: { type: "array", items: ref("Notification") },
+                                nextCursor: { type: ["string", "null"] },
+                                unreadCount: { type: "integer" },
+                            },
+                        },
+                    },
+                }),
+                ...errorResponses(401),
+            },
+        },
+    },
+    "/notifications/unread-count": {
+        get: {
+            tags: ["Notifications"],
+            summary: "Unread count for the bell badge",
+            security: signedIn,
+            responses: { 200: jsonResponse("Count", ref("UnreadCount")), ...errorResponses(401) },
+        },
+    },
+    "/notifications/read-all": {
+        post: {
+            tags: ["Notifications"],
+            summary: "Mark all my notifications read",
+            security: signedIn,
+            responses: { 200: jsonResponse("Marked", ref("UnreadCount")), ...errorResponses(401) },
+        },
+    },
+    "/notifications/{notificationId}/read": {
+        parameters: [pathParam("notificationId", "Notification id")],
+        post: {
+            tags: ["Notifications"],
+            summary: "Mark one notification read (keeps the first read time)",
+            security: signedIn,
+            responses: { 200: jsonResponse("Marked", ref("UnreadCount")), ...errorResponses(401, 404) },
+        },
+    },
+};
+
 const activityPageParams = [
     { name: "limit", in: "query", schema: { type: "integer", default: 30, maximum: 100 } },
     { name: "before", in: "query", description: "nextCursor from the previous page", schema: { type: "string", format: "uuid" } },
@@ -916,6 +995,7 @@ const openApiDocument = {
         { name: "Tasks", description: "Tasks and subtasks: status, priority, assignee, due dates, labels, versioned updates" },
         { name: "Labels", description: "Workspace labels for tagging tasks" },
         { name: "Comments", description: "Discussion on tasks, with @mentions of workspace members" },
+        { name: "Notifications", description: "In-app notifications: assignments, mentions and invitations" },
         { name: "Activity", description: "Read-only history: who changed what, with before/after values" },
     ],
     security: signedIn,
@@ -925,7 +1005,7 @@ const openApiDocument = {
         },
         schemas,
     },
-    paths: withOperationIds({ ...authPaths, ...userPaths, ...workspacePaths, ...invitationPaths, ...projectPaths, ...labelPaths, ...taskPaths, ...subtaskPaths, ...commentPaths, ...activityPaths }),
+    paths: withOperationIds({ ...authPaths, ...userPaths, ...workspacePaths, ...invitationPaths, ...projectPaths, ...labelPaths, ...taskPaths, ...subtaskPaths, ...commentPaths, ...notificationPaths, ...activityPaths }),
 };
 
 export default openApiDocument;

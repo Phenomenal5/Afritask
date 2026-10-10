@@ -115,6 +115,25 @@ export interface Comment {
   canDelete: boolean;
 }
 
+export type NotificationType = "task_assigned" | "comment_mention" | "invitation_received";
+
+export interface AppNotification {
+  id: string;
+  type: NotificationType;
+  createdAt: string;
+  readAt: string | null;
+  actor: PublicUser | null;
+  workspace: { id: string; name: string } | null;
+  taskId: string | null;
+  commentId: string | null;
+  invitationId: string | null;
+  // Task title (or workspace name for invitations) when it happened. Empty once the
+  // item can't be opened any more — the server withholds it.
+  summary: string;
+  available: boolean;
+  unavailableReason: string | null;
+}
+
 export interface ActivityEntry {
   id: string;
   action: string;

@@ -33,6 +33,12 @@ export type PublicUser = Omit<User, keyof typeof USER_SECRET_FIELDS>;
 // `prisma.user.findUnique({ where, omit: { password: false } })`.
 const prisma = new PrismaClient({
   adapter,
+  // NOTE: a task update runs several statements in one interactive transaction (version
+  // check, before/after snapshot, activity entry, notification). Against a remote Neon
+  // database each round trip can take a few hundred ms, and Prisma's 5s default timeout
+  // occasionally expired mid-update (seen as a random failed save). The work is still
+  // short; this only stops a slow network from aborting it.
+  transactionOptions: { maxWait: 10_000, timeout: 15_000 },
   omit: {
     user: USER_SECRET_FIELDS,
     task: {

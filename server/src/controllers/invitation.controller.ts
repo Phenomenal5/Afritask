@@ -1,6 +1,7 @@
 import validator from "validator";
 import prisma from "../config/prisma.js";
 import { recordActivity } from "../services/activityService.js";
+import { notifyInvitation } from "../services/notificationService.js";
 import type { Invitation, Membership, WorkspaceRole } from "../generated/prisma/client.js";
 import AppError from "../utils/AppError.js";
 import catchAsync from "../utils/catchAsync.js";
@@ -134,15 +135,21 @@ export const createInvitation = catchAsync(async (req, res) => {
     }
 
     // Placeholder hash: issueAndSendInvitation sets the real one (it also handles resend).
-    const created = await prisma.invitation.create({
-        data: {
-            workspaceId: membership.workspaceId,
-            email,
-            role,
-            inviterId: membership.userId,
-            tokenHash: hashSecureToken(generateSecureToken()),
-            expiresAt: new Date(Date.now() + INVITATION_LIFETIME_MS),
-        },
+    // An existing account also hears about it in-app (in the same transaction).
+    const created = await prisma.$transaction(async (tx) => {
+        const createdInvitation = await tx.invitation.create({
+            data: {
+                workspaceId: membership.workspaceId,
+                email,
+                role,
+                inviterId: membership.userId,
+                tokenHash: hashSecureToken(generateSecureToken()),
+                expiresAt: new Date(Date.now() + INVITATION_LIFETIME_MS),
+            },
+            include: { workspace: { select: { name: true } } },
+        });
+        await notifyInvitation(tx, createdInvitation, createdInvitation.workspace.name, membership.userId);
+        return createdInvitation;
     });
     const invitation = await issueAndSendInvitation(created.id);
 
