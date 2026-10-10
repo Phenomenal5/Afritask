@@ -1,14 +1,16 @@
 // Display metadata and date helpers for V1 tasks (server values below).
 
+/** @type {import("@/types/models").TaskStatus[]} */
 export const TASK_STATUSES = ["todo", "in_progress", "in_review", "completed"];
 
 export const STATUS_LABELS = {
-  todo: "To do",
-  in_progress: "In progress",
-  in_review: "In review",
+  todo: "Todo",
+  in_progress: "In Progress",
+  in_review: "In Review",
   completed: "Completed",
 };
 
+/** @type {import("@/types/models").TaskPriority[]} */
 export const TASK_PRIORITIES = ["low", "medium", "high", "urgent"];
 
 export const PRIORITY_STYLES = {
@@ -44,13 +46,13 @@ export const describeDue = (task, now = new Date()) => {
     const tomorrow = isoDateInZone(new Date(now.getTime() + 24 * 60 * 60 * 1000), zone);
     const label =
       dueDate === today
-        ? "Today"
+        ? "today"
         : dueDate === tomorrow
-          ? "Tomorrow"
+          ? "tomorrow"
           : new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", timeZone: zone }).format(dueAt);
-    return { text: overdue ? `${label} (overdue)` : label, overdue };
+    return { text: overdue ? `Overdue · ${label}` : label, label, overdue };
   }
 
   const label = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }).format(dueAt);
-  return { text: overdue ? `${label} (overdue)` : label, overdue };
+  return { text: overdue ? `Overdue · ${label}` : label, label, overdue };
 };

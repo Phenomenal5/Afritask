@@ -5,6 +5,10 @@
 // nothing by itself — the server still requires the invited, verified account to accept.
 const PENDING_INVITE_KEY = "afritask_pending_invite";
 
+// Where a session-expired user was, so signing back in returns them there. Same-tab only,
+// so sessionStorage is enough.
+const RETURN_PATH_KEY = "afritask_return_path";
+
 export const savePendingInvite = (token) => {
   try {
     localStorage.setItem(PENDING_INVITE_KEY, token);
@@ -29,8 +33,32 @@ export const clearPendingInvite = () => {
   }
 };
 
-// Where to land after any successful sign-in: back to a pending invitation if there is one.
+// Only same-site paths: "/tasks?view=board" yes; "//evil.example" or "https://…" no.
+const isSafeReturnPath = (path) => typeof path === "string" && path.startsWith("/") && !path.startsWith("//");
+
+export const saveReturnPath = (path) => {
+  if (!isSafeReturnPath(path)) return;
+  try {
+    sessionStorage.setItem(RETURN_PATH_KEY, path);
+  } catch {
+    // Storage blocked: the user lands on the overview instead.
+  }
+};
+
+const takeReturnPath = () => {
+  try {
+    const path = sessionStorage.getItem(RETURN_PATH_KEY);
+    sessionStorage.removeItem(RETURN_PATH_KEY);
+    return isSafeReturnPath(path) ? path : null;
+  } catch {
+    return null;
+  }
+};
+
+// Where to land after any successful sign-in: a pending invitation first, then the page
+// the session expired on, then the overview.
 export const postSignInPath = () => {
   const pendingToken = readPendingInvite();
-  return pendingToken ? `/invite/${pendingToken}` : "/dashboard";
+  if (pendingToken) return `/invite/${pendingToken}`;
+  return takeReturnPath() || "/dashboard";
 };

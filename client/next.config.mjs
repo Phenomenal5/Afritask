@@ -17,6 +17,13 @@ const nextConfig = {
       { source: "/uploads/:path*", destination: `${API_ORIGIN}/uploads/:path*` },
     ];
   },
+  // Old screen addresses from before the redesign, so bookmarks keep working.
+  async redirects() {
+    return [
+      { source: "/profile", destination: "/settings", permanent: false },
+      { source: "/workspace", destination: "/settings/workspace", permanent: false },
+    ];
+  },
 };
 
 export default nextConfig;

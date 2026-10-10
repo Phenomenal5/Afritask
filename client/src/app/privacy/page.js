@@ -4,7 +4,8 @@
 // email.js, taskReminder.js, upload.js, logger). If you change what the app
 // collects, stores, or emails, update this page and LAST_UPDATED with it.
 import Link from "next/link";
-import ThemeToggle from "@/components/ThemeToggle";
+import ThemeToggle from "@/components/layout/ThemeToggle";
+import Logo from "@/components/ui/Logo";
 
 export const metadata = {
   title: "Privacy Policy - Afritask",
@@ -56,19 +57,12 @@ function Section({ id, number, title, children }) {
 export default function PrivacyPage() {
   return (
     <div className="flex-1 flex flex-col">
-      <header
-        className="sticky top-0 z-20 backdrop-blur-sm"
-        style={{
-          background: "color-mix(in srgb, var(--paper) 86%, transparent)",
-          borderBottom: "1px solid var(--line)",
-        }}
-      >
-        <div className="max-w-5xl mx-auto px-6 h-16 flex items-center justify-between">
-          {/* "/" already routes to the dashboard or login based on session */}
-          <Link href="/" className="font-display text-xl italic" style={{ color: "var(--ink)" }}>
-            Afritask
+      <header className="sticky top-0 z-20 border-b border-line bg-page/90 backdrop-blur">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-3">
+          <Link href="/" className="rounded-[8px]" aria-label="Afritask home">
+            <Logo />
           </Link>
-          <ThemeToggle />
+          <ThemeToggle className="h-11 rounded-[10px] px-3 text-[14px] text-muted hover:bg-surface-muted hover:text-ink" />
         </div>
       </header>
 

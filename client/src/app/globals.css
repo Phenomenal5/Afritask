@@ -1,117 +1,184 @@
 @import "tailwindcss";
 
-/* Afritask palette refresh
-   Light mode before -> after
-   --paper: #F7F4EC -> #F6F0E7
-   --paper-raised: #FFFFFF -> #FFF9F2
-   --ink: #24251F -> #2A2019
-   --ink-soft: #5C5D52 -> #6A5B4C
-   --line: #E3DECF -> #E6D7C7
-   --line-soft: #ECE8DB -> #F1E9DE
-   --moss: #4B6650 -> #49644B
-   --moss-light: #DCE6DA -> #DDE8D8
-   --moss-dark: #364A39 -> #314535
-   --clay: #B5602F -> #B55E32
-   --clay-tint: #F3DFCE -> #F4E0D3
-   --gold: #A1812F -> #B1872E
-   --gold-tint: #EFE3C2 -> #F4E7BF
-   --stone: #8A8C7E -> #8E8278
-   --stone-tint: #E7E5DA -> #ECE3D7
-   --error: #A33B2E -> #B24A3C
-   --error-tint: #F4DCD7 -> #F6DCD8
-   --success: #3F6B4A -> #4C7A52
-   --success-tint: #DCEADB -> #DCEAD9
-
-   Dark mode after
-   --paper: #201814
-   --paper-raised: #2B211A
-   --ink: #F4EBDD
-   --ink-soft: #C7B8A7
-   --line: #4A3A2F
-   --line-soft: #3A2D24
-   --moss: #8DA96E
-   --moss-light: #334236
-   --moss-dark: #B7C9A4
-   --clay: #D38A5B
-   --clay-tint: #4B2F22
-   --gold: #D1A24E
-   --gold-tint: #4A3920
-   --stone: #A99A8F
-   --stone-tint: #3C3028
-   --error: #E07A67
-   --error-tint: #4A2B26
-   --success: #83B089
-   --success-tint: #304539
-*/
+/* ─── Afritask design tokens ─────────────────────
+   Forest = identity + primary actions, ivory = page, lime = selected/welcoming,
+   harvest = restrained accent, brick = destructive/urgent.
+   NOTE: the older names (--moss, --paper, --paper-raised, --ink…) are kept as aliases
+   so every component reads one palette. Prefer the new names in new code. */
 
 :root {
-  /* === Color tokens === */
-  --paper: #F6F0E7;          /* warm off-white background, like notebook paper */
-  --paper-raised: #FFF9F2;   /* card surfaces */
-  --ink: #2A2019;            /* warm dark text */
-  --ink-soft: #6A5B4C;       /* secondary text */
-  --line: #E6D7C7;           /* hairline borders */
-  --line-soft: #F1E9DE;
+  /* Brand */
+  --forest: #163c2f;
+  --forest-deep: #0f2c22;
+  --forest-soft: #224c3d;
+  --on-forest: #ffffff;
+  --lime: #e4efb5;
+  --lime-deep: #cfe08a;
+  --harvest: #f3c863;
+  --harvest-tint: #fbf0cf;
+  --brick: #a32e35;
+  --brick-tint: #f7e3e3;
 
-  --moss: #49644B;           /* primary accent - deep sage */
-  --moss-light: #DDE8D8;     /* accent tint for backgrounds */
-  --moss-dark: #314535;      /* hover state */
+  /* Surfaces + text */
+  --page: #f7f7ef;
+  --surface: #ffffff;
+  --surface-muted: #f1f2ea;
+  --text: #253c32;
+  --text-muted: #626e63;
+  --border: #dfe4d8;
+  --border-soft: #edf0e7;
 
-  --clay: #B55E32;           /* high priority */
-  --clay-tint: #F4E0D3;
-  --gold: #B1872E;           /* medium priority */
-  --gold-tint: #F4E7BF;
-  --stone: #8E8278;          /* low priority */
-  --stone-tint: #ECE3D7;
+  /* Status (always paired with a text label + icon, never colour alone) */
+  --status-todo: #626e63;
+  --status-todo-tint: #eef0ea;
+  --status-progress: #2c5d86;
+  --status-progress-tint: #e2edf6;
+  --status-review: #7a4a8a;
+  --status-review-tint: #f1e6f4;
+  --status-done: #1f6b47;
+  --status-done-tint: #e1f0e6;
 
-  --error: #B24A3C;
-  --error-tint: #F6DCD8;
-  --success: #4C7A52;
-  --success-tint: #DCEAD9;
+  /* Sidebar (forest in both themes) */
+  --sidebar-bg: #163c2f;
+  --sidebar-text: #e9efe4;
+  --sidebar-muted: #a9bcae;
+  --sidebar-hover: #224c3d;
+  --sidebar-active-bg: #e4efb5;
+  --sidebar-active-text: #163c2f;
 
-  /* Extra label colors (task labels can be gray/moss/clay/gold/sky/plum) */
-  --sky: #3F6E8C;
-  --sky-tint: #DCE8F0;
-  --plum: #7A4E78;
-  --plum-tint: #EEDFEC;
+  --shadow-sm: 0 1px 2px rgb(22 60 47 / 0.06);
+  --shadow-md: 0 6px 24px -8px rgb(22 60 47 / 0.18);
+  --shadow-lg: 0 24px 60px -20px rgb(22 60 47 / 0.35);
 
-  /* === Type === */
+  --radius-sm: 8px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+
+  /* Legacy aliases */
+  --paper: var(--page);
+  --paper-raised: var(--surface);
+  --ink: var(--text);
+  --ink-soft: var(--text-muted);
+  --line: var(--border);
+  --line-soft: var(--border-soft);
+  --moss: var(--forest);
+  --moss-light: var(--lime);
+  --moss-dark: var(--forest-deep);
+  --error: var(--brick);
+  --error-tint: var(--brick-tint);
+  --success: var(--status-done);
+  --success-tint: var(--status-done-tint);
+  --clay: #a8512a;
+  --clay-tint: #f6e6dc;
+  --gold: #85620f;
+  --gold-tint: var(--harvest-tint);
+  --stone: #5d6a60;
+  --stone-tint: #eceee7;
+  --sky: #2c5d86;
+  --sky-tint: #e2edf6;
+  --plum: #7a4a8a;
+  --plum-tint: #f1e6f4;
+
   --font-display: var(--font-fraunces);
-  --font-body: var(--font-inter);
+  --font-body: var(--font-dm-sans);
 }
 
 html[data-theme="dark"] {
-  --paper: #201814;
-  --paper-raised: #2B211A;
-  --ink: #F4EBDD;
-  --ink-soft: #C7B8A7;
-  --line: #4A3A2F;
-  --line-soft: #3A2D24;
+  --forest: #cfe59a;
+  --forest-deep: #e4efb5;
+  --forest-soft: #2a3d33;
+  --on-forest: #10241b;
+  --lime: #2f4128;
+  --lime-deep: #44592f;
+  --harvest: #e9bd57;
+  --harvest-tint: #3a311b;
+  --brick: #ef8a8f;
+  --brick-tint: #3d2224;
 
-  --moss: #8DA96E;
-  --moss-light: #334236;
-  --moss-dark: #B7C9A4;
+  --page: #101914;
+  --surface: #17221c;
+  --surface-muted: #1d2a23;
+  --text: #e6ede4;
+  --text-muted: #a5b3a8;
+  --border: #2c3b33;
+  --border-soft: #223029;
 
-  --clay: #D38A5B;
-  --clay-tint: #4B2F22;
-  --gold: #D1A24E;
-  --gold-tint: #4A3920;
-  --stone: #A99A8F;
-  --stone-tint: #3C3028;
+  --status-todo: #b3bdb4;
+  --status-todo-tint: #25312a;
+  --status-progress: #8fbde3;
+  --status-progress-tint: #1d2c38;
+  --status-review: #d3a6e0;
+  --status-review-tint: #2f2335;
+  --status-done: #8fd0a9;
+  --status-done-tint: #1b3326;
 
-  --error: #E07A67;
-  --error-tint: #4A2B26;
-  --success: #83B089;
-  --success-tint: #304539;
+  --sidebar-bg: #0c1611;
+  --sidebar-text: #e6ede4;
+  --sidebar-muted: #93a598;
+  --sidebar-hover: #1a2a21;
+  --sidebar-active-bg: #cfe59a;
+  --sidebar-active-text: #10241b;
 
-  --sky: #8DB6D2;
-  --sky-tint: #26343E;
-  --plum: #C59AC2;
-  --plum-tint: #3B2A3A;
+  --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.3);
+  --shadow-md: 0 6px 24px -8px rgb(0 0 0 / 0.55);
+  --shadow-lg: 0 24px 60px -20px rgb(0 0 0 / 0.7);
+
+  --clay: #e7a07c;
+  --clay-tint: #3b2a20;
+  --gold: #e9bd57;
+  --stone: #b3bdb4;
+  --stone-tint: #25312a;
+  --sky: #8fbde3;
+  --sky-tint: #1d2c38;
+  --plum: #d3a6e0;
+  --plum-tint: #2f2335;
+}
+
+/* ─── Tailwind bridge ─────────────────────
+   `inline` makes each utility read the live CSS variable, so `bg-surface` follows the
+   dark theme without a `dark:` variant on every element. */
+@theme inline {
+  --color-forest: var(--forest);
+  --color-forest-deep: var(--forest-deep);
+  --color-forest-soft: var(--forest-soft);
+  --color-on-forest: var(--on-forest);
+  --color-lime: var(--lime);
+  --color-lime-deep: var(--lime-deep);
+  --color-harvest: var(--harvest);
+  --color-harvest-tint: var(--harvest-tint);
+  --color-brick: var(--brick);
+  --color-brick-tint: var(--brick-tint);
+  --color-page: var(--page);
+  --color-surface: var(--surface);
+  --color-surface-muted: var(--surface-muted);
+  --color-ink: var(--text);
+  --color-muted: var(--text-muted);
+  --color-line: var(--border);
+  --color-line-soft: var(--border-soft);
+  --color-sidebar: var(--sidebar-bg);
+  --color-sidebar-text: var(--sidebar-text);
+  --color-sidebar-muted: var(--sidebar-muted);
+  --color-sidebar-hover: var(--sidebar-hover);
+  --color-sidebar-active: var(--sidebar-active-bg);
+  --color-sidebar-active-text: var(--sidebar-active-text);
+  --color-done: var(--status-done);
+  --color-done-tint: var(--status-done-tint);
+
+  --font-display: var(--font-fraunces), Georgia, serif;
+  --font-sans: var(--font-dm-sans), ui-sans-serif, system-ui, sans-serif;
+
+  --radius-sm: 8px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+
+  --shadow-sm: var(--shadow-sm);
+  --shadow-md: var(--shadow-md);
+  --shadow-lg: var(--shadow-lg);
 }
 
 html {
   color-scheme: light;
+  -webkit-text-size-adjust: 100%;
 }
 
 html[data-theme="dark"] {
@@ -122,105 +189,255 @@ html[data-theme="dark"] {
   box-sizing: border-box;
 }
 
-html, body {
-  background: var(--paper);
-  color: var(--ink);
+html,
+body {
+  background: var(--page);
+  color: var(--text);
 }
 
 body {
   font-family: var(--font-body), ui-sans-serif, system-ui, sans-serif;
+  font-size: 15px;
+  line-height: 1.55;
+  overflow-x: hidden;
 }
 
-h1, h2, h3, .font-display {
+/* Product UI uses DM Sans throughout; Fraunces is opt-in for expressive headings. */
+.font-display {
   font-family: var(--font-display), Georgia, serif;
+  font-optical-sizing: auto;
 }
 
+/* iOS zooms into inputs under 16px. */
 input,
 textarea,
 select {
-  font-size: 16px !important;
+  font-size: 16px;
+}
+@media (min-width: 768px) {
+  input,
+  textarea,
+  select {
+    font-size: 15px;
+  }
 }
 
-/* subtle paper grain texture for atmosphere, very low opacity */
-.paper-grain {
-  position: relative;
+/* ─── Shared control styles ───────────────────── */
+
+.field-control {
+  width: 100%;
+  min-height: 44px;
+  padding: 0.6rem 0.85rem;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
-.paper-grain::before {
+.field-control::placeholder {
+  color: color-mix(in srgb, var(--text-muted) 80%, transparent);
+}
+.field-control:hover {
+  border-color: color-mix(in srgb, var(--forest) 35%, var(--border));
+}
+.field-control:focus {
+  outline: none;
+  border-color: var(--forest);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--forest) 18%, transparent);
+}
+.field-control[aria-invalid="true"] {
+  border-color: var(--brick);
+}
+.field-control:disabled {
+  background: var(--surface-muted);
+  color: var(--text-muted);
+  cursor: not-allowed;
+}
+select.field-control {
+  appearance: none;
+  padding-right: 2.25rem;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='none' stroke='%23626E63' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' viewBox='0 0 24 24'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.7rem center;
+}
+.field-control.field-compact {
+  min-height: 36px;
+  padding-top: 0.35rem;
+  padding-bottom: 0.35rem;
+  font-size: 14px;
+}
+
+/* Focus visibility — the accessibility floor for every interactive element. */
+:focus-visible {
+  outline: 2px solid var(--forest);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+.on-forest :focus-visible {
+  outline-color: var(--lime);
+}
+
+.skip-link {
+  position: absolute;
+  left: 1rem;
+  top: -100px;
+  z-index: 100;
+  padding: 0.6rem 1rem;
+  border-radius: var(--radius-md);
+  background: var(--forest);
+  color: var(--on-forest);
+  font-weight: 600;
+}
+.skip-link:focus {
+  top: 1rem;
+}
+
+/* Gentle entrance for dialogs/drawers; disabled under reduced motion below. */
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.99);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes slide-in-left {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: none;
+  }
+}
+.animate-rise-in {
+  animation: rise-in 0.18s ease-out;
+}
+.animate-fade-in {
+  animation: fade-in 0.15s ease-out;
+}
+.animate-slide-in-left {
+  animation: slide-in-left 0.2s ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Task checkbox — the completion control in lists. */
+.task-check {
+  appearance: none;
+  width: 22px;
+  height: 22px;
+  border: 1.5px solid var(--text-muted);
+  border-radius: 6px;
+  cursor: pointer;
+  position: relative;
+  flex-shrink: 0;
+  transition: background 0.15s ease, border-color 0.15s ease;
+  background: var(--surface);
+}
+.task-check:hover {
+  border-color: var(--forest);
+}
+.task-check:checked {
+  background: var(--forest);
+  border-color: var(--forest);
+}
+.task-check:checked::after {
   content: "";
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  opacity: 0.025;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='80' height='80'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
-  z-index: 0;
+  position: absolute;
+  left: 6.5px;
+  top: 2.5px;
+  width: 6px;
+  height: 11px;
+  border: solid var(--on-forest);
+  border-width: 0 2px 2px 0;
+  transform: rotate(40deg);
+}
+.task-check:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
 }
 
 .theme-toggle .theme-toggle-sun {
   display: none;
 }
-
 html[data-theme="dark"] .theme-toggle .theme-toggle-moon {
   display: none;
 }
-
 html[data-theme="dark"] .theme-toggle .theme-toggle-sun {
   display: inline-flex;
 }
 
-/* Focus visibility - accessibility floor */
-:focus-visible {
-  outline: 2px solid var(--moss);
-  outline-offset: 2px;
+/* Skeleton placeholders keep the final layout's footprint so content doesn't jump. */
+.skeleton {
+  background: linear-gradient(90deg, var(--surface-muted) 0%, var(--border-soft) 50%, var(--surface-muted) 100%);
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.4s ease-in-out infinite;
+  border-radius: var(--radius-sm);
 }
-
-@media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
+@keyframes skeleton-shimmer {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
   }
 }
 
-/* Custom checkbox - signature element */
-.task-check {
-  appearance: none;
-  width: 22px;
-  height: 22px;
-  border: 1.5px solid var(--ink-soft);
-  border-radius: 6px;
-  cursor: pointer;
-  position: relative;
-  flex-shrink: 0;
-  transition: all 0.15s ease;
-  background: var(--paper-raised);
+/* Landing illustration: the path draws itself once. Reduced motion shows it complete. */
+.draw-path {
+  stroke-dasharray: 1200;
+  stroke-dashoffset: 1200;
+  animation: draw-path 2.2s 0.2s ease-out forwards;
 }
-.task-check:hover {
-  border-color: var(--moss);
+@keyframes draw-path {
+  to {
+    stroke-dashoffset: 0;
+  }
 }
-.task-check:checked {
-  background: var(--moss);
-  border-color: var(--moss);
-}
-.task-check:checked::after {
-  content: "";
-  position: absolute;
-  left: 6px;
-  top: 2px;
-  width: 6px;
-  height: 11px;
-  border: solid var(--paper);
-  border-width: 0 2px 2px 0;
-  transform: rotate(40deg);
+@media (prefers-reduced-motion: reduce) {
+  .draw-path {
+    stroke-dashoffset: 0;
+    animation: none;
+  }
+  .skeleton {
+    animation: none;
+  }
 }
 
-/* scrollbar - subtle */
+/* Board column while a card is dragged over it. */
+.drop-target {
+  outline: 2px dashed var(--forest);
+  outline-offset: -4px;
+  background: color-mix(in srgb, var(--lime) 45%, transparent);
+}
+
 ::-webkit-scrollbar {
   width: 10px;
+  height: 10px;
 }
 ::-webkit-scrollbar-track {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: var(--line);
+  background: var(--border);
   border-radius: 8px;
 }

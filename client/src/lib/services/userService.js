@@ -17,9 +17,10 @@ export const updatePassword = (data) => {
 };
 
 // Upload a new avatar image as multipart form data.
+// NOTE: there is no /users/avatar route — the server takes the image on PUT /users/profile
+// as a multipart `photo` field (multer upload.single("photo")). The old path always 404'd.
 export const updateAvatar = (formData) => {
-  // PUT /users/avatar expects multipart/form-data with the avatar field and returns the updated user.
-  return api.put("/users/avatar", formData, {
+  return api.put("/users/profile", formData, {
     headers: { "Content-Type": "multipart/form-data" },
   });
 };

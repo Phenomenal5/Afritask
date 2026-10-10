@@ -7,4 +7,5 @@ export const PROJECT_STATE_LABELS = {
 };
 
 // States a manager can pick directly; archive/restore are separate actions.
+/** @type {import("@/types/models").ProjectState[]} */
 export const SETTABLE_PROJECT_STATES = ["active", "on_hold", "completed"];
