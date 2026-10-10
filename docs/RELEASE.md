@@ -50,9 +50,17 @@ For each deployed environment also set:
 
 ## 2. Shipping a release
 
-1. **CI is green** on the commit (`.github/workflows/ci.yml`: server type-check plus unit,
-   integration, API, end-to-end and security tests against a fresh Postgres; client
-   type-check and production build).
+1. **CI is green** on the commit. Each project has its own pipeline, run when that folder is
+   pushed as its own repository:
+   - `server/.github/workflows/ci-cd.yml`: type-check, then unit, integration, API,
+     end-to-end and security tests against a throwaway Postgres, then a production build.
+   - `client/.github/workflows/ci-cd.yml`: type-check, then a production build.
+
+   On a push to the default branch, after CI passes, each pipeline deploys to production.
+   The server first applies migrations, then calls the host's deploy hook, then waits for
+   `/api/health/ready`. The client calls its host's build hook, then checks the site
+   answers. Each step is skipped with a notice until its secret is set; the secrets are
+   listed at the top of each workflow file. Staging is still deployed by hand, as below.
 2. **Deploy to staging:**
    1. Back up staging, or rely on Neon's point-in-time restore (§4).
    2. Apply migrations: `npm run db:deploy` from `server/` with staging's

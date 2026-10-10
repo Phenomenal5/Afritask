@@ -1,0 +1,134 @@
+# Afritask API — CI/CD for this repository on its own (the `server/` folder pushed as its own repo).
+# GitHub only reads workflows from the root of the repository being pushed.
+#
+# CI  (every push and pull request): type-check, then every test suite against a throwaway
+#     Postgres container. Nothing touches a real database.
+# CD  (pushes to the default branch, after CI passes):
+#     1. apply pending migrations to production (`prisma migrate deploy`) — schema first,
+#        always compatible with the code still running (docs/RELEASE.md §2);
+#     2. trigger the host's deploy hook;
+#     3. wait for GET /api/health/ready to report this commit.
+#     Each step is skipped (with a notice) if its secret isn't set, so CI works before CD is
+#     configured.
+#
+# Repository secrets used by CD (Settings → Secrets and variables → Actions):
+#   PRODUCTION_DIRECT_DATABASE_URL  direct (non-"-pooler") Postgres URL, for migrations
+#   DEPLOY_HOOK_URL                 the host's deploy hook (Render, Railway, …). Set
+#                                   RELEASE_VERSION=${{ github.sha }} on the host if it supports it.
+#   PRODUCTION_API_URL              e.g. https://api.example.com — for the readiness check
+name: Server CI/CD
+
+on:
+  push:
+  pull_request:
+
+concurrency:
+  group: server-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ci:
+    name: Type-check and test
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: afritask
+          POSTGRES_PASSWORD: afritask
+          # The test guard requires "test" in the database name (tests/setup/testDatabase.js).
+          POSTGRES_DB: afritask_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U afritask -d afritask_test"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    env:
+      TEST_DATABASE_URL: postgresql://afritask:afritask@localhost:5432/afritask_test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Type-check source and tests
+        run: npm run typecheck && npm run typecheck:tests
+      # globalSetup applies every migration to the empty database first, which also proves
+      # the migration history builds a working schema from scratch.
+      - name: Unit + contract
+        run: npm run test:unit
+      - name: Integration
+        run: npm run test:integration
+      - name: API
+        run: npm run test:api
+      - name: End-to-end journeys
+        run: npm run test:e2e
+      - name: Security (tests + npm audit)
+        run: npm run test:security
+      - name: Production build compiles
+        run: npm run build
+
+  deploy:
+    name: Deploy to production
+    needs: ci
+    if: github.event_name == 'push' && github.ref_name == github.event.repository.default_branch
+    runs-on: ubuntu-latest
+    # One deploy at a time; never cancel one halfway through a migration.
+    concurrency:
+      group: server-production
+      cancel-in-progress: false
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+
+      - name: Apply database migrations
+        env:
+          DIRECT_DATABASE_URL: ${{ secrets.PRODUCTION_DIRECT_DATABASE_URL }}
+        run: |
+          if [ -z "$DIRECT_DATABASE_URL" ]; then
+            echo "::notice::PRODUCTION_DIRECT_DATABASE_URL not set — skipping migrations."
+            exit 0
+          fi
+          # prisma.config.ts reads DATABASE_URL too; both point at the direct connection here.
+          DATABASE_URL="$DIRECT_DATABASE_URL" npx prisma migrate deploy
+
+      - name: Trigger the host's deploy
+        env:
+          DEPLOY_HOOK_URL: ${{ secrets.DEPLOY_HOOK_URL }}
+        run: |
+          if [ -z "$DEPLOY_HOOK_URL" ]; then
+            echo "::notice::DEPLOY_HOOK_URL not set — skipping deploy."
+            exit 0
+          fi
+          curl --fail --silent --show-error --request POST "$DEPLOY_HOOK_URL" > /dev/null
+          echo "Deploy triggered for ${GITHUB_SHA}"
+
+      - name: Wait until the new release is ready
+        env:
+          PRODUCTION_API_URL: ${{ secrets.PRODUCTION_API_URL }}
+        run: |
+          if [ -z "$PRODUCTION_API_URL" ]; then
+            echo "::notice::PRODUCTION_API_URL not set — skipping the readiness check."
+            exit 0
+          fi
+          # Up to 10 minutes: ready AND reporting this commit (if the host passes RELEASE_VERSION).
+          for attempt in $(seq 1 40); do
+            body=$(curl --silent --max-time 10 "$PRODUCTION_API_URL/api/health/ready" || true)
+            if echo "$body" | grep -q '"status":"ok"'; then
+              if echo "$body" | grep -q "\"version\":\"${GITHUB_SHA}\"" || ! echo "$body" | grep -q '"version":"[0-9a-f]\{40\}"'; then
+                echo "Ready: $body"
+                exit 0
+              fi
+            fi
+            sleep 15
+          done
+          echo "::error::The API didn't become ready with this release within 10 minutes. Last answer: $body"
+          exit 1

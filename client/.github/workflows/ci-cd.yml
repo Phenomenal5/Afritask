@@ -1,0 +1,83 @@
+# Afritask web app — CI/CD for this repository on its own (the `client/` folder pushed as its own repo).
+# GitHub only reads workflows from the root of the repository being pushed.
+#
+# CI  (every push and pull request): type-check and a production build.
+# CD  (pushes to the default branch, after CI passes): trigger the host's build hook, then
+#     wait for the site to answer. Skipped with a notice until its secret is set.
+#
+# Repository secrets used by CD (Settings → Secrets and variables → Actions):
+#   DEPLOY_HOOK_URL      the host's build hook (e.g. Netlify: Site configuration → Build hooks).
+#                        The host builds with its own env — API_URL must point at the API there.
+#   PRODUCTION_SITE_URL  e.g. https://afritask.netlify.app — for the post-deploy check
+#
+# NOTE: if the host already builds on every push through its own Git integration, leave
+# DEPLOY_HOOK_URL unset (or turn that integration's auto-publish off) so each commit isn't
+# deployed twice — and so a commit that fails CI here never goes live.
+name: Client CI/CD
+
+on:
+  push:
+  pull_request:
+
+concurrency:
+  group: client-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ci:
+    name: Type-check and build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Type-check
+        run: npx tsc --noEmit -p tsconfig.json
+      - name: Production build
+        run: npm run build
+
+  deploy:
+    name: Deploy to production
+    needs: ci
+    if: github.event_name == 'push' && github.ref_name == github.event.repository.default_branch
+    runs-on: ubuntu-latest
+    concurrency:
+      group: client-production
+      cancel-in-progress: false
+    environment: production
+    steps:
+      - name: Trigger the host's build
+        env:
+          DEPLOY_HOOK_URL: ${{ secrets.DEPLOY_HOOK_URL }}
+        run: |
+          if [ -z "$DEPLOY_HOOK_URL" ]; then
+            echo "::notice::DEPLOY_HOOK_URL not set — skipping deploy."
+            exit 0
+          fi
+          curl --fail --silent --show-error --request POST "$DEPLOY_HOOK_URL" > /dev/null
+          echo "Build triggered for ${GITHUB_SHA}"
+
+      - name: Check the site answers
+        env:
+          PRODUCTION_SITE_URL: ${{ secrets.PRODUCTION_SITE_URL }}
+        run: |
+          if [ -z "$PRODUCTION_SITE_URL" ]; then
+            echo "::notice::PRODUCTION_SITE_URL not set — skipping the site check."
+            exit 0
+          fi
+          # The host builds after the hook fires; give it time, then expect the sign-in page and
+          # the web app manifest to load.
+          for attempt in $(seq 1 40); do
+            login=$(curl --silent --output /dev/null --write-out '%{http_code}' --max-time 10 "$PRODUCTION_SITE_URL/login" || true)
+            manifest=$(curl --silent --output /dev/null --write-out '%{http_code}' --max-time 10 "$PRODUCTION_SITE_URL/manifest.webmanifest" || true)
+            if [ "$login" = "200" ] && [ "$manifest" = "200" ]; then
+              echo "Site is up."
+              exit 0
+            fi
+            sleep 15
+          done
+          echo "::error::The site didn't answer within 10 minutes (login=$login, manifest=$manifest)."
+          exit 1
