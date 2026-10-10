@@ -13,6 +13,8 @@ declare global {
       // The caller's ACTIVE membership in the workspace a route targets
       // (set by requireWorkspaceMember / task loaders).
       membership?: Membership;
+      // The signed-in operator (admin console only), set by requireOperator.
+      operator?: { userId: string; name: string; email: string; sessionId: string };
     }
   }
 }

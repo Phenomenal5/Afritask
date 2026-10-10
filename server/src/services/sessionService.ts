@@ -49,6 +49,9 @@ export const findActiveSession = (rawSecret: string) =>
     prisma.session.findFirst({
         where: {
             secretHash: hashSecureToken(rawSecret),
+            // NOTE: customer routes never accept an operator session, even if its secret is
+            // replayed in the customer cookie — the two consoles stay separate (SRS SR16).
+            kind: "customer",
             revokedAt: null,
             expiresAt: { gt: new Date() },
         },

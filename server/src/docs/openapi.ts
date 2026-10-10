@@ -326,6 +326,16 @@ const schemas = {
         type: "object",
         properties: { status: { type: "string" }, data: { type: "object", properties: { unreadCount: { type: "integer" } } } },
     },
+    Operator: {
+        type: "object",
+        properties: {
+            id: { type: "string", format: "uuid" },
+            name: { type: "string" },
+            email: { type: "string" },
+            role: { type: "string", enum: ["superadmin"] },
+            mfa: { type: "object", properties: { enrolled: { type: "boolean" }, verified: { type: "boolean" } } },
+        },
+    },
     Readiness: {
         type: "object",
         properties: {
@@ -1021,6 +1031,69 @@ const dashboardPaths = {
     },
 };
 
+// ─── Admin console (Platform Superadmin) ─────────────────────
+// Separate sign-in and cookie (afritask_operator_session, Path=/api/admin). Customer
+// sessions are never accepted here, and operator sessions never work on customer routes.
+const operatorSession = [{ operatorCookie: [] }];
+const operatorEnvelope = dataEnvelope("operator", ref("Operator"));
+
+const adminAuthPaths = {
+    "/admin/auth/login": {
+        post: {
+            tags: ["Admin"],
+            summary: "Step 1: password. Starts an operator session that can only complete MFA. Same 401 for every failure.",
+            security: publicRoute,
+            requestBody: jsonBody({ type: "object", required: ["email", "password"], properties: { email: { type: "string" }, password: { type: "string" } } }),
+            responses: {
+                200: jsonResponse("Password accepted", {
+                    type: "object",
+                    properties: {
+                        status: { type: "string" },
+                        data: { type: "object", properties: { operator: ref("Operator"), next: { type: "string", enum: ["mfa_setup", "mfa_verify"] } } },
+                    },
+                }),
+                ...errorResponses(400, 401, 429),
+            },
+        },
+    },
+    "/admin/auth/mfa/setup": {
+        post: {
+            tags: ["Admin"],
+            summary: "First sign-in only: a new authenticator secret (refused once MFA is set up)",
+            security: operatorSession,
+            responses: {
+                200: jsonResponse("Secret", dataEnvelope("secret", { type: "string" })),
+                ...errorResponses(401, 409),
+            },
+        },
+    },
+    "/admin/auth/mfa/verify": {
+        post: {
+            tags: ["Admin"],
+            summary: "Step 2: a current 6-digit code. A used code can't be replayed.",
+            security: operatorSession,
+            requestBody: jsonBody({ type: "object", required: ["code"], properties: { code: { type: "string", pattern: "^\d{6}$" } } }),
+            responses: { 200: jsonResponse("Signed in", operatorEnvelope), ...errorResponses(401, 409, 429) },
+        },
+    },
+    "/admin/auth/me": {
+        get: {
+            tags: ["Admin"],
+            summary: "The signed-in operator and their MFA state",
+            security: operatorSession,
+            responses: { 200: jsonResponse("Operator", operatorEnvelope), ...errorResponses(401) },
+        },
+    },
+    "/admin/auth/logout": {
+        post: {
+            tags: ["Admin"],
+            summary: "End the console session",
+            security: operatorSession,
+            responses: { 200: jsonResponse("Signed out", messageEnvelope), ...errorResponses(401) },
+        },
+    },
+};
+
 const healthPaths = {
     "/health": {
         get: {
@@ -1129,6 +1202,7 @@ const openApiDocument = {
         { name: "Labels", description: "Workspace labels for tagging tasks" },
         { name: "Comments", description: "Discussion on tasks, with @mentions of workspace members" },
         { name: "Notifications", description: "In-app notifications: assignments, mentions and invitations" },
+        { name: "Admin", description: "Admin console (Platform Superadmin): its own sign-in with MFA" },
         { name: "Health", description: "Liveness and readiness probes for hosts and load balancers" },
         { name: "Activity", description: "Read-only history: who changed what, with before/after values" },
     ],
@@ -1136,10 +1210,11 @@ const openApiDocument = {
     components: {
         securitySchemes: {
             sessionCookie: { type: "apiKey", in: "cookie", name: "afritask_session", description: "Set by POST /auth/login" },
+            operatorCookie: { type: "apiKey", in: "cookie", name: "afritask_operator_session", description: "Set by POST /admin/auth/login; sent only to /api/admin" },
         },
         schemas,
     },
-    paths: withOperationIds({ ...authPaths, ...userPaths, ...workspacePaths, ...invitationPaths, ...projectPaths, ...labelPaths, ...taskPaths, ...subtaskPaths, ...commentPaths, ...notificationPaths, ...activityPaths, ...dashboardPaths, ...healthPaths }),
+    paths: withOperationIds({ ...authPaths, ...userPaths, ...workspacePaths, ...invitationPaths, ...projectPaths, ...labelPaths, ...taskPaths, ...subtaskPaths, ...commentPaths, ...notificationPaths, ...activityPaths, ...dashboardPaths, ...healthPaths, ...adminAuthPaths }),
 };
 
 export default openApiDocument;

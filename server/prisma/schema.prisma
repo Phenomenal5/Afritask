@@ -122,30 +122,43 @@ model User {
   createdAt     DateTime     @default(now()) @db.Timestamptz(3)
   updatedAt     DateTime     @updatedAt @db.Timestamptz(3)
 
-  createdTasks       Task[]          @relation("TaskCreator")
+  createdTasks       Task[]            @relation("TaskCreator")
   memberships        Membership[]
-  sentInvites        Invitation[]    @relation("InvitationInviter")
-  projects           Project[]       @relation("ProjectCreator")
+  sentInvites        Invitation[]      @relation("InvitationInviter")
+  projects           Project[]         @relation("ProjectCreator")
   sessions           Session[]
   accountTokens      AccountToken[]
-  activities         Activity[]      @relation("ActivityActor")
-  comments           Comment[]       @relation("CommentAuthor")
-  deletedComments    Comment[]       @relation("CommentDeleter")
-  notifications      Notification[]  @relation("NotificationRecipient")
-  actedNotifications Notification[]  @relation("NotificationActor")
-  emailDeliveries    EmailDelivery[] @relation("EmailDeliveryRecipient")
+  activities         Activity[]        @relation("ActivityActor")
+  comments           Comment[]         @relation("CommentAuthor")
+  deletedComments    Comment[]         @relation("CommentDeleter")
+  notifications      Notification[]    @relation("NotificationRecipient")
+  actedNotifications Notification[]    @relation("NotificationActor")
+  emailDeliveries    EmailDelivery[]   @relation("EmailDeliveryRecipient")
+  platformGrant      PlatformGrant?
+  adminAuditEntries  AdminAuditEntry[] @relation("AdminAuditActor")
+}
+
+// Customer sessions (the web app) and operator sessions (the admin console) live in one
+// table but are never interchangeable: each side only accepts its own kind (SRS SR16).
+enum SessionKind {
+  customer
+  operator
 }
 
 // A signed-in browser. The cookie holds a random secret; only its SHA-256 hash is stored,
 // so a database leak can't be replayed as a login. Revoking = setting revokedAt.
 model Session {
-  id         String    @id @default(uuid(7)) @db.Uuid
-  userId     String    @db.Uuid
-  secretHash String    @unique
-  expiresAt  DateTime  @db.Timestamptz(3)
-  revokedAt  DateTime? @db.Timestamptz(3)
-  userAgent  String?
-  createdAt  DateTime  @default(now()) @db.Timestamptz(3)
+  id            String      @id @default(uuid(7)) @db.Uuid
+  userId        String      @db.Uuid
+  secretHash    String      @unique
+  expiresAt     DateTime    @db.Timestamptz(3)
+  revokedAt     DateTime?   @db.Timestamptz(3)
+  userAgent     String?
+  kind          SessionKind @default(customer)
+  // Operator sessions only: set once the MFA code is verified. Until then the session can
+  // do nothing but complete MFA.
+  mfaVerifiedAt DateTime?   @db.Timestamptz(3)
+  createdAt     DateTime    @default(now()) @db.Timestamptz(3)
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -503,4 +516,56 @@ model Notification {
   // The bell: my notifications newest first, and my unread count.
   @@index([recipientId, createdAt])
   @@index([recipientId, readAt])
+}
+
+// ─── Platform administration (SRS SR16–SR18) ─────────────────────
+
+enum PlatformRole {
+  superadmin
+}
+
+// Who may operate Afritask. NOTE: created ONLY by the deployment-side script
+// (npm run operator:grant) — no API route, signup, invitation or profile update can write
+// it. Being an operator grants NO access to workspace content (tasks, comments).
+model PlatformGrant {
+  id                 String       @id @default(uuid(7)) @db.Uuid
+  userId             String       @unique @db.Uuid
+  role               PlatformRole @default(superadmin)
+  // TOTP secret, AES-256-GCM encrypted with OPERATOR_MFA_KEY. Set when enrolment starts.
+  mfaSecretEncrypted String?
+  // When the operator first proved a code — enrolment is complete from then on.
+  mfaEnabledAt       DateTime?    @db.Timestamptz(3)
+  // The last accepted 30-second step: the same code can never be used twice.
+  mfaLastUsedStep    Int?
+  // Free-text record of who/why, written by the grant script.
+  note               String       @default("")
+  grantedAt          DateTime     @default(now()) @db.Timestamptz(3)
+  revokedAt          DateTime?    @db.Timestamptz(3)
+  updatedAt          DateTime     @updatedAt @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// Append-only record of operator actions and access (SRS SR18). Like Activity, a database
+// trigger refuses UPDATE. Never stores task or comment bodies.
+model AdminAuditEntry {
+  id         String   @id @default(uuid(7)) @db.Uuid
+  // Null for actions taken by a deployment script rather than a signed-in operator.
+  actorId    String?  @db.Uuid
+  // e.g. "operator.granted", "operator.signed_in", "account.suspended".
+  action     String
+  // "user" | "workspace" | "delivery" | "operator"
+  targetType String?
+  targetId   String?  @db.Uuid
+  // Required for consequential actions (suspend/restore/retry) — the operator's reason.
+  reason     String   @default("")
+  metadata   Json?
+  ipAddress  String?
+  createdAt  DateTime @default(now()) @db.Timestamptz(3)
+
+  actor User? @relation("AdminAuditActor", fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([createdAt])
+  @@index([targetType, targetId, createdAt])
+  @@index([actorId, createdAt])
 }

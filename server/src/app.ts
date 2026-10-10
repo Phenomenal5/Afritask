@@ -20,6 +20,7 @@ import commentRoute from "./routes/commentRoute.js";
 import notificationRoute from "./routes/notificationRoute.js";
 import assignRequestId, { redactUrl } from "./middlewares/requestId.middleware.js";
 import healthRoute from "./routes/healthRoute.js";
+import adminRoute from "./routes/adminRoute.js";
 import logger from "./utils/logger.js";
 import globalErrorHandler from "./middlewares/error.Middleware.js";
 import CLIENT_URL from "./config/clientUrl.js";
@@ -130,6 +131,9 @@ app.use("/api/notifications", notificationRoute);
 
 // Invitation preview / accept / decline / resend / revoke
 app.use("/api/invitations", invitationRoute);
+
+// Admin console (Platform Superadmin): own sign-in, session and MFA.
+app.use("/api/admin", adminRoute);
 
 
 app.use(globalErrorHandler);
