@@ -46,6 +46,8 @@ import ActivityFeed from "@/components/activity/ActivityFeed";
 import StatusSelect from "./StatusSelect";
 import LabelPicker from "./LabelPicker";
 import SubtaskList from "./SubtaskList";
+import ReminderSelect from "./ReminderSelect";
+import { DEFAULT_REMINDER, reminderChoiceOf, type ReminderChoice } from "@/utils/reminders";
 import TaskComments from "./TaskComments";
 import type { Task, TaskPriority } from "@/types/models";
 
@@ -57,6 +59,7 @@ interface DetailForm {
   projectId: string;
   dueDate: string;
   dueTime: string;
+  reminderOffset: ReminderChoice;
   labelIds: string[];
 }
 
@@ -67,6 +70,7 @@ const formOf = (task: Task): DetailForm => ({
   assigneeMembershipId: task.assigneeMembershipId || "",
   projectId: task.projectId || "",
   ...dueFieldsOf(task),
+  reminderOffset: reminderChoiceOf(task.reminderOffset),
   labelIds: (task.labels || []).map((label) => label.id).sort(),
 });
 
@@ -221,6 +225,9 @@ export default function TaskDrawer({ taskId, onClose, onOpenTask }: TaskDrawerPr
     if (!isSubtask && form.projectId !== original.projectId) changes.projectId = form.projectId || null;
     if (JSON.stringify(form.labelIds) !== JSON.stringify(original.labelIds)) changes.labelIds = form.labelIds;
     Object.assign(changes, duePayload(form, profileTimezone, task));
+    // Sent whenever it differs, and always when a deadline is first added, so the server
+    // never substitutes its default for what the picker showed.
+    if (form.dueDate && (form.reminderOffset !== original.reminderOffset || !original.dueDate)) changes.reminderOffset = form.reminderOffset;
 
     setSaveState("saving");
     setSaveError(null);
@@ -264,7 +271,16 @@ export default function TaskDrawer({ taskId, onClose, onOpenTask }: TaskDrawerPr
   };
 
   const updateField = <Key extends keyof DetailForm>(key: Key, value: DetailForm[Key]) => {
-    setForm((current) => (current ? { ...current, [key]: value } : current));
+    setForm((current) => {
+      if (!current) return current;
+      const next = { ...current, [key]: value };
+      // Giving an undated task a deadline offers the default reminder (what the server
+      // would apply), so the picker shows what will actually happen.
+      if (key === "dueDate" && value && !current.dueDate && current.reminderOffset === "none" && !task?.reminderOffset) {
+        next.reminderOffset = DEFAULT_REMINDER;
+      }
+      return next;
+    });
     if (saveState !== "saving") setSaveState("idle");
   };
 
@@ -427,6 +443,15 @@ export default function TaskDrawer({ taskId, onClose, onOpenTask }: TaskDrawerPr
             onChange={(event) => updateField("dueTime", event.target.value)}
             disabled={!viewerCanEdit || !form.dueDate}
           />
+          <div className="sm:col-span-2">
+            <ReminderSelect
+              value={form.reminderOffset}
+              onChange={(choice) => updateField("reminderOffset", choice)}
+              hasDueDate={!!form.dueDate}
+              hasDueTime={!!form.dueTime}
+              disabled={!viewerCanEdit}
+            />
+          </div>
 
           {isSubtask ? (
             <p className="text-[14px] leading-relaxed text-muted sm:col-span-2">

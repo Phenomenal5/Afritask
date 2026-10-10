@@ -4,7 +4,7 @@ import { anonymous, createClient } from "../helpers/client.js";
 import { disconnectDatabase, prisma, resetDatabase } from "../helpers/database.js";
 import { createSignedInUser, createTask, createTeam, uniqueEmail } from "../helpers/factories.js";
 import { clearMailbox, lastEmailTo, testMailbox } from "../helpers/mailbox.js";
-import { sendDueTomorrowReminders } from "../../src/jobs/taskReminder.js";
+import { runReminderSweep } from "../../src/jobs/taskReminder.js";
 
 beforeEach(async () => {
     await resetDatabase();
@@ -101,18 +101,18 @@ describe("HTML injection in outgoing email", () => {
 
     it("escapes a hostile task title and description in reminder emails", async () => {
         const team = await createTeam();
-        const tomorrow = new Date();
-        tomorrow.setDate(tomorrow.getDate() + 1);
         await prisma.task.create({
             data: {
                 workspaceId: team.workspace.id,
                 creatorId: team.owner.user.id,
                 title: `<a href="https://phish.example">Click</a>`,
                 description: `<script>steal()</script>`,
-                dueAt: new Date(`${tomorrow.toISOString().slice(0, 10)}T12:00:00Z`),
+                dueAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+                reminderOffset: "one_day",
+                remindAt: new Date(Date.now() - 60_000),
             },
         });
-        await sendDueTomorrowReminders();
+        await runReminderSweep();
         const html = testMailbox.sent.map((sent) => sent.html).join("");
         expect(html).not.toContain(`<a href="https://phish.example">`);
         expect(html).not.toContain("<script>steal");

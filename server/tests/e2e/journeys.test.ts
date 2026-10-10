@@ -2,7 +2,7 @@
 // following the actual links in the emails the app sends. Nothing is set up in the
 // database directly except where the journey starts from an existing account.
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "@jest/globals";
-import { sendDueTomorrowReminders } from "../../src/jobs/taskReminder.js";
+import { runReminderSweep } from "../../src/jobs/taskReminder.js";
 import { createBrowser, startServer, type Browser } from "../helpers/browser.js";
 import { disconnectDatabase, prisma, resetDatabase } from "../helpers/database.js";
 import { uniqueEmail } from "../helpers/factories.js";
@@ -145,19 +145,23 @@ describe("PRD core journeys", () => {
         await inviteAndAccept(owner.browser, workspaceId, assignee);
         const assigneeMembershipId = await membershipIdOf(owner.browser, workspaceId, assignee.email);
 
-        const tomorrow = new Date();
-        tomorrow.setDate(tomorrow.getDate() + 1);
-        const dueAt = `${tomorrow.toISOString().slice(0, 10)}T12:00:00.000Z`;
-        const task = (await owner.browser.post(`/workspaces/${workspaceId}/tasks`, { title: "Renew domain", dueAt, assigneeMembershipId })).body.data.task;
+        // Due in two hours, reminder one hour before: the sweep acts once that hour arrives.
+        const dueAt = new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString();
+        const inAnHour = new Date(Date.now() + 61 * 60 * 1000);
+        const reminded = (await owner.browser.post(`/workspaces/${workspaceId}/tasks`, { title: "Renew domain", dueAt, reminderOffset: "one_hour", assigneeMembershipId })).body.data.task;
+        const finished = (await owner.browser.post(`/workspaces/${workspaceId}/tasks`, { title: "Pay invoice", dueAt, reminderOffset: "one_hour", assigneeMembershipId })).body.data.task;
+        expect(reminded.remindAt).not.toBeNull();
+
+        // Completing a task cancels its pending reminder.
+        await assignee.browser.patch(`/tasks/${finished.id}/status`, { status: "completed", version: finished.version });
 
         clearMailbox();
-        await sendDueTomorrowReminders();
+        await runReminderSweep(inAnHour);
         expect(emailsTo(assignee.email).map((email) => email.subject)).toEqual(["Task Reminder: Renew domain"]);
 
-        await assignee.browser.patch(`/tasks/${task.id}/status`, { status: "completed", version: task.version });
-        clearMailbox();
-        await sendDueTomorrowReminders();
-        expect(emailsTo(assignee.email)).toHaveLength(0);
+        // The assignee also sees it in-app.
+        const inbox = await assignee.browser.get("/notifications");
+        expect(inbox.body.data.notifications.map((notification: { type: string }) => notification.type)).toContain("task_reminder");
     });
 
     it("J6 — a member leaves: access stops, open work is unassigned, history stays", async () => {

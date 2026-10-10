@@ -11,7 +11,8 @@ import type { NotificationType, Prisma } from "../generated/prisma/client.js";
 interface NotificationDraft {
     recipientId: string;
     workspaceId: string | null;
-    actorId: string;
+    // Null for system notifications (reminders, overdue alerts).
+    actorId: string | null;
     type: NotificationType;
     taskId?: string;
     commentId?: string;
@@ -21,7 +22,7 @@ interface NotificationDraft {
 }
 
 const createNotifications = (tx: Prisma.TransactionClient, drafts: NotificationDraft[]) => {
-    const recipients = drafts.filter((draft) => draft.recipientId !== draft.actorId);
+    const recipients = drafts.filter((draft) => draft.actorId === null || draft.recipientId !== draft.actorId);
     if (recipients.length === 0) return Promise.resolve({ count: 0 });
     return tx.notification.createMany({ data: recipients, skipDuplicates: true });
 };
@@ -86,6 +87,28 @@ export const notifyMentions = async (
         }))
     );
 };
+
+// ─── Reminders and overdue alerts ─────────────────────
+// Sent by the reminder sweep, not by a person. `scheduleKey` identifies the schedule that
+// fired (the reminder/due instant), so re-running the sweep can't notify twice.
+export const notifyTaskSchedule = (
+    tx: Prisma.TransactionClient,
+    kind: "task_reminder" | "task_overdue",
+    task: { id: string; workspaceId: string; title: string },
+    recipientId: string,
+    scheduleKey: string
+) =>
+    createNotifications(tx, [
+        {
+            recipientId,
+            workspaceId: task.workspaceId,
+            actorId: null,
+            type: kind,
+            taskId: task.id,
+            summary: task.title,
+            deliveryKey: `${kind}:${task.id}:${scheduleKey}:${recipientId}`,
+        },
+    ]);
 
 // ─── Invitations ─────────────────────
 // Only when an account with that email already exists — otherwise the email is the only

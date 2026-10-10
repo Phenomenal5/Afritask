@@ -17,7 +17,10 @@ interface OutgoingEmail {
 }
 
 // Only the fields a reminder email shows.
-type ReminderTask = Pick<Task, "title" | "description" | "dueAt">;
+type ReminderTask = Pick<Task, "title" | "description" | "dueAt"> & { id?: string };
+
+// "reminder": the chosen reminder time arrived. "overdue": the deadline passed while open.
+export type TaskEmailKind = "reminder" | "overdue";
 
 // ─── Test mailbox ─────────────────────
 // NOTE: test seam. Under NODE_ENV=test nothing goes to Brevo: messages are captured here so
@@ -95,13 +98,13 @@ const buildPasswordChangedMessage = () => `
   <p>If you did not authorize this update, please secure your account immediately by resetting your password again.</p>
 `;
 
-const buildTaskReminderMessage = (task: ReminderTask) => {
+const buildTaskReminderMessage = (task: ReminderTask, kind: TaskEmailKind = "reminder") => {
   const title = escapeHtml(task?.title || "Untitled task");
   const deadline = escapeHtml(formatTaskDeadline(task?.dueAt));
   const description = task?.description ? escapeHtml(task.description) : "";
 
   return `
-    <p>You have a task coming up in AfriTask.</p>
+    <p>${kind === "overdue" ? "This AfriTask task has passed its deadline and is still open. Finish it, move the date, or hand it to someone else." : "You have a task coming up in AfriTask."}</p>
     <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="margin:22px 0 10px;">
       <tr>
         <td style="background-color:#FFF9F2; border:1px solid #E6D7C7; border-radius:18px; padding:22px 22px 18px;">
@@ -249,27 +252,29 @@ export const sendInvitationEmail = async (to: string, { workspaceName, inviterNa
   });
 };
 
-export const sendTaskReminderEmail = async (to: string, task: ReminderTask) => {
+export const sendTaskReminderEmail = async (to: string, task: ReminderTask, kind: TaskEmailKind = "reminder") => {
   const deadline = formatTaskDeadline(task?.dueAt);
   const taskTitle = task?.title || "Untitled task";
-  const dashboardUrl = CLIENT_URL;
+  // Straight to the task (the app re-checks access when it opens).
+  const taskUrl = task?.id ? `${CLIENT_URL}/tasks?task=${encodeURIComponent(task.id)}` : CLIENT_URL;
+  const isOverdue = kind === "overdue";
 
   await emailService.sendEmail({
     to,
-    subject: `Task Reminder: ${taskTitle}`,
+    subject: `${isOverdue ? "Overdue" : "Task Reminder"}: ${taskTitle}`,
     text: [
-      `Reminder for task: ${taskTitle}.`,
+      `${isOverdue ? "Overdue task" : "Reminder for task"}: ${taskTitle}.`,
       `Deadline: ${deadline}.`,
       task?.description ? `Description: ${task.description}` : null,
     ]
       .filter(Boolean)
       .join(" "),
     html: emailTemplate({
-      title: "Task Reminder",
-      badge: "⏰ Reminder",
-      message: buildTaskReminderMessage(task),
-      buttonText: "Open Dashboard",
-      buttonUrl: dashboardUrl,
+      title: isOverdue ? "Task Overdue" : "Task Reminder",
+      badge: isOverdue ? "⚠️ Overdue" : "⏰ Reminder",
+      message: buildTaskReminderMessage(task, kind),
+      buttonText: "Open Task",
+      buttonUrl: taskUrl,
     }),
   });
 };

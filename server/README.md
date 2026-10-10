@@ -17,7 +17,7 @@ Afritask is an Express + PostgreSQL (Prisma) API for authentication, user settin
 - Google OAuth login
 - Profile updates, password changes, and avatar uploads
 - Task CRUD, status updates, and ownership-scoped reads
-- Daily reminder emails for tasks due tomorrow
+- Per-task reminders (at due time, 1 hour, 1 day, 3 days or 1 week before) and overdue alerts, by email and in-app
 
 ## Setup
 
@@ -85,9 +85,11 @@ Every workspace-owned route checks the caller's active membership; non-members g
 
 ## Reminder Job
 
-The reminder job is a BullMQ job scheduler (stored in Redis), registered when the server starts. It runs every day at `8:00am` server time.
+A BullMQ job scheduler (stored in Redis), registered when the server starts, runs a reminder sweep every minute (`src/jobs/taskReminder.ts`).
 
-It finds incomplete tasks due tomorrow and sends reminder emails to the owning user.
+- Each task stores its next reminder time (`remindAt`) and pending overdue alert (`overdueCheckAt`), recomputed whenever the deadline, reminder choice, completion or project archive state changes — only ever to a future time.
+- The sweep claims each due schedule atomically, re-checks the task (still open, not archived, recipient still a member), then writes the in-app notification and sends the email to the assignee (or the creator if unassigned).
+- The `EmailDelivery` ledger prevents duplicate sends; failed emails are retried up to 3 times, then stay visible as `failed`. Schedules missed by more than 2 hours (worker down) are dropped rather than sent late.
 
 ## Notes
 

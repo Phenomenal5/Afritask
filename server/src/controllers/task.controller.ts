@@ -11,6 +11,12 @@ import { parseDue } from "../utils/dueDate.js";
 import routeParam from "../utils/routeParam.js";
 import { diffFields, recordActivity } from "../services/activityService.js";
 import { notifyTaskAssigned } from "../services/notificationService.js";
+import {
+    DEFAULT_REMINDER_OFFSET,
+    computeSchedule,
+    parseReminderOffset,
+    scheduleInputsChanged,
+} from "../utils/reminderSchedule.js";
 
 // ─── Input parsing ─────────────────────
 // Each helper throws an operational 400 so bad input never reaches Prisma as a 500.
@@ -229,6 +235,18 @@ const completionChange = (previousStatus: TaskStatus, nextStatus: TaskStatus | u
     return {};
 };
 
+// Reminder choice + first schedule for a new task or subtask. No explicit choice and a
+// deadline → the default reminder. (New tasks can't be in archived projects.)
+const reminderFieldsForNewTask = (rawOffset: unknown, due: ReturnType<typeof parseDue>, status: TaskStatus) => {
+    const parsedOffset = parseReminderOffset(rawOffset);
+    const reminderOffset = parsedOffset !== undefined ? parsedOffset : due?.dueAt ? DEFAULT_REMINDER_OFFSET : null;
+    const schedule = computeSchedule(
+        { dueAt: due?.dueAt ?? null, dueKind: due?.dueKind ?? null, dueTimezone: due?.dueTimezone ?? null, reminderOffset, status },
+        null
+    );
+    return { reminderOffset, ...schedule };
+};
+
 // Apply a versioned update: succeeds only if nobody changed the task since `expectedVersion`.
 // `alsoInTransaction` runs related writes (labels, subtasks following a project move) in the
 // SAME transaction, so a version conflict rolls them back too. The before/after history
@@ -253,6 +271,13 @@ const updateWithVersionCheck = async (
 
         const after = await tx.task.findUniqueOrThrow({ where: { id: taskId }, include: taskInclude });
         await notifyTaskAssigned(tx, after, before.assigneeMembershipId, actorId);
+
+        // NOTE: only when the deadline, reminder choice, completion or archive state changed —
+        // re-planning on a title edit would re-arm a reminder that already fired.
+        const projectStateOf = (row: typeof after) => row.project?.state ?? null;
+        if (scheduleInputsChanged({ ...before, projectState: projectStateOf(before) }, { ...after, projectState: projectStateOf(after) })) {
+            await tx.task.update({ where: { id: taskId }, data: computeSchedule(after, projectStateOf(after)) });
+        }
         const changes = diffFields(toHistorySnapshot(before), toHistorySnapshot(after), [...HISTORY_FIELDS]);
         if (Object.keys(changes).length > 0) {
             await recordActivity(tx, {
@@ -347,6 +372,7 @@ export const createWorkspaceTask = catchAsync(async (req, res) => {
 
     const status = parseStatus(req.body.status) ?? TaskStatus.todo;
     const due = parseDue(req.body, user.timezone);
+    const reminder = reminderFieldsForNewTask(req.body.reminderOffset, due, status);
     const labelIds = await parseLabelIds(req.body.labelIds, membership.workspaceId);
     const projectId = await parseProjectId(req.body.projectId, membership.workspaceId);
     // Anyone may set an assignee on a task they create (they're its creator).
@@ -367,6 +393,7 @@ export const createWorkspaceTask = catchAsync(async (req, res) => {
                     status,
                     priority: parsePriority(req.body.priority),
                     ...(due ?? {}),
+                    ...reminder,
                     completedAt: status === TaskStatus.completed ? new Date() : null,
                 },
                 include: taskInclude,
@@ -432,6 +459,11 @@ export const editTask = catchAsync(async (req, res) => {
 
     const status = parseStatus(req.body.status);
     const due = parseDue(req.body, user.timezone);
+    let reminderOffset = parseReminderOffset(req.body.reminderOffset);
+    // A deadline added to a task that never had one gets the default reminder, like a new task.
+    if (reminderOffset === undefined && due?.dueAt && !existingTask.dueAt && !existingTask.reminderOffset) {
+        reminderOffset = DEFAULT_REMINDER_OFFSET;
+    }
     const labelIds = await parseLabelIds(req.body.labelIds, existingTask.workspaceId);
     // Moving between projects stays inside the task's workspace (PRD FR06).
     const projectId = await parseProjectId(req.body.projectId, existingTask.workspaceId);
@@ -452,6 +484,7 @@ export const editTask = catchAsync(async (req, res) => {
             status,
             priority: parsePriority(req.body.priority),
             ...(due ?? {}),
+            reminderOffset,
             ...completionChange(existingTask.status, status),
             assigneeMembershipId,
             projectId,
@@ -530,6 +563,7 @@ export const createSubtask = catchAsync(async (req, res) => {
 
     const status = parseStatus(req.body.status) ?? TaskStatus.todo;
     const due = parseDue(req.body, user.timezone);
+    const reminder = reminderFieldsForNewTask(req.body.reminderOffset, due, status);
     const assigneeMembershipId = await parseAssigneeMembershipId(req.body.assigneeMembershipId, parent.workspaceId);
     const subtask = await prisma.$transaction(async (tx) => {
         const createdSubtask = await tx.task.create({
@@ -544,6 +578,7 @@ export const createSubtask = catchAsync(async (req, res) => {
                 status,
                 priority: parsePriority(req.body.priority),
                 ...(due ?? {}),
+                ...reminder,
                 completedAt: status === TaskStatus.completed ? new Date() : null,
             },
             include: taskInclude,

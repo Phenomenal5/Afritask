@@ -8,6 +8,7 @@ import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react
 import Link from "next/link";
 import toast from "react-hot-toast";
 import {
+  AlarmClock,
   AtSign,
   BellOff,
   CalendarClock,
@@ -44,6 +45,8 @@ const TYPE_META: Record<AppNotification["type"], { icon: LucideIcon; label: stri
   task_assigned: { icon: UserRoundCheck, label: "Assignment" },
   comment_mention: { icon: AtSign, label: "Mention" },
   invitation_received: { icon: Mail, label: "Invitation" },
+  task_reminder: { icon: AlarmClock, label: "Reminder" },
+  task_overdue: { icon: TriangleAlert, label: "Overdue" },
 };
 
 // One sentence that says what happened and why it matters to you.
@@ -55,6 +58,10 @@ function describeNotification(notification: AppNotification): ReactNode {
       return <>{actor} assigned you {subject}. You&apos;re now responsible for moving it forward.</>;
     case "comment_mention":
       return <>{actor} mentioned you in a comment on {subject}.</>;
+    case "task_reminder":
+      return <>Reminder: {subject} is due soon.</>;
+    case "task_overdue":
+      return <>{subject} has passed its due time and is still open. Finish it, move the date, or hand it to someone else.</>;
     case "invitation_received":
       return (
         <>
@@ -219,7 +226,7 @@ export default function NotificationsPage() {
               body={
                 filter === "unread"
                   ? "Nothing unread. Earlier notifications are under All."
-                  : "You'll hear here when someone assigns you a task, mentions you in a comment or invites you to a workspace."
+                  : "You'll hear here when someone assigns you a task, mentions you, invites you to a workspace, or a task's reminder or deadline arrives."
               }
             />
           </div>

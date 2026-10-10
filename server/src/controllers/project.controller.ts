@@ -9,6 +9,7 @@ import { normalizeWorkspaceName } from "../utils/workspaceValidation.js";
 import { requireUser } from "../middlewares/auth.middleware.js";
 import { requireActiveMembership, requireMembership } from "../middlewares/workspaceAccess.middleware.js";
 import { diffFields, recordActivity, type ActivityAction, type ActivityChanges } from "../services/activityService.js";
+import { computeSchedule } from "../utils/reminderSchedule.js";
 
 // ─── Projects (SRS SR05, PRD FR05) ─────────────────────
 // Every active member can view; Owner/Admin create, edit, archive and restore.
@@ -160,6 +161,8 @@ export const archiveProject = catchAsync(async (req, res) => {
             data: { priorState: project.state, state: ProjectState.archived },
         });
         if (count === 0) throw new AppError("This project is already archived", 409);
+        // Reminders and overdue alerts pause while archived (PRD FR05).
+        await tx.task.updateMany({ where: { projectId: project.id }, data: { remindAt: null, overdueCheckAt: null } });
         await recordActivity(tx, projectActivity(project, membership.userId, "project.archived", {
             state: { from: project.state, to: ProjectState.archived },
         }));
@@ -181,6 +184,15 @@ export const restoreProject = catchAsync(async (req, res) => {
             where: { id: project.id },
             data: { state: project.priorState ?? ProjectState.active, priorState: null },
         });
+        // Re-plan the paused schedules — future times only, so restoring never sends a
+        // burst of reminders that came due while the project was archived (SRS SR17).
+        const openTasks = await tx.task.findMany({
+            where: { projectId: project.id, status: { not: "completed" }, dueAt: { not: null } },
+            select: { id: true, dueAt: true, dueKind: true, dueTimezone: true, reminderOffset: true, status: true },
+        });
+        for (const openTask of openTasks) {
+            await tx.task.update({ where: { id: openTask.id }, data: computeSchedule(openTask, restoredProject.state) });
+        }
         await recordActivity(tx, projectActivity(restoredProject, membership.userId, "project.restored", {
             state: { from: ProjectState.archived, to: restoredProject.state },
         }));

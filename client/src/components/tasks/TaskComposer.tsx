@@ -13,6 +13,8 @@ import { useWorkspaceResources } from "@/context/WorkspaceResourcesContext";
 import { useOnlineStatus } from "@/hooks/useOnlineStatus";
 import { PRIORITY_STYLES, STATUS_LABELS, TASK_PRIORITIES, TASK_STATUSES } from "@/utils/taskMeta";
 import { duePayload, dueFieldError } from "@/utils/dueFields";
+import { DEFAULT_REMINDER, type ReminderChoice } from "@/utils/reminders";
+import ReminderSelect from "./ReminderSelect";
 import { clearDraft, readDraft, writeDraft } from "@/utils/draftStorage";
 import { detectTimezone, formatTimezoneLabel } from "@/utils/timezones";
 import Dialog from "@/components/ui/Dialog";
@@ -34,6 +36,7 @@ interface ComposerForm {
   assigneeMembershipId: string;
   dueDate: string;
   dueTime: string;
+  reminderOffset: ReminderChoice;
   labelIds: string[];
 }
 
@@ -46,6 +49,7 @@ const EMPTY_FORM: ComposerForm = {
   assigneeMembershipId: "",
   dueDate: "",
   dueTime: "",
+  reminderOffset: DEFAULT_REMINDER,
   labelIds: [],
 };
 
@@ -149,6 +153,8 @@ export default function TaskComposer({ open, defaults, onClose, onCreated }: Tas
       labelIds: form.labelIds,
       clientRequestId: requestId,
       ...duePayload(form, profileTimezone, null),
+      // Only meaningful with a deadline; without one the server stores no reminder.
+      ...(form.dueDate && { reminderOffset: form.reminderOffset }),
     };
 
     setSaving(true);
@@ -259,7 +265,7 @@ export default function TaskComposer({ open, defaults, onClose, onCreated }: Tas
             className="inline-flex min-h-11 cursor-pointer items-center gap-1.5 rounded-[8px] text-[15px] font-medium text-forest hover:underline"
           >
             <ChevronDown size={17} aria-hidden="true" className={showDetails ? "rotate-180 transition-transform" : "transition-transform"} />
-            {showDetails ? "Fewer details" : "More details: description, time, status, labels"}
+            {showDetails ? "Fewer details" : "More details: description, time, reminder, status, labels"}
           </button>
         </div>
 
@@ -283,6 +289,12 @@ export default function TaskComposer({ open, defaults, onClose, onCreated }: Tas
                 value={form.dueTime}
                 onChange={(event) => update("dueTime", event.target.value)}
                 hint="Adds an exact time to the due date, on this device's clock."
+              />
+              <ReminderSelect
+                value={form.reminderOffset}
+                onChange={(choice) => update("reminderOffset", choice)}
+                hasDueDate={!!form.dueDate}
+                hasDueTime={!!form.dueTime}
               />
               <SelectField label="Status" value={form.status} onChange={(event) => update("status", event.target.value as TaskStatus)}>
                 {TASK_STATUSES.map((status: TaskStatus) => (

@@ -220,14 +220,16 @@ export default function PrivacyPage() {
               password changes.
             </li>
             <li>
-              <strong>Task reminders.</strong> Each morning, we email you about any
-              task that is due the next day and isn&apos;t marked complete. The email
-              includes the task&apos;s title, deadline, and description.
+              <strong>Task reminders.</strong> When a task&apos;s reminder time arrives
+              (one day before its deadline unless you chose another time, or none), and
+              once if it becomes overdue while still open, we email the person it&apos;s
+              assigned to (or its creator if nobody is). The email includes the
+              task&apos;s title, deadline, and description.
             </li>
           </ul>
           <p>
-            We don&apos;t send marketing email. To stop a reminder for a task, mark
-            it complete or remove its deadline.
+            We don&apos;t send marketing email. To stop a reminder for a task, set its
+            reminder to &ldquo;No reminder&rdquo;, mark it complete, or remove its deadline.
           </p>
         </Section>
 

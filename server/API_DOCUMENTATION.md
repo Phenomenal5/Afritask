@@ -555,6 +555,17 @@ else answers `400`). Each comment carries `editedAt` (set only when the text act
 changed), `canEdit` and `canDelete`. Tasks in archived projects answer `409` to new
 comments, edits and deletes; reading still works. Comments aren't part of the activity log.
 
+## Reminders
+
+Send `reminderOffset` on task create/edit: `at_due`, `one_hour`, `one_day`, `three_days`,
+`one_week`, or `none`. A task created (or first given a deadline) without a choice gets
+`one_day`. Date-only deadlines anchor at 09:00 local time on the due date (so `one_day` is
+09:00 the day before). Tasks return `reminderOffset`, `remindAt` and `overdueCheckAt` —
+the pending reminder and overdue alert, `null` when nothing is pending. Only future times
+are scheduled; completing a task or archiving its project clears them, and reopening or
+restoring re-plans future ones. When they fire, the assignee (or the creator, while still a
+member) gets a `task_reminder` / `task_overdue` notification and email, once per schedule.
+
 ## Notifications
 
 In-app notifications belong to the signed-in account, across all its workspaces.
@@ -566,7 +577,7 @@ In-app notifications belong to the signed-in account, across all its workspaces.
 | POST | `/api/notifications/:id/read` | mark one read (keeps the first read time) |
 | POST | `/api/notifications/read-all` | mark all read |
 
-Types: `task_assigned` (someone else made you the assignee of a task or subtask),
+Types: `task_reminder` / `task_overdue` (see Reminders), `task_assigned` (someone else made you the assignee of a task or subtask),
 `comment_mention` (you were newly mentioned — unchanged mentions on edit don't re-notify),
 `invitation_received` (a workspace invited your email and you already have an account; a
 resend doesn't add another). You're never notified of your own actions. Each notification

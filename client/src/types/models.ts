@@ -5,6 +5,7 @@ export type TaskStatus = "todo" | "in_progress" | "in_review" | "completed";
 export type TaskPriority = "low" | "medium" | "high" | "urgent";
 export type WorkspaceRole = "owner" | "admin" | "member";
 export type ProjectState = "active" | "on_hold" | "completed" | "archived";
+export type ReminderOffset = "at_due" | "one_hour" | "one_day" | "three_days" | "one_week";
 
 export interface PublicUser {
   id: string;
@@ -60,6 +61,10 @@ export interface Task {
   dueKind: "date" | "datetime" | null;
   dueTimezone: string | null;
   completedAt: string | null;
+  reminderOffset: ReminderOffset | null;
+  // When the pending reminder / overdue alert fires; null when nothing is pending.
+  remindAt: string | null;
+  overdueCheckAt: string | null;
   version: number;
   createdAt: string;
   updatedAt: string;
@@ -115,7 +120,7 @@ export interface Comment {
   canDelete: boolean;
 }
 
-export type NotificationType = "task_assigned" | "comment_mention" | "invitation_received";
+export type NotificationType = "task_assigned" | "comment_mention" | "invitation_received" | "task_reminder" | "task_overdue";
 
 export interface AppNotification {
   id: string;

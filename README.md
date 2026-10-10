@@ -60,7 +60,7 @@ labphase/
         ├── generated/    # Prisma client (generated from server/prisma/schema.prisma)
         ├── routes/       # thin route wiring
         ├── middlewares/  # auth, roles, error handler, uploads
-        ├── jobs/         # daily reminder job (BullMQ)
+        ├── jobs/         # reminder sweep (BullMQ, every minute)
         └── utils/        # AppError, catchAsync, logger, tokens
 ```
 
@@ -85,8 +85,8 @@ repositories and are now combined here for the lab-phase submission.
 - Optimistic status/delete updates in the UI, rolled back on failure
 
 **Automation**
-- A daily BullMQ job (8:00am server time) emails reminders for
-  incomplete tasks due the next day
+- Per-task reminders and overdue alerts (email + in-app), sent by a
+  BullMQ sweep that runs every minute
 
 ---
 
