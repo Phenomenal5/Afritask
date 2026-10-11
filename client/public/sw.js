@@ -11,10 +11,10 @@
 //   so an update never interrupts someone mid-edit.
 
 // Bump when this file's caching rules change; old caches are deleted on activate.
-const CACHE_NAME = "afritask-static-v2";
+const CACHE_NAME = "afritask-static-v3";
 const OFFLINE_URL = "/offline.html";
 // The notification sound is cached too, so it plays instantly (and offline).
-const PRECACHE = [OFFLINE_URL, "/icons/icon-192.png", "/icons/icon.svg", "/sounds/notification.wav"];
+const PRECACHE = [OFFLINE_URL, "/icons/icon-192.png", "/icons/icon.svg", "/sounds/mixkit-happy-bells-notification-937.wav"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(PRECACHE)));
