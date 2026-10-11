@@ -257,8 +257,8 @@ export default function AccountSettingsPage() {
               <div className="text-[14.5px]">
                 <p className="font-semibold text-ink">Task reminders and overdue alerts</p>
                 <p className="mt-0.5 text-muted">
-                  Each task has its own reminder — one day before its deadline unless someone picks another time, or none — set in the task
-                  itself. When it fires, and once if the task becomes overdue, the assignee (or the creator, if nobody is assigned) gets an email
+                  Each task has its own reminder, set in the task itself. It&apos;s one day before the deadline unless someone picks another
+                  time or turns it off. When it fires, and once if the task becomes overdue, the assignee (or the creator, if nobody is assigned) gets an email
                   and an in-app notification. Completed tasks and archived projects stay quiet.
                 </p>
               </div>
@@ -270,7 +270,7 @@ export default function AccountSettingsPage() {
                 <p className="mt-0.5 text-muted">When someone assigns you a task, mentions you in a comment or invites you to a workspace. They appear under Notifications.</p>
               </div>
             </div>
-            <Notice icon={Info}>Turning email types on or off isn&apos;t available yet — set a task&apos;s reminder to &ldquo;No reminder&rdquo; to silence it. Account emails (verification, password changes, invitations) are always sent.</Notice>
+            <Notice icon={Info}>You can&apos;t turn email types on or off yet. To silence a task, set its reminder to &ldquo;No reminder&rdquo;. Account emails (verification, password changes, invitations) are always sent.</Notice>
           </div>
         </SettingsSection>
 

@@ -26,14 +26,14 @@ type ReminderTask = Pick<Task, "title" | "description" | "dueAt"> & { id?: strin
 export type TaskEmailKind = "reminder" | "overdue" | "starting";
 
 const TASK_EMAIL_COPY: Record<TaskEmailKind, { subject: string; title: string; badge: string; lead: string }> = {
-  reminder: { subject: "Task Reminder", title: "Task Reminder", badge: "⏰ Reminder", lead: "You have a task coming up in AfriTask." },
+  reminder: { subject: "Task Reminder", title: "Task Reminder", badge: "Reminder", lead: "You have a task coming up in Afritask." },
   overdue: {
     subject: "Overdue",
     title: "Task Overdue",
-    badge: "⚠️ Overdue",
-    lead: "This AfriTask task has passed its deadline and is still open. Finish it, move the date, or hand it to someone else.",
+    badge: "Overdue",
+    lead: "This Afritask task has passed its deadline and is still open. Finish it, move the date, or hand it to someone else.",
   },
-  starting: { subject: "Starting tomorrow", title: "Starting Tomorrow", badge: "🗓️ Starting soon", lead: "You planned to start this task tomorrow — a good moment to get ready." },
+  starting: { subject: "Starting tomorrow", title: "Starting Tomorrow", badge: "Starting soon", lead: "You planned to start this task tomorrow, so now is a good time to get ready." },
 };
 
 // ─── Test mailbox ─────────────────────
@@ -83,34 +83,34 @@ const formatTaskDeadline = (dueAt?: Date | string | null) => {
 };
 
 const buildPasswordResetMessage = () => `
-  <p>We received a request to reset your AfriTask password.</p>
-  <p>This secure link will expire soon, so please complete the reset as soon as possible.</p>
+  <p>We received a request to reset your Afritask password.</p>
+  <p>The link below expires soon, so use it while it still works.</p>
   <p>If you did not request this change, you can safely ignore this email and your password will stay the same.</p>
   <p style="margin:24px 0 0; color:#6A5B4C;">You can reset your password using the button below.</p>
 `;
 
 const buildVerificationMessage = () => `
-  <p>Welcome to AfriTask. Please verify your email address to activate your account.</p>
-  <p>Verification helps keep your account secure and ensures we can send you important updates.</p>
-  <p>Once verified, you will be ready to start organizing your tasks.</p>
+  <p>Welcome to Afritask. Please verify your email address to activate your account.</p>
+  <p>This keeps your account safe and makes sure we can reach you about it.</p>
+  <p>Once that is done, you can start adding your tasks.</p>
 `;
 
 const buildWelcomeMessage = (name = "there") => `
-  <p>Welcome to AfriTask, ${escapeHtml(name)}.</p>
-  <p>Your account is ready, and we're glad to have you here.</p>
-  <p>With AfriTask, you can:</p>
+  <p>Welcome to Afritask, ${escapeHtml(name)}.</p>
+  <p>Your account is ready. We're glad you're here.</p>
+  <p>With Afritask, you can:</p>
   <ul style="margin:14px 0 0; padding-left:20px;">
     <li style="margin:0 0 8px;">Create and manage tasks</li>
     <li style="margin:0 0 8px;">Set reminders and deadlines</li>
     <li style="margin:0 0 8px;">Track progress</li>
-    <li style="margin:0;">Stay focused on priorities</li>
+    <li style="margin:0;">Keep track of what matters most</li>
   </ul>
 `;
 
 const buildPasswordChangedMessage = () => `
-  <p>Your AfriTask password has been updated successfully.</p>
+  <p>Your Afritask password has been updated successfully.</p>
   <p>If you made this change, no further action is needed.</p>
-  <p>If you did not authorize this update, please secure your account immediately by resetting your password again.</p>
+  <p>If you did not make this change, reset your password straight away to secure your account.</p>
 `;
 
 const buildTaskReminderMessage = (task: ReminderTask, kind: TaskEmailKind = "reminder") => {
@@ -147,10 +147,14 @@ export const sendPasswordResetEmail = async (to: string, token: string) => {
   await emailService.sendEmail({
     to,
     subject: "Reset Your Password",
-    text: `We received a password reset request for your AfriTask account. Reset it here: ${resetUrl}. This link expires soon. If you did not request this, you can ignore this email.`,
+    text: `We received a password reset request for your Afritask account. Reset it here:
+
+${resetUrl}
+
+This link expires soon. If you did not request this, you can ignore this email.`,
     html: emailTemplate({
       title: "Reset Your Password",
-      badge: "🔐 Security",
+      badge: "Security",
       message: buildPasswordResetMessage(),
       buttonText: "Reset Password",
       buttonUrl: resetUrl,
@@ -164,10 +168,14 @@ export const sendEmailVerificationCode = async (to: string, token: string) => {
   await emailService.sendEmail({
     to,
     subject: "Verify Your Email",
-    text: `Welcome to AfriTask. Verify your email here: ${verificationUrl}. Verification helps protect your account.`,
+    text: `Welcome to Afritask. Verify your email here:
+
+${verificationUrl}
+
+Verification helps protect your account.`,
     html: emailTemplate({
       title: "Verify Your Email",
-      badge: "✨ Welcome",
+      badge: "Welcome",
       message: buildVerificationMessage(),
       buttonText: "Verify Email",
       buttonUrl: verificationUrl,
@@ -180,13 +188,13 @@ export const sendWelcomeEmail = async (to: string, name = "there") => {
 
   await emailService.sendEmail({
     to,
-    subject: "Welcome to AfriTask 🎉",
-    text: `Welcome to AfriTask, ${name}. Your account is ready. You can create and manage tasks, set reminders and deadlines, track progress, and stay focused on priorities.`,
+    subject: "Welcome to Afritask",
+    text: `Welcome to Afritask, ${name}. Your account is ready. You can create and manage tasks, set reminders and deadlines, track progress, and keep track of what matters most.`,
     html: emailTemplate({
-      title: `Welcome to AfriTask, ${name}!`,
-      badge: "🎉 Account Ready",
+      title: `Welcome to Afritask, ${name}!`,
+      badge: "Account ready",
       message: buildWelcomeMessage(name),
-      buttonText: "Open AfriTask",
+      buttonText: "Open Afritask",
       buttonUrl: dashboardUrl,
     }),
   });
@@ -214,10 +222,10 @@ export const sendPasswordChangedEmail = async (to: string) => {
   await emailService.sendEmail({
     to,
     subject: "Password Changed Successfully",
-    text: "Your AfriTask password was changed successfully. If this was not you, reset your password immediately.",
+    text: "Your Afritask password was changed successfully. If this was not you, reset your password immediately.",
     html: emailTemplate({
       title: "Password Changed Successfully",
-      badge: "🛡️ Security Alert",
+      badge: "Security alert",
       message: buildPasswordChangedMessage(),
       buttonText: "Secure Account",
       buttonUrl: dashboardUrl,
@@ -251,14 +259,18 @@ export const sendInvitationEmail = async (to: string, { workspaceName, inviterNa
 
   await emailService.sendEmail({
     to,
-    subject: `${inviterName} invited you to ${workspaceName} on AfriTask`,
-    text: `${inviterName} invited you to join ${workspaceName} on AfriTask as ${roleLabel}. Open this link to accept or decline: ${inviteUrl}. The invitation expires in 7 days. If you weren't expecting it, you can ignore this email.`,
+    subject: `${inviterName} invited you to ${workspaceName} on Afritask`,
+    text: `${inviterName} invited you to join ${workspaceName} on Afritask as ${roleLabel}. Open this link to accept or decline:
+
+${inviteUrl}
+
+The invitation expires in 7 days. If you weren't expecting it, you can ignore this email.`,
     html: emailTemplate({
       title: `Join ${workspaceName}`,
-      badge: "🤝 Invitation",
+      badge: "Invitation",
       message: `
-        <p>${escapeHtml(inviterName)} invited you to join <strong>${escapeHtml(workspaceName)}</strong> on AfriTask as ${roleLabel}.</p>
-        <p>You'll be able to see the workspace's projects and tasks once you accept. If you don't have an AfriTask account yet, you can create one with this email address.</p>
+        <p>${escapeHtml(inviterName)} invited you to join <strong>${escapeHtml(workspaceName)}</strong> on Afritask as ${roleLabel}.</p>
+        <p>You'll be able to see the workspace's projects and tasks once you accept. If you don't have an Afritask account yet, you can create one with this email address.</p>
         <p style="margin:24px 0 0; color:#6A5B4C;">The invitation expires in 7 days. If you weren't expecting it, you can safely ignore this email.</p>
       `,
       buttonText: "View invitation",
@@ -305,15 +317,19 @@ const paragraphsOf = (body: string) =>
 export const sendNewsletterConfirmationEmail = async (to: string, confirmUrl: string) => {
   await emailService.sendEmail({
     to,
-    subject: "Confirm your AfriTask newsletter subscription",
-    text: `Someone (hopefully you) asked to get the AfriTask newsletter at this address. Confirm here: ${confirmUrl} — if it wasn't you, ignore this email and nothing will be sent.`,
+    subject: "Confirm your Afritask newsletter subscription",
+    text: `Someone (hopefully you) asked to get the Afritask newsletter at this address. Confirm here:
+
+${confirmUrl}
+
+If it wasn't you, ignore this email and nothing will be sent.`,
     html: emailTemplate({
       title: "Confirm your subscription",
-      badge: "📰 Newsletter",
+      badge: "Newsletter",
       message: `
-        <p>Someone (hopefully you) asked to get the AfriTask newsletter at this address.</p>
+        <p>Someone (hopefully you) asked to get the Afritask newsletter at this address.</p>
         <p>Confirm and you'll get product news and tips now and then. You can unsubscribe any time with one click.</p>
-        <p>If it wasn't you, ignore this email — nothing will be sent.</p>
+        <p>If it wasn't you, just ignore this email. Nothing will be sent.</p>
       `,
       buttonText: "Confirm subscription",
       buttonUrl: confirmUrl,
@@ -330,22 +346,26 @@ export const sendNewsletterPostEmail = async (
   unsubscribe: { pageUrl: string; oneClickUrl: string },
 ) => {
   const postUrl = `${CLIENT_URL}/news/${encodeURIComponent(post.id)}`;
-  const optOutText = `You're getting this because you subscribed to the AfriTask newsletter. To stop, unsubscribe here: ${unsubscribe.pageUrl} — or, if you have an account, turn off "Afritask newsletter" in Settings → Profile.`;
+  const optOutText = `You're getting this because you subscribed to the Afritask newsletter. To stop, unsubscribe here:
+
+${unsubscribe.pageUrl}
+
+If you have an account, you can also turn off "Afritask newsletter" under Profile in Settings.`;
 
   await emailService.sendEmail({
     to,
     subject: post.title,
-    text: [post.summary, ...paragraphsOf(post.body), `Read it on AfriTask: ${postUrl}`, optOutText].filter(Boolean).join("\n\n"),
+    text: [post.summary, ...paragraphsOf(post.body), `Read it on Afritask: ${postUrl}`, optOutText].filter(Boolean).join("\n\n"),
     html: emailTemplate({
       title: post.title,
-      badge: "📰 AfriTask news",
+      badge: "Afritask news",
       message: [
         post.summary ? `<p style="font-weight:700;">${escapeHtml(post.summary)}</p>` : "",
         ...paragraphsOf(post.body).map((paragraph) => `<p>${escapeHtml(paragraph).replace(/\n/g, "<br />")}</p>`),
       ].join(""),
-      buttonText: "Read on AfriTask",
+      buttonText: "Read on Afritask",
       buttonUrl: postUrl,
-      footerNote: `You're getting this because you subscribed to the AfriTask newsletter.<br /><a href="${escapeHtml(unsubscribe.pageUrl)}" style="color:inherit; font-weight:700;">Unsubscribe</a> with one click, or turn off &ldquo;Afritask newsletter&rdquo; in Settings → Profile.`,
+      footerNote: `You're getting this because you subscribed to the Afritask newsletter.<br /><a href="${escapeHtml(unsubscribe.pageUrl)}" style="color:inherit; font-weight:700;">Unsubscribe</a> with one click, or turn off &ldquo;Afritask newsletter&rdquo; under Profile in Settings.`,
     }),
     headers: {
       "List-Unsubscribe": `<${unsubscribe.oneClickUrl}>`,

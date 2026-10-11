@@ -24,7 +24,7 @@ function StoryPanel() {
         A clear place for your <em className="font-medium text-lime">next step.</em>
       </p>
       <p className="mt-5 max-w-sm text-[16px] leading-relaxed text-sidebar-muted">
-        Big plans. Small tasks. People to bring along. Keep them together, and move forward with a little more clarity.
+        Break big plans into small tasks and bring in the people who can help. Keeping it all in one place makes the next step easier to see.
       </p>
 
       {/* Plan → people → progress, joined by one path. Decorative. */}

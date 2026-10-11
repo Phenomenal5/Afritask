@@ -140,7 +140,7 @@ export default function TaskComposer({ open, defaults, onClose, onCreated }: Tas
     event.preventDefault();
     const trimmedTitle = form.title.trim();
     if (!trimmedTitle) {
-      setTitleError("Give the task a title — a few words about the next step is enough.");
+      setTitleError("Give the task a title. A few words about the next step is enough.");
       titleRef.current?.focus();
       return;
     }
@@ -245,7 +245,7 @@ export default function TaskComposer({ open, defaults, onClose, onCreated }: Tas
             label="Project"
             value={form.projectId}
             onChange={(event) => update("projectId", event.target.value)}
-            hint={activeProjects.length === 0 ? "No projects yet — the task stays in the workspace." : undefined}
+            hint={activeProjects.length === 0 ? "No projects yet, so the task stays in the workspace." : undefined}
           >
             <option value="">No project</option>
             {activeProjects.map((project) => (
@@ -260,7 +260,7 @@ export default function TaskComposer({ open, defaults, onClose, onCreated }: Tas
             type="date"
             value={form.startDate}
             onChange={(event) => update("startDate", event.target.value)}
-            hint={form.startDate ? "You'll get a reminder the day before, so you can prepare." : "When you plan to begin — leave empty to start any time."}
+            hint={form.startDate ? "You'll get a reminder the day before, so you can prepare." : "When you plan to begin. Leave it empty to start any time."}
             error={startError}
           />
           <TextField
@@ -301,7 +301,7 @@ export default function TaskComposer({ open, defaults, onClose, onCreated }: Tas
               rows={4}
               value={form.description}
               onChange={(event) => update("description", event.target.value)}
-              placeholder="Context, links, what 'done' looks like…"
+              placeholder="Context, links, what 'done' looks like"
               maxLength={20000}
               hint={descriptionCharsLeft < 1000 ? `${descriptionCharsLeft} characters left` : undefined}
             />

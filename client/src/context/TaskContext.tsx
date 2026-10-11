@@ -90,7 +90,7 @@ export function TaskProvider({ children }: { children: ReactNode }) {
       const failure = describeFailure(error, fallback);
       if (failure.kind === "session") return { success: false, message: failure.message };
       if (failure.kind === "conflict") {
-        toast.error("Someone else changed this task first. Showing the latest version — please redo your change.");
+        toast.error("Someone else changed this task first. Here is the latest version, so please make your change again.");
         emit({ type: "stale" });
         return { success: false, conflict: true, message: failure.message };
       }
@@ -109,7 +109,7 @@ export function TaskProvider({ children }: { children: ReactNode }) {
         toast.success(`Added “${task.title}”`);
         return { success: true, data: task };
       } catch (error) {
-        return handleFailure(error, "Couldn't add the task. Your text is still in the form — try again.");
+        return handleFailure(error, "Couldn't add the task. Your text is still in the form, so you can try again.");
       }
     },
     [emit, handleFailure]
@@ -138,7 +138,7 @@ export function TaskProvider({ children }: { children: ReactNode }) {
         toast.success("Changes saved");
         return { success: true, data: saved };
       } catch (error) {
-        return handleFailure(error, "Couldn't save your changes. They're still here — try again.");
+        return handleFailure(error, "Couldn't save your changes. They're still here, so you can try again.");
       }
     },
     [emit, handleFailure]

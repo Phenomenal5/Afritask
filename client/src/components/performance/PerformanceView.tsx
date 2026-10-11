@@ -19,7 +19,7 @@ const STATUS = { good: "#0ca30c", warning: "#fab219", critical: "#d03b3b" } as c
 // Categorical slot 1, stepped per theme.
 const SERIES_ONE = { light: "#2a78d6", dark: "#3987e5" } as const;
 
-const percent = (rate: number | null) => (rate === null ? "—" : `${Math.round(rate * 100)}%`);
+const percent = (rate: number | null) => (rate === null ? "No data" : `${Math.round(rate * 100)}%`);
 
 export const monthLabel = (month: string, style: "long" | "short" = "long") => {
   const [year, monthNumber] = month.split("-").map(Number) as [number, number];

@@ -1,3 +1,4 @@
+import CLIENT_URL from "../config/clientUrl.js";
 const colors = {
   paper: "#F6F0E7",
   paperRaised: "#FFF9F2",
@@ -22,11 +23,13 @@ const escapeHtml = (value: unknown = "") =>
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
 
+// The logo image in every email. Defaults to the web app's own icon, so emails always carry
+// the real mark. NOTE: this used to fall back to an emoji, which rendered as a broken <img>.
 const getLogoUrl = () =>
   process.env.EMAIL_LOGO_URL ||
   process.env.AFRITASK_LOGO_URL ||
   process.env.EMAIL_LOGO ||
-  "📝";
+  `${CLIENT_URL}/icons/icon-192.png`;
 
 interface EmailTemplateOptions {
   title: string;
@@ -67,8 +70,8 @@ export const emailTemplate = ({
           <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="max-width:640px; width:100%; margin:0 auto;">
             <tr>
               <td style="background-color:${colors.moss}; border-radius:28px 28px 0 0; padding:28px 32px; text-align:center;">
-                ${logoUrl ? `<div style="margin:0 0 12px;"><img src="${escapeHtml(logoUrl)}" alt="AfriTask logo" style="display:block; margin:0 auto; max-width:120px; width:auto; height:auto; border:0; outline:none; text-decoration:none;" /></div>` : ""}
-                <div style="font-family:Georgia, 'Times New Roman', serif; font-size:30px; line-height:1.1; font-weight:700; color:${colors.paper}; letter-spacing:0.2px;">AfriTask</div>
+                ${logoUrl ? `<div style="margin:0 0 12px;"><img src="${escapeHtml(logoUrl)}" alt="Afritask logo" style="display:block; margin:0 auto; max-width:120px; width:auto; height:auto; border:0; outline:none; text-decoration:none;" /></div>` : ""}
+                <div style="font-family:Georgia, 'Times New Roman', serif; font-size:30px; line-height:1.1; font-weight:700; color:${colors.paper}; letter-spacing:0.2px;">Afritask</div>
                 <div style="margin-top:10px; font-size:14px; line-height:1.5; color:${colors.paper}; opacity:0.92;">Organize your work. Focus on what matters.</div>
               </td>
             </tr>
@@ -93,7 +96,7 @@ export const emailTemplate = ({
               <td style="background-color:${colors.paperRaised}; border:1px solid ${colors.line}; border-top:1px solid ${colors.line}; border-radius:0 0 28px 28px; padding:0 36px 28px;">
                 <div style="border-top:1px solid ${colors.line}; padding-top:20px; font-size:13px; line-height:1.7; color:${colors.stone}; text-align:center;">
                   ${footerNote ? `<div style="margin-bottom:12px;">${footerNote}</div>` : ""}
-                  <div>&copy; ${year} AfriTask. All rights reserved.</div>
+                  <div>&copy; ${year} Afritask. All rights reserved.</div>
                   <div style="margin-top:4px;">Built for thoughtful productivity.</div>
                 </div>
               </td>

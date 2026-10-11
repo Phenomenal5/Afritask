@@ -51,7 +51,7 @@ export default function PushPermissionBanner() {
       <div className="min-w-0 flex-1">
         {blocked ? (
           <p>
-            <strong>Notifications are blocked for Afritask in this browser.</strong> Push is on in your settings — to get it here, allow notifications in the site
+            <strong>Notifications are blocked for Afritask in this browser.</strong> Push is on in your settings. To get it here, allow notifications in the site
             settings (the icon next to the address).
           </p>
         ) : (

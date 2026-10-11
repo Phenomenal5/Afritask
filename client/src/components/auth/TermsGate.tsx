@@ -51,7 +51,7 @@ export default function TermsGate() {
           Accept and continue
         </Button>
         <button type="button" onClick={logout} className="self-center text-[14px] font-medium text-muted underline-offset-4 hover:text-ink hover:underline">
-          Not now — sign out
+          Not now, sign out
         </button>
       </form>
     </AuthLayout>

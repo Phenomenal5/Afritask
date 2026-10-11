@@ -30,7 +30,7 @@ export const PAGE_HELP: Record<string, { title: string; body: string }> = {
   },
   "/tasks": {
     title: "Moving work along",
-    body: "Change a task's status from its Status menu — on the board you can also drag cards. Both save the same way.",
+    body: "Change a task's status from its Status menu. On the board you can also drag cards. Both save the same way.",
   },
   "/projects": {
     title: "Projects group work",

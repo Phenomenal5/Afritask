@@ -41,7 +41,7 @@ const errorResponses = (...statusCodes: number[]) => {
         400: "Invalid input",
         401: "Not signed in (or session expired/revoked)",
         403: "Signed in, but not allowed (or missing X-Requested-With on a write)",
-        404: "Not found — also returned for resources in workspaces you're not a member of",
+        404: "Not found. Also returned for resources in workspaces you're not a member of",
         409: "Conflict with the current state (e.g. stale version, already used, archived)",
         410: "Expired",
         429: "Rate limited",
@@ -82,7 +82,7 @@ const schemas = {
     },
     User: {
         type: "object",
-        description: "A user as the API returns it — passwords and tokens are never included.",
+        description: "A user as the API returns it. Passwords and tokens are never included.",
         properties: {
             id: { type: "string", format: "uuid" },
             name: { type: "string" },
@@ -158,7 +158,7 @@ const schemas = {
             dueKind: { type: ["string", "null"], enum: ["date", "datetime", null], description: "date = due by 23:59 that day in dueTimezone" },
             dueTimezone: { type: ["string", "null"] },
             completedAt: { type: ["string", "null"], format: "date-time" },
-            completionNote: { type: ["string", "null"], description: "What was done — set when the task was completed; null once reopened" },
+            completionNote: { type: ["string", "null"], description: "What was done. Set when the task is completed; null once it's reopened" },
             originalDueAt: { type: ["string", "null"], format: "date-time", description: "The first due date the task was given" },
             dueExtensionCount: { type: "integer", description: "How many times the due date was moved later" },
             reminderOffset: { type: ["string", "null"], enum: ["at_due", "one_hour", "one_day", "three_days", "one_week", null] },
@@ -201,7 +201,7 @@ const schemas = {
     TaskWrite: {
         type: "object",
         description:
-            "Send dueDate (YYYY-MM-DD → due 23:59 that day in dueTimezone, default your profile timezone) OR dueAt (exact ISO instant); null clears. Legacy `deadline` and statuses `pending`/`in progress` are still accepted.",
+            "Send dueDate (YYYY-MM-DD, meaning due at 23:59 that day in dueTimezone, which defaults to your profile timezone) OR dueAt (exact ISO instant); null clears. Legacy `deadline` and statuses `pending`/`in progress` are still accepted.",
         properties: {
             completionNote: { type: "string", maxLength: 2000, description: "With status \"completed\": what was done (required for top-level tasks). On a completed task: corrects the note." },
             dueChangeReason: { type: "string", maxLength: 500, description: "Optional: why the due date is moving later. Only used when dueDate/dueAt extends an existing deadline." },
@@ -215,7 +215,7 @@ const schemas = {
             dueAt: { type: ["string", "null"], format: "date-time" },
             dueTimezone: { type: "string", example: "Africa/Lagos" },
             labelIds: { type: "array", items: { type: "string", format: "uuid" }, description: "Replaces the task's labels (same workspace). [] removes all." },
-            startDate: { type: ["string", "null"], format: "date", description: "Planned start (YYYY-MM-DD → 00:00 that day in startTimezone). Can't be after the due date. null clears." },
+            startDate: { type: ["string", "null"], format: "date", description: "Planned start (YYYY-MM-DD, meaning 00:00 that day in startTimezone). Can't be after the due date. null clears." },
             startAt: { type: ["string", "null"], format: "date-time", description: "Planned start as an exact instant (instead of startDate)" },
             startTimezone: { type: "string", example: "Africa/Lagos" },
             reminderOffset: {
@@ -408,7 +408,7 @@ const schemas = {
             suspendReason: { type: ["string", "null"], description: "Detail only" },
             memberships: {
                 type: "array",
-                description: "Detail only — metadata, never workspace content",
+                description: "Detail only: metadata, never workspace content",
                 items: {
                     type: "object",
                     properties: { workspaceId: { type: "string" }, workspaceName: { type: "string" }, role: ref("WorkspaceRole"), status: { type: "string" }, joinedAt: { type: "string", format: "date-time" } },
@@ -485,12 +485,12 @@ const authPaths = {
                     name: { type: "string" },
                     email: { type: "string", format: "email" },
                     password: { type: "string", minLength: 6 },
-                    acceptTerms: { type: "boolean", enum: [true], description: "Must be true — agrees to the Terms of Service and Privacy Policy" },
+                    acceptTerms: { type: "boolean", enum: [true], description: "Must be true. It means the user agrees to the Terms of Service and Privacy Policy" },
                     age: { type: "integer", minimum: 0 },
                     timezone: { type: "string", example: "Africa/Lagos" },
                 },
             }),
-            responses: { 201: jsonResponse("Created — verify the email before signing in", messageEnvelope), ...errorResponses(400, 429, 502) },
+            responses: { 201: jsonResponse("Created. Verify the email before signing in", messageEnvelope), ...errorResponses(400, 429, 502) },
         },
     },
     "/auth/verify-email/{token}": {
@@ -505,7 +505,7 @@ const authPaths = {
     "/auth/login": {
         post: {
             tags: ["Auth"],
-            summary: "Sign in — sets the httpOnly access and refresh token cookies",
+            summary: "Sign in and set the httpOnly access and refresh token cookies",
             security: publicRoute,
             requestBody: jsonBody({
                 type: "object",
@@ -520,13 +520,13 @@ const authPaths = {
             tags: ["Auth"],
             summary: "New access token from the refresh-token cookie (rotates the refresh token)",
             security: publicRoute,
-            responses: { 200: jsonResponse("Refreshed — new cookies set", messageEnvelope), ...errorResponses(401) },
+            responses: { 200: jsonResponse("Refreshed, with new cookies set", messageEnvelope), ...errorResponses(401) },
         },
     },
     "/auth/logout": {
         post: {
             tags: ["Auth"],
-            summary: "End the current session — revokes its refresh token in the database",
+            summary: "End the current session and revoke its refresh token in the database",
             security: publicRoute,
             responses: { 200: jsonResponse("Signed out", messageEnvelope) },
         },
@@ -579,7 +579,7 @@ const authPaths = {
     "/auth/google/callback": {
         get: {
             tags: ["Auth"],
-            summary: "Google redirects here; redirects on to the client's /auth/callback?code=…",
+            summary: "Google redirects here; then redirects on to the client's /auth/callback with a code",
             security: publicRoute,
             responses: { 302: { description: "Redirect to the client with a one-time code (or ?error=google)" } },
         },
@@ -822,7 +822,7 @@ const taskPaths = {
         },
         put: {
             tags: ["Tasks"],
-            summary: "Edit a task — requires the version you last read",
+            summary: "Edit a task (send the version you last read)",
             security: signedIn,
             requestBody: jsonBody({
                 allOf: [ref("TaskWrite"), { type: "object", required: ["version"], properties: { version: { type: "integer" } } }],
@@ -840,7 +840,7 @@ const taskPaths = {
         parameters: [pathParam("id", "Task id")],
         patch: {
             tags: ["Tasks"],
-            summary: "Change only the status — requires the version you last read",
+            summary: "Change only the status (send the version you last read)",
             security: signedIn,
             requestBody: jsonBody({
                 type: "object",
@@ -953,7 +953,7 @@ const projectPaths = {
         parameters: [pathParam("projectId", "Project id")],
         post: {
             tags: ["Projects"],
-            summary: "Archive — read-only, its reminders pause",
+            summary: "Archive: the project becomes read-only and its reminders pause",
             security: signedIn,
             responses: { 200: jsonResponse("Archived", messageEnvelope), ...errorResponses(401, 403, 404, 409) },
         },
@@ -1201,7 +1201,7 @@ const eventsPaths = {
             summary: "Live updates (Server-Sent Events): `notification` and `comment` events, ids only",
             description:
                 "text/event-stream. Events: `ready` on connect; `notification` { notificationId }; `comment` { action, taskId, commentId }. " +
-                "Refetch through the normal endpoints to see content. The server ends the stream when the access token would expire — reconnect (refreshing first on 401).",
+                "Refetch through the normal endpoints to see content. The server ends the stream when the access token would expire. Reconnect when that happens, refreshing first if you get a 401.",
             security: signedIn,
             responses: { 200: { description: "Event stream", content: { "text/event-stream": { schema: { type: "string" } } } }, ...errorResponses(401) },
         },
@@ -1473,7 +1473,7 @@ const adminOperationsPaths = {
         parameters: [pathParam("deliveryId", "Delivery id")],
         post: {
             tags: ["Admin"],
-            summary: "Retry a failed delivery (same identity; re-checks the task and recipient first — may be suppressed instead)",
+            summary: "Retry a failed delivery (same identity). The task and recipient are checked again first, so it may be suppressed instead",
             security: operatorSession,
             requestBody: reasonBody,
             responses: {
@@ -1659,7 +1659,7 @@ const performancePaths = {
     "/performance/shared/{token}": {
         get: {
             tags: ["Performance"],
-            summary: "Public: a shared month — the owner's name and the numbers, nothing else",
+            summary: "Public: a shared month. Only the owner's name and the numbers, nothing else",
             security: publicRoute,
             parameters: [pathParam("token", "Token from the share link")],
             responses: {
@@ -1765,7 +1765,7 @@ const openApiDocument = {
         description: [
             "Workspaces, projects, tasks and invitations for Afritask.",
             "",
-            "**Auth:** sign in with `POST /auth/login` — the response sets httpOnly `afritask_access` (15 min) and `afritask_refresh` (30 days, auth routes only) cookies that this page then sends automatically. Call `POST /auth/refresh` when the access token expires.",
+            "**Auth:** sign in with `POST /auth/login`. The response sets httpOnly `afritask_access` (15 min) and `afritask_refresh` (30 days, auth routes only) cookies that this page then sends automatically. Call `POST /auth/refresh` when the access token expires.",
             "**CSRF:** every POST/PUT/PATCH/DELETE must send `X-Requested-With: XMLHttpRequest`. This page adds it for you.",
             "**Isolation:** anything in a workspace you're not an active member of answers `404`, exactly like something that doesn't exist.",
         ].join("\n"),

@@ -108,7 +108,7 @@ export default function PerformancePage() {
                 <ChevronLeft size={18} aria-hidden="true" />
               </button>
               <span className="min-w-[9.5rem] px-2 text-center text-[15px] font-medium text-ink" aria-live="polite">
-                {month ? monthLabel(month) : "…"}
+                {month ? monthLabel(month) : "Loading..."}
               </span>
               <button
                 type="button"
@@ -134,7 +134,7 @@ export default function PerformancePage() {
           <h2 id="shares-heading" className="text-[16px] font-semibold text-ink">
             Shared links
           </h2>
-          <p className="mt-1 text-[14px] text-muted">Each link shows one month&apos;s numbers and your name. Links can&apos;t be shown again after they&apos;re made — revoke and make a new one if you lose it.</p>
+          <p className="mt-1 text-[14px] text-muted">Each link shows one month&apos;s numbers and your name. Links can&apos;t be shown again after they&apos;re made. If you lose one, revoke it and make a new one.</p>
           <ul className="mt-3 divide-y divide-line-soft rounded-[12px] border border-line bg-surface">
             {shares.map((item) => (
               <li key={item.id} className="flex items-center gap-3 px-4 py-3 text-[14px]">

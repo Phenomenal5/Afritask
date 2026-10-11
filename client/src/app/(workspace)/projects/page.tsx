@@ -20,9 +20,9 @@ import type { Project } from "@/types/models";
 
 // The one thing to say about where a project stands.
 const nextActionOf = (project: Project) => {
-  if (project.state === "archived") return "Archived — read-only until restored.";
-  if (project.taskCounts.total === 0) return "No tasks yet — add the first one.";
-  if (project.taskCounts.open === 0) return project.state === "completed" ? "All tasks done." : "All tasks done — mark it completed?";
+  if (project.state === "archived") return "Archived. Read-only until it's restored.";
+  if (project.taskCounts.total === 0) return "No tasks yet. Add the first one.";
+  if (project.taskCounts.open === 0) return project.state === "completed" ? "All tasks done." : "All tasks done. Mark it completed?";
   if (project.state === "on_hold") return `On hold with ${project.taskCounts.open} open task${project.taskCounts.open === 1 ? "" : "s"}.`;
   return `${project.taskCounts.open} open task${project.taskCounts.open === 1 ? "" : "s"} to move forward.`;
 };
@@ -113,8 +113,8 @@ export default function ProjectsPage() {
             title={showArchived ? "No projects, archived or otherwise" : "No projects yet"}
             body={
               isManager
-                ? "Create a project when you have a few related tasks — a launch, a client, a course. Tasks without a project still live in the workspace."
-                : "An Owner or Admin can create projects. Until then, tasks live in the workspace without one — nothing is blocked."
+                ? "Create a project when you have a few related tasks, like a launch, a client or a course. Tasks without a project still live in the workspace."
+                : "An Owner or Admin can create projects. Until then, tasks live in the workspace without one, and nothing is blocked."
             }
             action={
               isManager && (

@@ -70,7 +70,7 @@ export default function DeleteWorkspacePanel({ workspaceId, workspaceName }: { w
         </p>
         <div>
           <Button variant="danger" onClick={() => setOpen(true)}>
-            Delete workspace…
+            Delete workspace...
           </Button>
         </div>
       </div>

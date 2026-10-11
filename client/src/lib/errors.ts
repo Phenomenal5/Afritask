@@ -21,7 +21,7 @@ export function describeFailure(error: unknown, fallback = "Something went wrong
   if (!error.response) {
     const offline = typeof navigator !== "undefined" && !navigator.onLine;
     return offline
-      ? { kind: "offline", status, message: "You're offline. Reconnect and try again — nothing was saved." }
+      ? { kind: "offline", status, message: "You're offline, so nothing was saved. Reconnect and try again." }
       : { kind: "network", status, message: "Couldn't reach Afritask. Check your connection and try again." };
   }
   // NOTE: the server's message wins on 401 too — a wrong password on sign-in is a 401

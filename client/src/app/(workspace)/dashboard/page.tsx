@@ -222,7 +222,7 @@ function SummaryFigure({ label, value, href, danger = false }: { label: string; 
         ) : (
           <Link href={href} className={cx("text-[20px] font-semibold tabular-nums hover:underline", danger ? "text-brick" : "text-ink")}>
             {value}
-            <span className="sr-only"> — view</span>
+            <span className="sr-only">, view list</span>
           </Link>
         )}
       </dd>

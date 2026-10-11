@@ -70,7 +70,7 @@ export default function LoginPage() {
     <AuthLayout
       eyebrow="Welcome back"
       title="Sign in to Afritask"
-      description={hasPendingInvite ? "Sign in to respond to the invitation you opened — we'll take you straight back to it." : "Pick up where you left off."}
+      description={hasPendingInvite ? "Sign in to respond to the invitation you opened. We'll take you straight back to it." : "Pick up where you left off."}
       footer={
         <>
           New to Afritask?{" "}

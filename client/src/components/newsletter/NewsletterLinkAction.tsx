@@ -51,7 +51,7 @@ export default function NewsletterLinkAction({ title, description, actionLabel, 
     <AuthLayout eyebrow="Afritask newsletter" title={title} description={result?.tone === "success" ? undefined : description}>
       <title>{`${title} · Afritask`}</title>
       <div className="flex flex-col gap-4">
-        {linkBroken && <FormAlert>This link is incomplete. Open it again from the email, or manage the newsletter in Settings → Profile.</FormAlert>}
+        {linkBroken && <FormAlert>This link is incomplete. Open it again from the email, or manage the newsletter under Profile in Settings.</FormAlert>}
         {result && <FormAlert tone={result.tone}>{result.text}</FormAlert>}
         {result?.tone !== "success" && !linkBroken && (
           <Button size="lg" full loading={submitting} disabled={!params} onClick={handleClick}>

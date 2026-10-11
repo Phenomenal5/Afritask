@@ -89,7 +89,7 @@ describe("GET /auth/verify-email/:token", () => {
         expect(response.status).toBe(200);
         expect(response.body.message).toBe("Email verified successfully");
         await expect(prisma.user.findUniqueOrThrow({ where: { email } })).resolves.toMatchObject({ isVerified: true });
-        expect(emailsTo(email).map((sent) => sent.subject)).toContain("Welcome to AfriTask 🎉");
+        expect(emailsTo(email).map((sent) => sent.subject)).toContain("Welcome to Afritask");
     });
 
     it("is idempotent — a repeated link (mail scanner, StrictMode) still answers success, one welcome email", async () => {

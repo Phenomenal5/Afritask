@@ -384,7 +384,7 @@ const parsePaging = (pageParam: unknown, limitParam: unknown) => {
     if (limitParam === undefined) return null;
     const limit = Number(limitParam);
     const page = pageParam === undefined ? 1 : Number(pageParam);
-    if (!Number.isInteger(limit) || limit < 1 || limit > MAX_PAGE_LIMIT) throw new AppError(`limit must be 1–${MAX_PAGE_LIMIT}`, 400);
+    if (!Number.isInteger(limit) || limit < 1 || limit > MAX_PAGE_LIMIT) throw new AppError(`limit must be between 1 and ${MAX_PAGE_LIMIT}`, 400);
     if (!Number.isInteger(page) || page < 1) throw new AppError("page must be 1 or more", 400);
     return { page, limit };
 };
@@ -627,7 +627,7 @@ export const editTask = catchAsync(async (req, res) => {
 
     // A subtask always lives in its parent's project (PRD FR07) — it can't move on its own.
     if (existingTask.parentTaskId && projectId !== undefined && projectId !== existingTask.projectId) {
-        throw new AppError("A subtask follows its parent's project — move the parent instead", 400);
+        throw new AppError("A subtask stays in its parent's project. Move the parent instead", 400);
     }
     const movesProject = !existingTask.parentTaskId && projectId !== undefined && projectId !== existingTask.projectId;
 

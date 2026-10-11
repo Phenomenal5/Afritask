@@ -169,7 +169,7 @@ app.use("/api", (req, res) => {
   const unversioned = !/^\/v\d+\//.test(req.path);
   res.status(404).json({
     status: "fail",
-    message: unversioned ? `Not found. The API is versioned — use /api/v1${req.path}` : "Not found",
+    message: unversioned ? `Not found. The API is versioned, so use /api/v1${req.path}` : "Not found",
   });
 });
 

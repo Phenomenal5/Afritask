@@ -57,7 +57,7 @@ export default function SignupPage() {
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
     const errors: typeof fieldErrors = {};
-    if (!form.name.trim()) errors.name = "Tell us your name — it's how teammates will see you.";
+    if (!form.name.trim()) errors.name = "Tell us your name. It's how teammates will see you.";
     if (!EMAIL_PATTERN.test(form.email.trim())) errors.email = "Enter a full email address, like name@example.com.";
     if (form.password.length < PASSWORD_MIN_LENGTH) errors.password = `Use at least ${PASSWORD_MIN_LENGTH} characters.`;
     if (form.age && (!/^\d+$/.test(form.age) || Number(form.age) < 1 || Number(form.age) > 120)) errors.age = "Enter a whole number, or leave it empty.";
@@ -92,7 +92,7 @@ export default function SignupPage() {
               <p>
                 We sent a verification link to <strong>{sentTo}</strong>.
               </p>
-              <p className="mt-2">Open it to activate your account, then sign in{invitedEmail ? " — we'll take you back to your invitation" : ""}.</p>
+              <p className="mt-2">Open it to activate your account, then sign in{invitedEmail ? " and we'll take you back to your invitation" : ""}.</p>
             </div>
           </div>
           <p className="text-[14px] text-muted">
@@ -110,7 +110,7 @@ export default function SignupPage() {
     <AuthLayout
       eyebrow="Get started"
       title="Create your account"
-      description={invitedEmail ? "You've been invited to a workspace. Sign up with the invited email to accept it." : "Free to start. You'll name your workspace next — inviting people is optional."}
+      description={invitedEmail ? "You've been invited to a workspace. Sign up with the invited email to accept it." : "Free to start. You'll name your workspace next, and inviting people is optional."}
       footer={
         <>
           Already have an account?{" "}
@@ -159,7 +159,7 @@ export default function SignupPage() {
               className="mt-1 size-[18px] shrink-0 accent-[var(--forest)]"
             />
             <span>
-              Send me the Afritask newsletter <span className="text-muted">(optional — unsubscribe any time)</span>
+              Send me the Afritask newsletter <span className="text-muted">(optional, unsubscribe any time)</span>
             </span>
           </label>
           <Button type="submit" size="lg" full loading={submitting}>

@@ -105,7 +105,7 @@ export default function OnboardingFlow({ mode }: { mode: "first" | "additional" 
                 {done && <Check size={14} aria-hidden="true" className="text-done" />}
                 {stepNumber}. {stepTitle}
                 {stepNumber > 1 && <span className="sr-only"> (optional)</span>}
-                {done && <span className="sr-only"> — done</span>}
+                {done && <span className="sr-only"> (done)</span>}
               </span>
             </li>
           );
@@ -198,7 +198,7 @@ function NameStep({
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
     const trimmedName = name.trim();
-    if (!trimmedName) return setNameError("Give it a name — you can change it later.");
+    if (!trimmedName) return setNameError("Give it a name. You can change it later.");
     if (trimmedName.length > 100) return setNameError("Keep it under 100 characters.");
     setSaving(true);
     const error = await onSubmit(trimmedName, timezone);
@@ -226,7 +226,7 @@ function NameStep({
         What should we call this workspace?
       </h2>
       <p className="-mt-3 text-[15px] text-muted">
-        A workspace holds your projects, tasks and the people you work with. {mode === "first" ? "Working alone is fine — it works exactly the same." : "Your other workspaces stay as they are."}
+        A workspace holds your projects, tasks and the people you work with. {mode === "first" ? "Working alone is fine. Everything works the same way." : "Your other workspaces stay as they are."}
       </p>
       {formError && <FormAlert>{formError}</FormAlert>}
       <form onSubmit={handleSubmit} noValidate className="flex flex-col gap-4">
@@ -452,7 +452,7 @@ function FirstTaskStep({
         What&apos;s one small next step?
       </h2>
       <p className="-mt-3 text-[15px] text-muted">
-        Optional. Just a title is enough{soloMembershipId ? " — it'll be assigned to you" : ""}. You can add details, projects and people later.
+        Optional. Just a title is enough{soloMembershipId ? ", and it'll be assigned to you" : ""}. You can add details, projects and people later.
       </p>
       <form onSubmit={handleSubmit} noValidate className="flex flex-col gap-4">
         <TextField
@@ -480,7 +480,7 @@ function FirstTaskStep({
               Add task and finish
             </Button>
             <Button variant="secondary" size="lg" onClick={onFinish} disabled={saving}>
-              Skip — go to my workspace
+              Skip and go to my workspace
             </Button>
           </div>
           <Button variant="ghost" size="lg" onClick={onBack} disabled={saving} icon={<ArrowLeft size={17} aria-hidden="true" />}>

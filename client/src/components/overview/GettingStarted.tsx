@@ -33,7 +33,7 @@ export default function GettingStarted({ workspaceId, hasTask, hasProject, hasTe
   }, [workspaceId]);
 
   const steps = [
-    { done: true, title: "Create a workspace", body: "Done — this is it.", action: null },
+    { done: true, title: "Create a workspace", body: "Done. This is your workspace.", action: null },
     {
       done: hasTask,
       title: "Add a task",
@@ -109,7 +109,7 @@ export default function GettingStarted({ workspaceId, hasTask, hasProject, hasTe
             <div className="min-w-0 text-[14.5px]">
               <p className={cx("font-semibold", step.done ? "text-muted" : "text-ink")}>
                 {step.title}
-                <span className="sr-only">{step.done ? " — done" : " — not done yet"}</span>
+                <span className="sr-only">{step.done ? " (done)" : " (not done yet)"}</span>
               </p>
               <p className="mt-0.5 text-muted">{step.body}</p>
               {!step.done && step.action && <div className="mt-1.5">{step.action}</div>}

@@ -20,7 +20,7 @@ const dmSans = DM_Sans({
 });
 
 export const metadata: Metadata = {
-  title: "Afritask — A clear place for your next step",
+  title: "Afritask: a clear place for your next step",
   description:
     "Afritask keeps your plans, tasks and the people you work with in one shared workspace, so everyone knows what's next.",
   // The manifest is linked automatically from app/manifest.ts.

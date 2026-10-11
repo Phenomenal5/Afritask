@@ -40,7 +40,7 @@ export default function VerifyEmailPage() {
   return (
     <AuthLayout
       eyebrow="Verify your email"
-      title={status === "verifying" ? "Confirming your email…" : status === "success" ? "You're verified" : "This link didn't work"}
+      title={status === "verifying" ? "Confirming your email..." : status === "success" ? "You're verified" : "This link didn't work"}
     >
       <title>Verify your email · Afritask</title>
       {status === "verifying" && (

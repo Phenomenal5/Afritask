@@ -304,7 +304,7 @@ export default function NotificationsPage() {
                   </NotificationGroup>
                 )}
                 {attention.today.length > 0 && (
-                  <NotificationGroup icon={CalendarClock} title={`Due today (${attention.today.length})`} why="Still on time — these are due before the end of today.">
+                  <NotificationGroup icon={CalendarClock} title={`Due today (${attention.today.length})`} why="Still on time. These are due before the end of today.">
                     <AttentionList tasks={attention.today} now={now} kind="today" />
                   </NotificationGroup>
                 )}

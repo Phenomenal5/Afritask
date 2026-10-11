@@ -62,7 +62,7 @@ export default function TasksPage() {
         <EmptyState
           icon={ListChecks}
           title="This workspace has no tasks yet"
-          body="Start with one small, clear step. Only a title is needed — you can add a project, an owner and a date whenever you're ready."
+          body="Start with one small, clear step. Only a title is needed. You can add a project, an owner and a date whenever you're ready."
           action={
             <Button icon={<Plus size={17} aria-hidden="true" />} onClick={() => openComposer()}>
               Add the first task

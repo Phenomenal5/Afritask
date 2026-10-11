@@ -24,7 +24,7 @@ describe("API versioning", () => {
     it("answers an old unversioned path with a JSON 404 pointing at /api/v1", async () => {
         const response = await anonymous().get("/api/auth/me");
         expect(response.status).toBe(404);
-        expect(response.body.message).toBe("Not found. The API is versioned — use /api/v1/auth/me");
+        expect(response.body.message).toBe("Not found. The API is versioned, so use /api/v1/auth/me");
     });
 
     it("keeps health checks unversioned", async () => {

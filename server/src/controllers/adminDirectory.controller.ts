@@ -23,7 +23,7 @@ export const parsePaging = (query: Record<string, unknown>) => {
     const page = Number(query.page ?? 1);
     const limit = Number(query.limit ?? DEFAULT_PAGE_SIZE);
     if (!Number.isInteger(page) || page < 1) throw new AppError("page must be 1 or more", 400);
-    if (!Number.isInteger(limit) || limit < 1 || limit > MAX_PAGE_SIZE) throw new AppError(`limit must be 1–${MAX_PAGE_SIZE}`, 400);
+    if (!Number.isInteger(limit) || limit < 1 || limit > MAX_PAGE_SIZE) throw new AppError(`limit must be between 1 and ${MAX_PAGE_SIZE}`, 400);
     return { page, limit, skip: (page - 1) * limit };
 };
 

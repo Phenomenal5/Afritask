@@ -29,8 +29,8 @@ import LandingNavActions from "@/components/marketing/LandingNavActions";
 import { PathIllustration, StructureIllustration } from "@/components/marketing/Illustrations";
 
 export const metadata: Metadata = {
-  title: "Afritask — A clear place for your next step",
-  description: "Big plans. Small tasks. People to bring along. Afritask keeps workspaces, projects and tasks together so everyone knows what's next.",
+  title: "Afritask: a clear place for your next step",
+  description: "Afritask keeps your workspaces, projects and tasks in one place, so you and the people you work with know what's next.",
 };
 
 const PRINCIPLES = [
@@ -42,7 +42,7 @@ const PRINCIPLES = [
   {
     icon: UserCheck,
     title: "Clear responsibility",
-    body: "Each task has one owner — or says plainly that it's Unassigned. Big tasks split into subtasks, each with its own owner.",
+    body: "Each task has one owner, or says plainly that it's Unassigned. Big tasks split into subtasks, each with its own owner.",
   },
   {
     icon: Footprints,
@@ -52,7 +52,7 @@ const PRINCIPLES = [
   {
     icon: CircleCheck,
     title: "Visible progress",
-    body: "Four plain statuses, project progress you can see at a glance, and a history of every change — who, what and when.",
+    body: "Four plain statuses, project progress you can see at a glance, and a history of every change showing who made it and when.",
   },
 ];
 
@@ -100,13 +100,13 @@ export default function LandingPage() {
           <div>
             <p className="hero-rise mb-5 inline-flex items-center gap-2 rounded-full border border-lime-deep bg-lime px-3.5 py-1 text-[14px] font-medium text-forest-deep">
               <span aria-hidden="true" className="h-2 w-2 rounded-full bg-forest" />
-              Workspaces, projects and tasks — for you and your team
+              Workspaces, projects and tasks for you and your team
             </p>
             <h1 className="hero-rise font-display text-[44px] font-semibold leading-[1.02] tracking-tight text-ink sm:text-[60px] lg:text-[68px]" style={{ "--rise-delay": "80ms" } as CSSProperties}>
               A clear place for your <em className="font-medium text-forest">next step.</em>
             </h1>
             <p className="hero-rise mt-6 max-w-[34rem] text-[18px] leading-relaxed text-muted sm:text-[19px]" style={{ "--rise-delay": "160ms" } as CSSProperties}>
-              Big plans. Small tasks. People to bring along. Keep them together, and move forward with a little more clarity.
+              Break big plans into small tasks and bring in the people who can help. Keeping it all in one place makes the next step easier to see.
             </p>
             <div className="hero-rise mt-8 flex flex-col gap-3 sm:flex-row" style={{ "--rise-delay": "240ms" } as CSSProperties}>
               <ButtonLink href="/signup" size="lg" icon={<ArrowRight size={18} aria-hidden="true" />} className="flex-row-reverse">
@@ -130,25 +130,25 @@ export default function LandingPage() {
             <div className="order-1 lg:order-2" data-reveal>
               <p className="text-[14px] font-semibold uppercase tracking-[0.1em] text-forest">How it works</p>
               <h2 id="how-heading" className="mt-3 font-display text-[36px] font-semibold leading-tight tracking-tight text-ink sm:text-[44px]">
-                Three layers. No guesswork.
+                Three layers, each with one job.
               </h2>
               <dl className="mt-8 flex flex-col gap-6">
                 <div className="border-l-[3px] border-forest pl-5">
                   <dt className="text-[18px] font-semibold text-ink">Workspace</dt>
                   <dd className="mt-1 text-[16px] leading-relaxed text-muted">
-                    Your shared space — its people, projects and tasks. Keep a personal one and a team one side by side; they never mix.
+                    Your shared space, with its own people, projects and tasks. Keep a personal one and a team one side by side; they never mix.
                   </dd>
                 </div>
                 <div className="border-l-[3px] border-harvest pl-5">
                   <dt className="text-[18px] font-semibold text-ink">Projects</dt>
                   <dd className="mt-1 text-[16px] leading-relaxed text-muted">
-                    Group related work — a launch, a client, a course — and see how far along it is. Optional: tasks can live in the workspace on their own.
+                    Group related work, like a launch, a client or a course, and see how far along it is. Optional: tasks can live in the workspace on their own.
                   </dd>
                 </div>
                 <div className="border-l-[3px] border-lime-deep pl-5">
                   <dt className="text-[18px] font-semibold text-ink">Tasks</dt>
                   <dd className="mt-1 text-[16px] leading-relaxed text-muted">
-                    One clear step, with an owner, a status, a priority and — if it matters — a due date. Break bigger ones into subtasks.
+                    One clear step, with an owner, a status, a priority and, if it matters, a due date. Break bigger ones into subtasks.
                   </dd>
                 </div>
               </dl>
@@ -200,7 +200,7 @@ export default function LandingPage() {
               <ul className="mt-8 flex flex-col gap-4 text-[16px]" data-reveal-stagger>
                 <li className="flex gap-3">
                   <ListTree size={21} aria-hidden="true" className="mt-0.5 shrink-0 text-lime" />
-                  <span>Split big work into subtasks — each one can have a different owner.</span>
+                  <span>Split big work into subtasks. Each one can have a different owner.</span>
                 </li>
                 <li className="flex gap-3">
                   <UserCheck size={21} aria-hidden="true" className="mt-0.5 shrink-0 text-lime" />
@@ -251,7 +251,7 @@ export default function LandingPage() {
                 Invite by email. They join when they say yes.
               </h2>
               <p className="mt-4 text-[17px] leading-relaxed text-muted">
-                Opening an invitation link grants nothing on its own — access starts only when the invited person accepts with that email.
+                Opening an invitation link doesn&apos;t give anyone access. Access starts only when the invited person accepts with that email.
               </p>
             </div>
             <ol className="flex flex-col gap-4" data-reveal-stagger>
@@ -282,7 +282,7 @@ export default function LandingPage() {
             <div className="max-w-2xl" data-reveal>
               <p className="text-[14px] font-semibold uppercase tracking-[0.1em] text-forest">Progress</p>
               <h2 id="progress-heading" className="mt-3 font-display text-[36px] font-semibold leading-tight tracking-tight text-ink sm:text-[44px]">
-                See how work is moving — honestly.
+                See how work is really moving.
               </h2>
             </div>
             <ol aria-label="Task statuses" className="mt-10 grid grid-cols-2 gap-3 md:grid-cols-4" data-reveal-stagger>
@@ -315,7 +315,7 @@ export default function LandingPage() {
               <li className="flex gap-3">
                 <CircleCheck size={21} aria-hidden="true" className="shrink-0 text-forest" />
                 <p className="text-[16px] leading-relaxed text-muted">
-                  <strong className="text-ink">Counts, not guesses.</strong> Overdue, due today and done this week — each number opens the exact tasks behind it.
+                  <strong className="text-ink">Counts, not guesses.</strong> Overdue, due today and done this week. Each number opens the exact tasks behind it.
                 </p>
               </li>
             </ul>
@@ -330,7 +330,7 @@ export default function LandingPage() {
           <ol className="mt-10 grid gap-4 md:grid-cols-3" data-reveal-stagger>
             {[
               { title: "Create your account", body: "Sign up with your email (and verify it) or with Google." },
-              { title: "Name your workspace", body: "Invite people now, or later — it works the same with just you." },
+              { title: "Name your workspace", body: "Invite people now or later. It works the same with just you." },
               { title: "Write your first step", body: "A title is enough. Add a date, a project or an owner when it helps." },
             ].map((step, index) => (
               <li key={step.title} className="lift-on-hover rounded-[14px] border border-line bg-surface p-6">

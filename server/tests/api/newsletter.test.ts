@@ -131,7 +131,7 @@ describe("publishing and sending", () => {
         const email = lastEmailTo(subscribed.email);
         expect(email.subject).toBe("October update");
         expect(email.text).toMatch(UNSUBSCRIBE_LINK);
-        expect(email.text).toContain("Settings → Profile");
+        expect(email.text).toContain("Profile in Settings");
         expect(email.html).toContain("Unsubscribe");
         // RFC 8058 one-click unsubscribe, which Gmail and Yahoo require of bulk senders.
         expect(email.headers?.["List-Unsubscribe-Post"]).toBe("List-Unsubscribe=One-Click");

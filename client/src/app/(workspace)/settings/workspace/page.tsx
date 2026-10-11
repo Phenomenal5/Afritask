@@ -91,7 +91,7 @@ export default function WorkspaceSettingsPage() {
 
         <SettingsSection title="People" description="Members, invitations and roles have their own page.">
           <ButtonLink href="/people" variant="secondary" icon={<ArrowRight size={16} aria-hidden="true" />}>
-            Manage people ({workspace?.members.length ?? "…"})
+            Manage people ({workspace?.members.length ?? "..."})
           </ButtonLink>
         </SettingsSection>
 
@@ -109,7 +109,7 @@ export default function WorkspaceSettingsPage() {
           <BillingComingSoon />
         </SettingsSection>
 
-        <SettingsSection title="More workspaces" description="Keep separate work separate — each workspace has its own people, projects and tasks.">
+        <SettingsSection title="More workspaces" description="Keep separate work apart. Each workspace has its own people, projects and tasks.">
           <div className="flex max-w-lg flex-col gap-3">
             <ButtonLink href="/workspace/new" variant="secondary" icon={<Plus size={16} aria-hidden="true" />}>
               Create another workspace

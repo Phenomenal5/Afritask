@@ -89,7 +89,7 @@ export const unsubscribeByLink = catchAsync(async (req, res) => {
     const subscriber = req.query.subscriber ?? req.body?.subscriber;
     const signature = req.query.signature ?? req.body?.signature;
     if (!verifyLink("newsletter-unsubscribe", subscriber, signature)) {
-        throw new AppError("This unsubscribe link is invalid. You can also turn the newsletter off in Settings → Profile.", 400);
+        throw new AppError("This unsubscribe link is invalid. You can also turn the newsletter off under Profile in Settings.", 400);
     }
     await unsubscribe(subscriber as string);
     res.status(200).json({ status: "success", message: "You've been unsubscribed. You won't get the newsletter any more." });

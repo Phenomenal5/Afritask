@@ -111,7 +111,7 @@ export default function InvitePage() {
       <AuthLayout eyebrow="Invitation" title="This link doesn't work">
         <title>Invitation · Afritask</title>
         <div className="flex flex-col gap-5">
-          <FormAlert>{loadError} If you were sent more than one email, use the link in the newest one — resending replaces older links.</FormAlert>
+          <FormAlert>{loadError} If you were sent more than one email, use the link in the newest one. Resending replaces older links.</FormAlert>
           <ButtonLink href={user ? "/dashboard" : "/login"} variant="secondary" size="lg" full>
             {user ? "Go to my workspace" : "Go to sign in"}
           </ButtonLink>
@@ -122,7 +122,7 @@ export default function InvitePage() {
 
   if (!invitation || authLoading) {
     return (
-      <AuthLayout eyebrow="Invitation" title="Opening your invitation…">
+      <AuthLayout eyebrow="Invitation" title="Opening your invitation...">
         <title>Invitation · Afritask</title>
         <p role="status" className="flex items-center gap-3 text-[15px] text-muted">
           <Spinner />
@@ -158,7 +158,7 @@ export default function InvitePage() {
         <div className="flex flex-col gap-5">
           <p className="text-[15px] leading-relaxed text-ink">
             To respond, sign in or create an account with <strong>{invitation.email}</strong>. We&apos;ll bring you back to this invitation
-            afterwards — even after verifying your email.
+            afterwards, even if you have to verify your email first.
           </p>
           <div className="flex flex-col gap-3">
             <ButtonLink href={`/signup?email=${encodeURIComponent(invitation.email)}`} size="lg" full>

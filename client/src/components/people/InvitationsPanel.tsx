@@ -27,7 +27,7 @@ function DeliveryState({ invitation }: { invitation: Invitation }) {
     return (
       <span className="inline-flex items-center gap-1.5 text-[13.5px] font-medium text-brick">
         <Clock size={14} aria-hidden="true" />
-        Expired {formatDate(invitation.expiresAt)} — resend to give them a new link
+        Expired {formatDate(invitation.expiresAt)}. Resend to give them a new link
       </span>
     );
   }
@@ -35,7 +35,7 @@ function DeliveryState({ invitation }: { invitation: Invitation }) {
     return (
       <span className="inline-flex items-center gap-1.5 text-[13.5px] font-medium text-brick">
         <MailX size={14} aria-hidden="true" />
-        Email couldn&apos;t be delivered — resend, or check the address
+        Email couldn&apos;t be delivered. Resend it, or check the address
       </span>
     );
   }
@@ -43,7 +43,7 @@ function DeliveryState({ invitation }: { invitation: Invitation }) {
     return (
       <span className="inline-flex items-center gap-1.5 text-[13.5px] text-muted">
         <Clock size={14} aria-hidden="true" />
-        Sending the email…
+        Sending the email...
       </span>
     );
   }
@@ -154,7 +154,7 @@ export default function InvitationsPanel({ workspaceId, myRole, autoFocus = fals
         Invite people
       </h2>
       <p className="mb-4 mt-0.5 text-[14px] text-muted">
-        They get an email link. Nothing is shared with them until they accept — with that exact email address.
+        They get an email link. Nothing is shared with them until they accept using that exact email address.
       </p>
 
       <form onSubmit={handleInvite} noValidate className="flex flex-col gap-3 md:flex-row md:items-start">

@@ -55,7 +55,7 @@ export default function InstallAppCard() {
       <div className="min-w-0 flex-1">
         <p className="mb-1 text-[15px] font-medium text-ink">Install as an app</p>
         <p className="mb-3 text-[14px] text-muted">
-          Optional. Opens Afritask in its own window from your home screen or dock. It still needs a connection — changes aren&apos;t saved offline.
+          Optional. Opens Afritask in its own window from your home screen or dock. It still needs a connection, because changes aren&apos;t saved offline.
         </p>
         {body}
       </div>

@@ -553,7 +553,7 @@ export default function TaskDrawer({ taskId, onClose, onOpenTask }: TaskDrawerPr
             loadPage={loadHistory}
             reloadKey={`${task.version}-${historyKey}`}
             emptyTitle="No changes yet"
-            emptyMessage="Every change to this task — status, assignee, due date and more — is recorded here."
+            emptyMessage="Every change to this task (status, assignee, due date and more) is recorded here."
           />
         </section>
 
@@ -589,10 +589,10 @@ export default function TaskDrawer({ taskId, onClose, onOpenTask }: TaskDrawerPr
             <div aria-live="polite" className="min-w-0 flex-1 text-[14px]">
               {conflictNotice ? (
                 <span className="text-ink">
-                  Someone else changed this task. The latest version is loaded and <strong>your edits are still here</strong> — review them and save again.
+                  Someone else changed this task. The latest version is loaded and <strong>your edits are still here</strong>. Review them and save again.
                 </span>
               ) : saveState === "saving" ? (
-                <span className="text-muted">Saving…</span>
+                <span className="text-muted">Saving...</span>
               ) : saveState === "saved" && !isDirty ? (
                 <span className="inline-flex items-center gap-1.5 font-medium text-done">
                   <CircleCheck size={16} aria-hidden="true" />

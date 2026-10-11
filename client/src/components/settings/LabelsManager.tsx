@@ -107,7 +107,7 @@ export default function LabelsManager({ workspaceId, canManage }: { workspaceId:
       {labels.length === 0 ? (
         <p className="flex items-center gap-2 rounded-[10px] bg-surface-muted px-4 py-3 text-[14px] text-muted">
           <Tag size={16} aria-hidden="true" />
-          {canManage ? "No labels yet. Labels group tasks across projects — like Client, Bug or Waiting." : "No labels yet. An Owner or Admin can add some."}
+          {canManage ? "No labels yet. Labels group tasks across projects, for example Client, Bug or Waiting." : "No labels yet. An Owner or Admin can add some."}
         </p>
       ) : (
         <ul className="overflow-hidden rounded-[12px] border border-line">

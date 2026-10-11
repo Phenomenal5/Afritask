@@ -49,7 +49,7 @@ const env = {
   trustProxyHops: Number(process.env.TRUST_PROXY_HOPS ?? 1),
 
   brevoApiKey: requiredValue("BREVO_API_KEY"),
-  emailFromName: process.env.EMAIL_FROM_NAME ?? "AfriTask",
+  emailFromName: process.env.EMAIL_FROM_NAME ?? "Afritask",
   emailFromAddress: requiredValue("EMAIL_FROM_ADDRESS"),
 
   // Web push is optional: without these keys, push is "not configured" (the setting can't

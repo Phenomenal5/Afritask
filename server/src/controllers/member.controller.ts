@@ -63,7 +63,7 @@ export const changeMemberRole = catchAsync(async (req, res) => {
     const role = req.body.role as WorkspaceRole;
 
     if (role !== "admin" && role !== "member") {
-        throw new AppError("Role must be admin or member — use ownership transfer to change the Owner", 400);
+        throw new AppError("Role must be admin or member. To change the Owner, transfer ownership instead", 400);
     }
     if (target.role === "owner") throw new AppError("The Owner's role can only change through ownership transfer", 409);
 

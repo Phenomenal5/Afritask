@@ -22,7 +22,7 @@ interface NextStepCardProps {
 function pickNextTask(myTasks: Task[], now: Date, timezone: string): { task: Task; reason: string } | null {
   const openTasks = myTasks.filter((task) => task.status !== "completed").sort(compareByUrgency);
   const overdue = openTasks.find((task) => dueBucketOf(task, now, timezone) === "overdue");
-  if (overdue) return { task: overdue, reason: `It's overdue — it was due ${describeDue(overdue, now)?.label}.` };
+  if (overdue) return { task: overdue, reason: `It's overdue. It was due ${describeDue(overdue, now)?.label}.` };
   const dueToday = openTasks.find((task) => dueBucketOf(task, now, timezone) === "today");
   if (dueToday) return { task: dueToday, reason: "It's due today." };
   const inProgress = openTasks.find((task) => task.status === "in_progress");
@@ -30,7 +30,7 @@ function pickNextTask(myTasks: Task[], now: Date, timezone: string): { task: Tas
   const inReview = openTasks.find((task) => task.status === "in_review");
   if (inReview) return { task: inReview, reason: "It's waiting in review." };
   const next = openTasks[0];
-  if (next) return { task: next, reason: next.dueAt ? `It has the nearest deadline — ${describeDue(next, now)?.label}.` : "It's the newest work assigned to you." };
+  if (next) return { task: next, reason: next.dueAt ? `It has the nearest deadline: ${describeDue(next, now)?.label}.` : "It's the newest work assigned to you." };
   return null;
 }
 
@@ -78,7 +78,7 @@ export default function NextStepCard({ myTasks, workspaceTaskCount, now, timezon
             Write down the first small step.
           </h2>
           <p className="mt-2 max-w-xl text-[15px] leading-relaxed text-on-forest/80">
-            This workspace has no tasks yet. A title is all you need — details, people and dates can come later.
+            This workspace has no tasks yet. A title is all you need. Details, people and dates can come later.
           </p>
           <div className="mt-5">
             <Button variant="lime" onClick={() => openComposer()} icon={<Plus size={17} aria-hidden="true" />}>

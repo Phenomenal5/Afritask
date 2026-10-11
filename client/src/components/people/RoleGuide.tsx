@@ -34,7 +34,7 @@ export default function RoleGuide({ myRole }: { myRole: WorkspaceRole | null }) 
       <h2 id="role-guide-heading" className="mb-1 text-[17px] font-semibold text-ink">
         Who can do what
       </h2>
-      <p className="mb-4 text-[14px] text-muted">Roles belong to this workspace — you can be an Admin here and a Member somewhere else.</p>
+      <p className="mb-4 text-[14px] text-muted">Roles belong to this workspace. You can be an Admin here and a Member somewhere else.</p>
       <ul className="grid grid-cols-1 gap-3 md:grid-cols-3">
         {ROLES.map(({ role, title, icon: Icon, summary, abilities }) => {
           const isMine = role === myRole;

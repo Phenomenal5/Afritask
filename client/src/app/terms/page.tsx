@@ -95,7 +95,7 @@ export default function TermsPage() {
         <Section number={4} title="Acceptable use">
           <ul>
             <li>No attempts to break, overload, or get around the security of the service.</li>
-            <li>No spam — including through invitations — and no automated scraping.</li>
+            <li>No spam (including through invitations) and no automated scraping.</li>
             <li>No using Afritask to harass anyone or break the law.</li>
           </ul>
           <p>We may suspend an account or workspace that breaks these rules, and we&apos;ll tell you why.</p>
@@ -103,7 +103,7 @@ export default function TermsPage() {
 
         <Section number={5} title="Emails from us">
           <p>
-            We send emails the service needs — verification, password resets, invitations, reminders. Newsletters are separate and optional: you can opt out at any time from your profile settings or with the link in every newsletter.
+            We send the emails the service needs: verification, password resets, invitations and reminders. Newsletters are separate and optional: you can opt out at any time from your profile settings or with the link in every newsletter.
           </p>
         </Section>
 

@@ -88,7 +88,7 @@ export function CompletionNoteProvider({ children }: { children: ReactNode }) {
           <TextAreaField
             ref={noteRef}
             label="What was done?"
-            hint="A short record for the team and your monthly summary — e.g. “Sent the signed contract to Ada.”"
+            hint="A short record for the team and your monthly summary. For example: “Sent the signed contract to Ada.”"
             rows={4}
             maxLength={NOTE_MAX_LENGTH}
             value={note}

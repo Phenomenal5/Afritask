@@ -5,7 +5,7 @@ export default function LoadingScreen({ label = "Opening Afritask" }: { label?: 
   return (
     <div role="status" className="flex min-h-dvh flex-1 flex-col items-center justify-center gap-4 bg-page">
       <LogoMark size={40} className="animate-pulse" />
-      <p className="text-[15px] text-muted">{label}…</p>
+      <p className="text-[15px] text-muted">{label}...</p>
     </div>
   );
 }

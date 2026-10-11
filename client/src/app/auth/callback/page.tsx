@@ -30,7 +30,7 @@ function GoogleCallbackHandler() {
   return (
     <p role="status" className="flex items-center gap-3 text-[15px] text-muted">
       <Spinner />
-      Finishing up with Google — this only takes a moment.
+      Finishing sign-in with Google. This only takes a moment.
     </p>
   );
 }

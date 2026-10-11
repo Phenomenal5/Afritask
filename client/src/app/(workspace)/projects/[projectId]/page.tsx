@@ -123,7 +123,7 @@ export default function ProjectPage() {
         body: (
           <p>
             {project.taskCounts.open} task{project.taskCounts.open === 1 ? " is" : "s are"} still open. Completing the project doesn&apos;t complete
-            them — they stay open and assigned as they are.
+            them. They stay open and assigned as they are.
           </p>
         ),
         confirmLabel: "Mark project completed",
@@ -164,7 +164,7 @@ export default function ProjectPage() {
     try {
       if (isArchived) await restoreProject(project.id);
       else await archiveProject(project.id);
-      toast.success(isArchived ? "Project restored — it's editable again" : "Project archived");
+      toast.success(isArchived ? "Project restored. You can edit it again" : "Project archived");
       await loadProject();
       reloadProjects();
       projectTasks.reload();

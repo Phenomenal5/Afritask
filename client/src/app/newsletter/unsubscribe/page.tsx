@@ -11,7 +11,7 @@ export default function UnsubscribeNewsletterPage() {
   return (
     <NewsletterLinkAction
       title="Unsubscribe from the newsletter"
-      description="You'll stop getting the Afritask newsletter. Account emails (sign-in, reminders, invitations) aren't affected. You can turn it back on in Settings → Profile."
+      description="You'll stop getting the Afritask newsletter. Account emails (sign-in, reminders, invitations) aren't affected. You can turn it back on from the Profile section in Settings."
       actionLabel="Unsubscribe"
       requiredParams={UNSUBSCRIBE_PARAMS}
       perform={(params) => unsubscribeFromNewsletter({ subscriber: params.subscriber!, signature: params.signature! })}

@@ -457,7 +457,7 @@ export default function TaskComments({ taskId, readOnlyReason, heading }: TaskCo
         </div>
       ) : comments.length === 0 ? (
         <p className="py-2 text-[14px] text-muted">
-          No comments yet. Ask a question, share an update or flag a blocker — mention someone with @ to bring them in.
+          No comments yet. Ask a question, share an update or flag a blocker. Mention someone with @ to bring them in.
         </p>
       ) : (
         <ol className="divide-y divide-line-soft">
@@ -479,7 +479,7 @@ export default function TaskComments({ taskId, readOnlyReason, heading }: TaskCo
             members={members}
             disabled={posting}
             onSubmitShortcut={post}
-            placeholder="Write a comment… Type @ to mention someone."
+            placeholder="Write a comment. Type @ to mention someone."
           />
           {postError && (
             <p role="alert" className="text-[13px] text-brick">

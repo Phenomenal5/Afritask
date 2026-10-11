@@ -42,7 +42,7 @@ export interface ActivityEntry {
 // readable and a 20,000-character description can't bloat every entry.
 const MAX_STORED_TEXT_LENGTH = 500;
 const clipText = (value: unknown) =>
-    typeof value === "string" && value.length > MAX_STORED_TEXT_LENGTH ? `${value.slice(0, MAX_STORED_TEXT_LENGTH)}…` : value;
+    typeof value === "string" && value.length > MAX_STORED_TEXT_LENGTH ? `${value.slice(0, MAX_STORED_TEXT_LENGTH)}...` : value;
 
 // Compare before/after for the given fields. Dates compare by instant, arrays by contents.
 export function diffFields<Row extends Record<string, unknown>>(

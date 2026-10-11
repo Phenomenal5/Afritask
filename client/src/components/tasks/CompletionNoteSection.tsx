@@ -22,7 +22,7 @@ export default function CompletionNoteSection({ task, canEdit }: { task: Task; c
 
   const save = async () => {
     const trimmed = draft.trim();
-    if (!trimmed && !task.parentTaskId) return setError("The note can't be empty — say briefly what was done.");
+    if (!trimmed && !task.parentTaskId) return setError("The note can't be empty. Say briefly what was done.");
     setSaving(true);
     const result = await updateTask(task, { completionNote: trimmed });
     setSaving(false);

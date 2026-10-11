@@ -130,7 +130,7 @@ export const createInvitation = catchAsync(async (req, res) => {
         select: { id: true },
     });
     if (pendingInvitation) {
-        throw new AppError("That email already has a pending invitation — resend it instead", 409);
+        throw new AppError("That email already has a pending invitation. Resend it instead", 409);
     }
 
     // Placeholder hash: issueAndSendInvitation sets the real one (it also handles resend).

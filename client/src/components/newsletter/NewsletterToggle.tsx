@@ -40,7 +40,7 @@ export default function NewsletterToggle() {
         <Newspaper size={19} aria-hidden="true" className="mt-0.5 shrink-0 text-forest" />
         <span className="flex-1 text-[14.5px]">
           <span className="block font-semibold text-ink">Afritask newsletter</span>
-          <span className="mt-0.5 block text-muted">Product news and tips, now and then. Also in the News feed in the app. Unsubscribe any time — here, or with the link in any newsletter email.</span>
+          <span className="mt-0.5 block text-muted">Product news and tips, now and then. Also in the News feed in the app. You can unsubscribe any time, here or with the link in any newsletter email.</span>
         </span>
         <input
           type="checkbox"

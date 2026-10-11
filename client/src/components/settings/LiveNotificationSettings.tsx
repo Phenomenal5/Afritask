@@ -49,8 +49,8 @@ function SettingSwitch({
 
 const PERMISSION_TEXT: Record<string, string> = {
   granted: "This browser shows Afritask notifications.",
-  denied: "Blocked in this browser — allow notifications for Afritask in the site settings (the icon next to the address).",
-  default: "This browser hasn't been asked yet — turning push on asks it.",
+  denied: "Blocked in this browser. Allow notifications for Afritask in the site settings (the icon next to the address).",
+  default: "This browser hasn't been asked yet. Turning push on will ask it.",
 };
 
 export default function LiveNotificationSettings() {
@@ -66,7 +66,7 @@ export default function LiveNotificationSettings() {
     setMessage(result.success ? { tone: "saved", text: savedText } : { tone: "failed", text: result.message ?? "That didn't save." });
   };
 
-  if (!preferences) return <p className="text-[14px] text-muted">Loading your notification settings…</p>;
+  if (!preferences) return <p className="text-[14px] text-muted">Loading your notification settings...</p>;
 
   const pushNote =
     !preferences.pushAvailable
@@ -82,7 +82,7 @@ export default function LiveNotificationSettings() {
       <SettingSwitch
         icon={Volume2}
         title="Notification sound"
-        description="A short chime for every notification while Afritask is open — even in a background tab."
+        description="A short chime for every notification while Afritask is open, even in a background tab."
         checked={preferences.soundEnabled}
         disabled={saving !== null}
         onChange={(checked) => run("sound", () => setSoundEnabled(checked), checked ? "Sound on." : "Sound off.")}
@@ -94,7 +94,7 @@ export default function LiveNotificationSettings() {
       <SettingSwitch
         icon={BellRing}
         title="Push notifications"
-        description="Assignments, mentions, invitations and reminders on this device's notification centre — even when Afritask is closed."
+        description="Assignments, mentions, invitations and reminders on this device's notification centre, even when Afritask is closed."
         checked={preferences.pushEnabled}
         disabled={saving !== null || !preferences.pushAvailable}
         onChange={(checked) => run("push", () => setPushEnabled(checked), checked ? "Push is on for this browser." : "Push is off on all your devices.")}
