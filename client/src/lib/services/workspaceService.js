@@ -15,6 +15,12 @@ export const getWorkspace = (workspaceId) => api.get(`/workspaces/${workspaceId}
 // Rename (Owner only — the server enforces it).
 export const renameWorkspace = (workspaceId, name) => api.patch(`/workspaces/${workspaceId}`, { name });
 
+// Owner only. What deleting would do: { mode: "permanent" | "soft", otherContributors, counts }.
+export const getWorkspaceDeletionPreview = (workspaceId) => api.get(`/workspaces/${workspaceId}/deletion-preview`);
+
+// Owner only. confirmName must equal the workspace's name exactly.
+export const deleteWorkspace = (workspaceId, confirmName) => api.delete(`/workspaces/${workspaceId}`, { data: { confirmName } });
+
 // ─── Members ─────────────────────
 // Owner only: admin ⇄ member.
 export const changeMemberRole = (workspaceId, membershipId, role) =>

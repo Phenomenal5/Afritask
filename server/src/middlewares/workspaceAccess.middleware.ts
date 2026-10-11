@@ -13,8 +13,10 @@ import { requireUser } from "./auth.middleware.js";
 // NOTE: a non-member gets the same 404 as a missing workspace, so guessed ids
 // reveal nothing about which workspaces exist (SRS AC03).
 
+// NOTE: a soft-deleted workspace is closed to everyone, so its memberships stop counting
+// here — the one check every workspace route, task, comment and invitation goes through.
 export const findActiveMembership = (workspaceId: string, userId: string) =>
-    prisma.membership.findFirst({ where: { workspaceId, userId, status: "active" } });
+    prisma.membership.findFirst({ where: { workspaceId, userId, status: "active", workspace: { deletedAt: null } } });
 
 // Membership for a workspace id, or a 404 AppError.
 export const requireActiveMembership = async (workspaceId: string | undefined, userId: string): Promise<Membership> => {

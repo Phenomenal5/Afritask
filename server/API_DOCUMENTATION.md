@@ -523,6 +523,20 @@ they created or are currently assigned to, and delete only tasks they created.
 When a member leaves or is removed, their **open** tasks become unassigned.
 Task lists also filter by `?assignee=me|none|<membershipId>`.
 
+## Deleting a workspace (Owner only)
+
+`GET /api/workspaces/:workspaceId/deletion-preview` says what a delete would do;
+`DELETE /api/workspaces/:workspaceId` with `{ "confirmName": "<exact workspace name>" }` does it.
+
+- **Permanent** when nobody but the Owner has a record there (tasks, comments, projects or
+  changes they made — being invited, joining or leaving doesn't count): the workspace and
+  everything in it are removed. Accounts are untouched.
+- **Soft** when someone else has a record: the workspace is closed to every member at once
+  (every route answers `404`, it leaves everyone's list), pending invitations are revoked and
+  reminders stop, but all the data is kept. There's no in-app restore.
+
+Renaming stays `PATCH /api/workspaces/:workspaceId` (Owner only).
+
 ## Dashboard
 
 `GET /api/workspaces/:workspaceId/dashboard` (any active member) returns:

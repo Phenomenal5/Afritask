@@ -43,6 +43,7 @@ const loadDeliverableTask = (taskId: string) =>
             status: true,
             creatorId: true,
             project: { select: { state: true } },
+            workspace: { select: { deletedAt: true } },
             assignee: { select: { status: true, userId: true } },
         },
     })
@@ -64,6 +65,7 @@ const resolveRecipientId = async (task: DeliverableTask): Promise<string | null>
 // Why a claimed schedule should NOT be delivered now, or null if it should.
 const suppressionReason = (task: DeliverableTask | null, field: ScheduleField, dueInstant: Date, now: Date): string | null => {
     if (!task) return "task deleted"
+    if (task.workspace.deletedAt) return "workspace deleted"
     if (task.status === "completed") return "task completed"
     if (task.project?.state === "archived") return "project archived"
     if (now.getTime() - dueInstant.getTime() > MISSED_GRACE_MS) return "missed while the worker was down"
@@ -152,7 +154,7 @@ const retryFailedEmails = async (now: Date) => {
     let retried = 0
     for (const delivery of failed) {
         const task = delivery.taskId ? await loadDeliverableTask(delivery.taskId) : null
-        const stillEligible = task && task.status !== "completed" && task.project?.state !== "archived"
+        const stillEligible = task && !task.workspace.deletedAt && task.status !== "completed" && task.project?.state !== "archived"
             && (await resolveRecipientId(task)) === delivery.recipientId
         if (!task || !stillEligible) {
             await prisma.emailDelivery.update({ where: { id: delivery.id }, data: { status: "suppressed" } })

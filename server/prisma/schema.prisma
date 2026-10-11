@@ -136,6 +136,7 @@ model User {
   emailDeliveries    EmailDelivery[]   @relation("EmailDeliveryRecipient")
   platformGrant      PlatformGrant?
   adminAuditEntries  AdminAuditEntry[] @relation("AdminAuditActor")
+  deletedWorkspaces  Workspace[]       @relation("WorkspaceDeleter")
 }
 
 // Customer sessions (the web app) and operator sessions (the admin console) live in one
@@ -184,10 +185,15 @@ model AccountToken {
 // The boundary for shared work. Personal and team workspaces are the same model;
 // a personal one simply has a single member (PRD §1).
 model Workspace {
-  id        String   @id @default(uuid(7)) @db.Uuid
-  name      String
-  createdAt DateTime @default(now()) @db.Timestamptz(3)
-  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+  id          String    @id @default(uuid(7)) @db.Uuid
+  name        String
+  // Soft delete (Owner action): set when other people had already left records here, so
+  // their work is kept but nobody can open the workspace any more. A workspace with only
+  // the Owner's own records is deleted outright instead.
+  deletedAt   DateTime? @db.Timestamptz(3)
+  deletedById String?   @db.Uuid
+  createdAt   DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt   DateTime  @updatedAt @db.Timestamptz(3)
 
   memberships   Membership[]
   invitations   Invitation[]
@@ -197,6 +203,7 @@ model Workspace {
   activities    Activity[]
   comments      Comment[]
   notifications Notification[]
+  deletedBy     User?          @relation("WorkspaceDeleter", fields: [deletedById], references: [id], onDelete: SetNull)
 }
 
 // Workspace-scoped tags for tasks (PRD FR07). Owners/Admins manage them; anyone who can

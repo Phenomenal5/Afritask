@@ -544,6 +544,41 @@ const workspacePaths = {
             requestBody: jsonBody({ type: "object", required: ["name"], properties: { name: { type: "string" } } }),
             responses: { 200: jsonResponse("Renamed"), ...errorResponses(400, 401, 403, 404) },
         },
+        delete: {
+            tags: ["Workspaces"],
+            summary: "Delete (Owner only). Permanent if only the Owner has records in it; otherwise a soft delete that closes it to everyone but keeps their work.",
+            security: signedIn,
+            requestBody: jsonBody({ type: "object", required: ["confirmName"], properties: { confirmName: { type: "string", description: "Must equal the workspace's name" } } }),
+            responses: {
+                200: jsonResponse("Deleted", dataEnvelope("mode", { type: "string", enum: ["permanent", "soft"] })),
+                ...errorResponses(400, 401, 403, 404, 409),
+            },
+        },
+    },
+    "/workspaces/{workspaceId}/deletion-preview": {
+        parameters: [workspaceIdParam],
+        get: {
+            tags: ["Workspaces"],
+            summary: "What deleting would do (Owner only): permanent or soft, and why",
+            security: signedIn,
+            responses: {
+                200: jsonResponse("Plan", {
+                    type: "object",
+                    properties: {
+                        status: { type: "string" },
+                        data: {
+                            type: "object",
+                            properties: {
+                                mode: { type: "string", enum: ["permanent", "soft"] },
+                                otherContributors: { type: "integer", description: "People other than the Owner with tasks, comments, projects or changes here" },
+                                counts: { type: "object", properties: { tasks: { type: "integer" }, projects: { type: "integer" }, members: { type: "integer" } } },
+                            },
+                        },
+                    },
+                }),
+                ...errorResponses(401, 403, 404),
+            },
+        },
     },
     "/workspaces/{workspaceId}/members/{membershipId}": {
         parameters: [workspaceIdParam, pathParam("membershipId", "Membership id")],

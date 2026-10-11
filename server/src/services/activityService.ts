@@ -21,7 +21,8 @@ export type ActivityAction =
     | "member.left"
     | "ownership.transferred"
     | "workspace.created"
-    | "workspace.renamed";
+    | "workspace.renamed"
+    | "workspace.deleted";
 
 // { field: { from, to } } — only fields that actually changed.
 export type ActivityChanges = Record<string, { from: unknown; to: unknown }>;

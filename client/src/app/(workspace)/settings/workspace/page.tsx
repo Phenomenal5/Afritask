@@ -15,6 +15,7 @@ import SettingsNav from "@/components/settings/SettingsNav";
 import SettingsSection from "@/components/settings/SettingsSection";
 import LabelsManager from "@/components/settings/LabelsManager";
 import BillingComingSoon from "@/components/settings/BillingComingSoon";
+import DeleteWorkspacePanel from "@/components/settings/DeleteWorkspacePanel";
 import ActivityFeed from "@/components/activity/ActivityFeed";
 import Button, { ButtonLink } from "@/components/ui/Button";
 import { TextField } from "@/components/ui/Field";
@@ -113,9 +114,15 @@ export default function WorkspaceSettingsPage() {
             <ButtonLink href="/workspace/new" variant="secondary" icon={<Plus size={16} aria-hidden="true" />}>
               Create another workspace
             </ButtonLink>
-            <p className="text-[14px] text-muted">Your current workspaces aren&apos;t changed. Deleting a workspace isn&apos;t available yet.</p>
+            <p className="text-[14px] text-muted">Your current workspaces aren&apos;t changed.</p>
           </div>
         </SettingsSection>
+
+        {isOwner && workspaceId && activeWorkspace && (
+          <SettingsSection id="delete" title="Delete workspace" description="Owner only. Permanent if only your own work is here; otherwise it's closed for everyone and their work is kept.">
+            <DeleteWorkspacePanel key={workspaceId} workspaceId={workspaceId} workspaceName={activeWorkspace.name} />
+          </SettingsSection>
+        )}
       </div>
     </>
   );

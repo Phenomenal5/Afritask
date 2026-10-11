@@ -1,7 +1,7 @@
 import express from "express";
 import protect from "../middlewares/auth.middleware.js";
 import { requireWorkspaceMember, requireWorkspaceRole } from "../middlewares/workspaceAccess.middleware.js";
-import { createWorkspace, getWorkspace, listMyWorkspaces, renameWorkspace } from "../controllers/workspace.controller.js";
+import { createWorkspace, deleteWorkspace, getWorkspace, listMyWorkspaces, previewWorkspaceDeletion, renameWorkspace } from "../controllers/workspace.controller.js";
 import { createWorkspaceTask, listWorkspaceTasks } from "../controllers/task.controller.js";
 import { createInvitation, listWorkspaceInvitations } from "../controllers/invitation.controller.js";
 import { invitationLimiter } from "../middlewares/rateLimiter.js";
@@ -23,6 +23,9 @@ router.post("/", createWorkspace);
 router.get("/:workspaceId", requireWorkspaceMember, getWorkspace);
 // NOTE: rename is Owner-only (PRD §8), not Owner+Admin.
 router.patch("/:workspaceId", requireWorkspaceMember, requireWorkspaceRole("owner"), renameWorkspace);
+// Delete (Owner only): permanent if only the Owner has records here, soft otherwise.
+router.get("/:workspaceId/deletion-preview", requireWorkspaceMember, requireWorkspaceRole("owner"), previewWorkspaceDeletion);
+router.delete("/:workspaceId", requireWorkspaceMember, requireWorkspaceRole("owner"), deleteWorkspace);
 
 router.get("/:workspaceId/tasks", requireWorkspaceMember, listWorkspaceTasks);
 router.post("/:workspaceId/tasks", requireWorkspaceMember, createWorkspaceTask);

@@ -21,7 +21,7 @@ export const listMyWorkspaces = catchAsync(async (req, res) => {
     const userId = requireUser(req).id;
 
     const memberships = await prisma.membership.findMany({
-        where: { userId, status: "active" },
+        where: { userId, status: "active", workspace: { deletedAt: null } },
         orderBy: { joinedAt: "asc" },
         select: {
             role: true,
@@ -132,4 +132,97 @@ export const renameWorkspace = catchAsync(async (req, res) => {
 
     logger.info(`Workspace renamed workspaceId=${workspace.id} by userId=${membership.userId}`);
     res.status(200).json({ status: "success", data: { workspace } });
+});
+
+// ─── Delete a workspace (Owner only — enforced by the route) ─────────────────────
+// Two outcomes, decided by whose work is in it:
+// - Only the Owner's own records → deleted outright, with everything in it.
+// - Someone else has records here (tasks, comments, projects or changes they made) →
+//   SOFT deleted: closed to every member at once and hidden from lists, but their work is
+//   kept rather than destroyed by one person's decision.
+// Being invited, joining or leaving isn't a record; doing work is.
+
+// Distinct people other than the Owner who have left a record in the workspace.
+const otherContributors = async (workspaceId: string, ownerUserId: string) => {
+    const notOwner = { not: ownerUserId };
+    const [taskAuthors, commentAuthors, projectAuthors, activityActors] = await Promise.all([
+        prisma.task.findMany({ where: { workspaceId, creatorId: notOwner }, distinct: ["creatorId"], select: { creatorId: true } }),
+        prisma.comment.findMany({ where: { workspaceId, authorId: notOwner }, distinct: ["authorId"], select: { authorId: true } }),
+        prisma.project.findMany({ where: { workspaceId, createdById: notOwner }, distinct: ["createdById"], select: { createdById: true } }),
+        prisma.activity.findMany({
+            where: { workspaceId, actorId: notOwner, NOT: { action: { startsWith: "member." } } },
+            distinct: ["actorId"],
+            select: { actorId: true },
+        }),
+    ]);
+    return new Set([
+        ...taskAuthors.map((row) => row.creatorId),
+        ...commentAuthors.map((row) => row.authorId),
+        ...projectAuthors.map((row) => row.createdById),
+        ...activityActors.map((row) => row.actorId),
+    ]).size;
+};
+
+const deletionPlan = async (workspaceId: string, ownerUserId: string) => {
+    const [contributors, taskCount, projectCount, memberCount] = await Promise.all([
+        otherContributors(workspaceId, ownerUserId),
+        prisma.task.count({ where: { workspaceId } }),
+        prisma.project.count({ where: { workspaceId } }),
+        prisma.membership.count({ where: { workspaceId, status: "active" } }),
+    ]);
+    return {
+        mode: contributors > 0 ? ("soft" as const) : ("permanent" as const),
+        otherContributors: contributors,
+        counts: { tasks: taskCount, projects: projectCount, members: memberCount },
+    };
+};
+
+// GET /api/workspaces/:workspaceId/deletion-preview — what deleting would do, before you confirm.
+export const previewWorkspaceDeletion = catchAsync(async (req, res) => {
+    const membership = requireMembership(req);
+    res.status(200).json({ status: "success", data: await deletionPlan(membership.workspaceId, membership.userId) });
+});
+
+// DELETE /api/workspaces/:workspaceId — body { confirmName } must equal the workspace's name.
+export const deleteWorkspace = catchAsync(async (req, res) => {
+    const membership = requireMembership(req);
+    const workspace = await prisma.workspace.findUniqueOrThrow({ where: { id: membership.workspaceId }, select: { id: true, name: true } });
+    // NOTE: typed confirmation (SRS §2) — a stray click can't delete a workspace.
+    // NOTE: Express 5 leaves req.body undefined when no body is sent — read it defensively.
+    const confirmName: unknown = req.body?.confirmName;
+    if (typeof confirmName !== "string" || confirmName.trim() !== workspace.name) {
+        throw new AppError("Type the workspace's name exactly to confirm.", 400);
+    }
+
+    const plan = await deletionPlan(workspace.id, membership.userId);
+    if (plan.mode === "permanent") {
+        await prisma.$transaction(async (tx) => {
+            // Tasks first: a project can't be removed while tasks still point at it.
+            await tx.task.deleteMany({ where: { workspaceId: workspace.id } });
+            await tx.workspace.delete({ where: { id: workspace.id } });
+        });
+    } else {
+        await prisma.$transaction(async (tx) => {
+            const { count } = await tx.workspace.updateMany({
+                where: { id: workspace.id, deletedAt: null },
+                data: { deletedAt: new Date(), deletedById: membership.userId },
+            });
+            if (count === 0) throw new AppError("This workspace was already deleted.", 409);
+            // Nobody can join a closed workspace, and nothing in it sends reminders any more.
+            await tx.invitation.updateMany({ where: { workspaceId: workspace.id, status: "pending" }, data: { status: "revoked", respondedAt: new Date() } });
+            await tx.task.updateMany({ where: { workspaceId: workspace.id }, data: { remindAt: null, overdueCheckAt: null } });
+            await recordActivity(tx, {
+                workspaceId: workspace.id,
+                actorId: membership.userId,
+                entityType: "workspace",
+                entityId: workspace.id,
+                action: "workspace.deleted",
+                summary: workspace.name,
+                changes: { mode: { from: null, to: "soft" } },
+            });
+        });
+    }
+
+    logger.info(`Workspace deleted (${plan.mode}) workspaceId=${workspace.id} by userId=${membership.userId}`);
+    res.status(200).json({ status: "success", data: { mode: plan.mode } });
 });

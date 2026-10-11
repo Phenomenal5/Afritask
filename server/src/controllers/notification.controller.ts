@@ -38,7 +38,7 @@ const checkAvailability = async (rows: NotificationRow[], userId: string) => {
     const [tasks, memberships, invitations] = await Promise.all([
         taskIds.length ? prisma.task.findMany({ where: { id: { in: taskIds } }, select: { id: true, workspaceId: true } }) : [],
         workspaceIds.length
-            ? prisma.membership.findMany({ where: { userId, workspaceId: { in: workspaceIds }, status: "active" }, select: { workspaceId: true } })
+            ? prisma.membership.findMany({ where: { userId, workspaceId: { in: workspaceIds }, status: "active", workspace: { deletedAt: null } }, select: { workspaceId: true } })
             : [],
         invitationIds.length
             ? prisma.invitation.findMany({ where: { id: { in: invitationIds } }, select: { id: true, status: true, expiresAt: true } })
