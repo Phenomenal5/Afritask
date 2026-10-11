@@ -1556,3 +1556,27 @@ X-Requested-With: XMLHttpRequest
 GET /api/v1/workspaces/:workspaceId/tasks
 Cookie: afritask_access=<from login>
 ```
+
+## Newsletter
+
+Published posts form a public News feed; subscribers can also get them by email.
+Every newsletter email ends with a one-click unsubscribe link and says how to turn it
+off in Settings → Profile, and carries `List-Unsubscribe` / `List-Unsubscribe-Post`
+headers so mail apps show their own Unsubscribe button.
+
+| Method | Path | Auth | What it does |
+| --- | --- | --- | --- |
+| `GET` | `/api/v1/newsletter/posts?page=&limit=` | public | Published posts, newest first |
+| `GET` | `/api/v1/newsletter/posts/:postId` | public | One published post (drafts are `404`) |
+| `POST` | `/api/v1/newsletter/subscribe` | public, rate-limited | `{ email }` → emails a confirmation link (double opt-in). Same answer for any address. |
+| `POST` | `/api/v1/newsletter/confirm` | signed link | `{ subscriber, expires, signature }` from the confirmation email |
+| `POST` | `/api/v1/newsletter/unsubscribe?subscriber=&signature=` | signed link | One-click unsubscribe. No `X-Requested-With` needed (mail apps POST it as-is). |
+| `GET` / `PUT` | `/api/v1/newsletter/subscription` | signed in | Read / set `{ subscribed: boolean }` — the settings toggle |
+
+Signup accepts an optional `newsletter: true`; it starts once the email is verified.
+
+Admin console (operator session): `GET/POST /api/v1/admin/newsletter/posts`,
+`GET/PATCH/DELETE /api/v1/admin/newsletter/posts/:postId` (delete: drafts only),
+`POST /api/v1/admin/newsletter/posts/:postId/publish` with `{ emailSubscribers }`, and
+`GET /api/v1/admin/newsletter/subscribers/summary` (counts only). Emailing happens in the
+minute sweep, 100 subscribers per batch, at most once per subscriber per post.

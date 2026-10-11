@@ -348,6 +348,34 @@ const schemas = {
             updatedAt: { type: "string", format: "date-time" },
         },
     },
+    NewsletterPost: {
+        type: "object",
+        description: "A published post as the public feed shows it. body is plain text; blank lines separate paragraphs.",
+        properties: {
+            id: { type: "string", format: "uuid" },
+            title: { type: "string" },
+            summary: { type: "string" },
+            body: { type: "string" },
+            publishedAt: { type: "string", format: "date-time" },
+        },
+    },
+    AdminNewsletterPost: {
+        type: "object",
+        properties: {
+            id: { type: "string", format: "uuid" },
+            title: { type: "string" },
+            summary: { type: "string" },
+            body: { type: "string" },
+            status: { type: "string", enum: ["draft", "published"] },
+            publishedAt: { type: ["string", "null"], format: "date-time" },
+            emailRequested: { type: "boolean" },
+            emailCompletedAt: { type: ["string", "null"], format: "date-time", description: "Set once every subscriber batch has gone out" },
+            author: { type: ["object", "null"], properties: { id: { type: "string" }, name: { type: "string" } } },
+            _count: { type: "object", properties: { deliveries: { type: "integer", description: "Emails sent so far" } } },
+            createdAt: { type: "string", format: "date-time" },
+            updatedAt: { type: "string", format: "date-time" },
+        },
+    },
     AdminAuditEntry: {
         type: "object",
         properties: {
@@ -1402,6 +1430,105 @@ const adminOperationsPaths = {
     },
 };
 
+// ─── Newsletter ─────────────────────
+const postIdParam = pathParam("postId", "Newsletter post id (UUID)");
+const postPagingParams = [
+    { name: "page", in: "query", schema: { type: "integer", minimum: 1 } },
+    { name: "limit", in: "query", schema: { type: "integer", minimum: 1, maximum: 100, default: 25 } },
+];
+const postInput = (required: string[]) => ({
+    type: "object",
+    required,
+    properties: { title: { type: "string", maxLength: 150 }, summary: { type: "string", maxLength: 300 }, body: { type: "string", maxLength: 20000 } },
+});
+const subscribedEnvelope = dataEnvelope("subscribed", { type: "boolean" });
+
+const newsletterPaths = {
+    "/newsletter/posts": {
+        get: { tags: ["Newsletter"], summary: "Published posts, newest first (public)", security: publicRoute, parameters: postPagingParams, responses: { 200: jsonResponse("Posts", pageEnvelope(ref("NewsletterPost"))), ...errorResponses(400) } },
+    },
+    "/newsletter/posts/{postId}": {
+        get: { tags: ["Newsletter"], summary: "One published post (drafts are 404)", security: publicRoute, parameters: [postIdParam], responses: { 200: jsonResponse("Post", dataEnvelope("post", ref("NewsletterPost"))), ...errorResponses(404) } },
+    },
+    "/newsletter/subscribe": {
+        post: {
+            tags: ["Newsletter"],
+            summary: "Subscribe an email address: sends a confirmation link (double opt-in). Same answer whether or not it is already subscribed.",
+            security: publicRoute,
+            requestBody: jsonBody({ type: "object", required: ["email"], properties: { email: { type: "string", format: "email" } } }),
+            responses: { 200: jsonResponse("Confirmation sent (if needed)", messageEnvelope), ...errorResponses(400, 429) },
+        },
+    },
+    "/newsletter/confirm": {
+        post: {
+            tags: ["Newsletter"],
+            summary: "Confirm a subscription with the signed link from the confirmation email",
+            security: publicRoute,
+            requestBody: jsonBody({ type: "object", required: ["subscriber", "expires", "signature"], properties: { subscriber: { type: "string" }, expires: { type: "string" }, signature: { type: "string" } } }),
+            responses: { 200: jsonResponse("Subscribed", messageEnvelope), ...errorResponses(400) },
+        },
+    },
+    "/newsletter/unsubscribe": {
+        post: {
+            tags: ["Newsletter"],
+            summary: "Unsubscribe with the signed link from any newsletter email (RFC 8058 one-click: no X-Requested-With needed)",
+            security: publicRoute,
+            parameters: [
+                { name: "subscriber", in: "query", schema: { type: "string" } },
+                { name: "signature", in: "query", schema: { type: "string" } },
+            ],
+            responses: { 200: jsonResponse("Unsubscribed (idempotent)", messageEnvelope), ...errorResponses(400) },
+        },
+    },
+    "/newsletter/subscription": {
+        get: { tags: ["Newsletter"], summary: "Whether the signed-in account gets the newsletter", security: signedIn, responses: { 200: jsonResponse("Setting", subscribedEnvelope), ...errorResponses(401) } },
+        put: {
+            tags: ["Newsletter"],
+            summary: "Turn the newsletter on or off for the signed-in account (Settings, Profile)",
+            security: signedIn,
+            requestBody: jsonBody({ type: "object", required: ["subscribed"], properties: { subscribed: { type: "boolean" } } }),
+            responses: { 200: jsonResponse("Saved", subscribedEnvelope), ...errorResponses(400, 401) },
+        },
+    },
+};
+
+const adminNewsletterPaths = {
+    "/admin/newsletter/posts": {
+        get: { tags: ["Admin"], summary: "Newsletter posts (drafts and published), newest first", security: operatorSession, parameters: postPagingParams, responses: { 200: jsonResponse("Posts", pageEnvelope(ref("AdminNewsletterPost"))), ...errorResponses(400, 401) } },
+        post: { tags: ["Admin"], summary: "Create a draft (audited)", security: operatorSession, requestBody: jsonBody(postInput(["title", "body"])), responses: { 201: jsonResponse("Draft", dataEnvelope("post", ref("AdminNewsletterPost"))), ...errorResponses(400, 401) } },
+    },
+    "/admin/newsletter/posts/{postId}": {
+        get: { tags: ["Admin"], summary: "One post", security: operatorSession, parameters: [postIdParam], responses: { 200: jsonResponse("Post", dataEnvelope("post", ref("AdminNewsletterPost"))), ...errorResponses(401, 404) } },
+        patch: {
+            tags: ["Admin"],
+            summary: "Edit a post (a published post is corrected in the feed, never re-emailed; audited)",
+            security: operatorSession,
+            parameters: [postIdParam],
+            requestBody: jsonBody(postInput([])),
+            responses: { 200: jsonResponse("Post", dataEnvelope("post", ref("AdminNewsletterPost"))), ...errorResponses(400, 401, 404) },
+        },
+        delete: { tags: ["Admin"], summary: "Delete a draft (published posts stay on record; audited)", security: operatorSession, parameters: [postIdParam], responses: { 204: jsonResponse("Deleted"), ...errorResponses(401, 404, 409) } },
+    },
+    "/admin/newsletter/posts/{postId}/publish": {
+        post: {
+            tags: ["Admin"],
+            summary: "Publish a draft to the News feed, optionally emailing confirmed subscribers once (audited)",
+            security: operatorSession,
+            parameters: [postIdParam],
+            requestBody: jsonBody({ type: "object", required: ["emailSubscribers"], properties: { emailSubscribers: { type: "boolean" } } }),
+            responses: { 200: jsonResponse("Published", dataEnvelope("post", ref("AdminNewsletterPost"))), ...errorResponses(400, 401, 404, 409) },
+        },
+    },
+    "/admin/newsletter/subscribers/summary": {
+        get: {
+            tags: ["Admin"],
+            summary: "Subscriber counts by status (never the addresses)",
+            security: operatorSession,
+            responses: { 200: jsonResponse("Counts", dataEnvelope("summary", { type: "object", properties: { subscribed: { type: "integer" }, pending: { type: "integer" }, unsubscribed: { type: "integer" } } })), ...errorResponses(401) },
+        },
+    },
+};
+
 const healthPaths = {
     "/health": {
         // Unversioned: probed by infrastructure, not part of the API contract.
@@ -1514,6 +1641,7 @@ const openApiDocument = {
         { name: "Labels", description: "Workspace labels for tagging tasks" },
         { name: "Comments", description: "Discussion on tasks, with @mentions of workspace members" },
         { name: "Notifications", description: "In-app notifications: assignments, mentions and invitations" },
+        { name: "Newsletter", description: "The public News feed, subscribing (double opt-in), opting out, and the account newsletter setting" },
         { name: "Admin", description: "Admin console (Platform Superadmin): its own sign-in with MFA" },
         { name: "Health", description: "Liveness and readiness probes for hosts and load balancers" },
         { name: "Activity", description: "Read-only history: who changed what, with before/after values" },
@@ -1526,7 +1654,7 @@ const openApiDocument = {
         },
         schemas,
     },
-    paths: withOperationIds({ ...authPaths, ...userPaths, ...workspacePaths, ...invitationPaths, ...projectPaths, ...labelPaths, ...taskPaths, ...subtaskPaths, ...commentPaths, ...notificationPaths, ...activityPaths, ...dashboardPaths, ...healthPaths, ...adminAuthPaths, ...adminDirectoryPaths, ...adminOperationsPaths }),
+    paths: withOperationIds({ ...authPaths, ...userPaths, ...workspacePaths, ...invitationPaths, ...projectPaths, ...labelPaths, ...taskPaths, ...subtaskPaths, ...commentPaths, ...notificationPaths, ...activityPaths, ...dashboardPaths, ...healthPaths, ...adminAuthPaths, ...adminDirectoryPaths, ...adminOperationsPaths, ...newsletterPaths, ...adminNewsletterPaths }),
 };
 
 export default openApiDocument;

@@ -30,6 +30,7 @@ import {
     startSession
 } from '../services/sessionService.js';
 import { CURRENT_TERMS_VERSION, hasAcceptedCurrentTerms } from '../config/terms.js';
+import { confirmSignupOptIn, recordSignupOptIn } from '../services/newsletterService.js';
 
 const TERMS_NOT_ACCEPTED_MESSAGE = "Please accept the Terms of Service and Privacy Policy to create an account.";
 
@@ -72,7 +73,7 @@ const sendAuthResponse = async (req: Request, res: Response, user: PublicUser, s
 };
 
 export const signup = catchAsync(async (req, res, next) => {
-    const { name, email, password, age, timezone, acceptTerms } = req.body;
+    const { name, email, password, age, timezone, acceptTerms, newsletter } = req.body;
     try {
         if (!name || !email || !password) {
             return next(new AppError("Please provide all required fields", 400));
@@ -105,6 +106,9 @@ export const signup = catchAsync(async (req, res, next) => {
         });
 
         logger.info(`New user signup: ${email}`);
+
+        // Optional newsletter box: pending until the address is verified (verifyEmail).
+        if (newsletter === true) await recordSignupOptIn(prisma, user);
 
         // NOTE: the account is unusable until the verification email lands, so a
         // send failure must not leave a half-created user behind. It used to:
@@ -293,6 +297,8 @@ export const verifyEmail = catchAsync(async (req, res, next) => {
         // Local signups only earn the welcome once the address is proven.
         // Google signups get theirs in config/passport.ts instead.
         await deliverWelcomeEmail(user.email, user.name);
+        // A verified address confirms a newsletter opt-in made at signup.
+        await confirmSignupOptIn(user.id);
 
         res.status(200).json({
             status: "success",

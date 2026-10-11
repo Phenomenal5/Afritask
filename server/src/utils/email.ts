@@ -2,7 +2,7 @@ import { BrevoClient } from "@getbrevo/brevo";
 import { emailTemplate, escapeHtml } from "./emailTemplates.js";
 import logger, { errorMessage } from "./logger.js";
 import env from "../config/env.js";
-import type { Task } from "../generated/prisma/client.js";
+import type { NewsletterPost, Task } from "../generated/prisma/client.js";
 import CLIENT_URL from "../config/clientUrl.js";
 
 const brevo = new BrevoClient({
@@ -14,6 +14,8 @@ interface OutgoingEmail {
   subject: string;
   text: string;
   html: string;
+  // Extra headers, e.g. List-Unsubscribe on newsletters.
+  headers?: Record<string, string>;
 }
 
 // Only the fields a reminder email shows.
@@ -44,13 +46,13 @@ export const testMailbox = {
 };
 
 const emailService = {
-  sendEmail: async ({ to, subject, text, html }: OutgoingEmail) => {
+  sendEmail: async ({ to, subject, text, html, headers }: OutgoingEmail) => {
     if (env.isTest) {
       if (testMailbox.failNextSend) {
         testMailbox.failNextSend = false;
         throw new Error("Simulated email provider failure");
       }
-      testMailbox.sent.push({ to, subject, text, html });
+      testMailbox.sent.push({ to, subject, text, html, headers });
       return;
     }
 
@@ -63,6 +65,7 @@ const emailService = {
       subject,
       textContent: text,
       htmlContent: html,
+      ...(headers && { headers }),
     });
     logger.info(`Email sent to ${to}: ${subject}`);
   },
@@ -288,5 +291,65 @@ export const sendTaskReminderEmail = async (to: string, task: ReminderTask, kind
       buttonText: "Open Task",
       buttonUrl: taskUrl,
     }),
+  });
+};
+
+// ─── Newsletter ─────────────────────
+const paragraphsOf = (body: string) =>
+  body
+    .split(/\n\s*\n/)
+    .map((paragraph) => paragraph.trim())
+    .filter(Boolean);
+
+// Double opt-in for the website form: nothing is sent to an address until it confirms.
+export const sendNewsletterConfirmationEmail = async (to: string, confirmUrl: string) => {
+  await emailService.sendEmail({
+    to,
+    subject: "Confirm your AfriTask newsletter subscription",
+    text: `Someone (hopefully you) asked to get the AfriTask newsletter at this address. Confirm here: ${confirmUrl} — if it wasn't you, ignore this email and nothing will be sent.`,
+    html: emailTemplate({
+      title: "Confirm your subscription",
+      badge: "📰 Newsletter",
+      message: `
+        <p>Someone (hopefully you) asked to get the AfriTask newsletter at this address.</p>
+        <p>Confirm and you'll get product news and tips now and then. You can unsubscribe any time with one click.</p>
+        <p>If it wasn't you, ignore this email — nothing will be sent.</p>
+      `,
+      buttonText: "Confirm subscription",
+      buttonUrl: confirmUrl,
+    }),
+  });
+};
+
+// NOTE: every newsletter tells the reader how to stop getting it — a one-click unsubscribe
+// link, the settings toggle, and List-Unsubscribe headers so mail apps show their own
+// "Unsubscribe" button (Gmail and Yahoo require these for bulk mail).
+export const sendNewsletterPostEmail = async (
+  to: string,
+  post: Pick<NewsletterPost, "id" | "title" | "summary" | "body">,
+  unsubscribe: { pageUrl: string; oneClickUrl: string },
+) => {
+  const postUrl = `${CLIENT_URL}/news/${encodeURIComponent(post.id)}`;
+  const optOutText = `You're getting this because you subscribed to the AfriTask newsletter. To stop, unsubscribe here: ${unsubscribe.pageUrl} — or, if you have an account, turn off "Afritask newsletter" in Settings → Profile.`;
+
+  await emailService.sendEmail({
+    to,
+    subject: post.title,
+    text: [post.summary, ...paragraphsOf(post.body), `Read it on AfriTask: ${postUrl}`, optOutText].filter(Boolean).join("\n\n"),
+    html: emailTemplate({
+      title: post.title,
+      badge: "📰 AfriTask news",
+      message: [
+        post.summary ? `<p style="font-weight:700;">${escapeHtml(post.summary)}</p>` : "",
+        ...paragraphsOf(post.body).map((paragraph) => `<p>${escapeHtml(paragraph).replace(/\n/g, "<br />")}</p>`),
+      ].join(""),
+      buttonText: "Read on AfriTask",
+      buttonUrl: postUrl,
+      footerNote: `You're getting this because you subscribed to the AfriTask newsletter.<br /><a href="${escapeHtml(unsubscribe.pageUrl)}" style="color:inherit; font-weight:700;">Unsubscribe</a> with one click, or turn off &ldquo;Afritask newsletter&rdquo; in Settings → Profile.`,
+    }),
+    headers: {
+      "List-Unsubscribe": `<${unsubscribe.oneClickUrl}>`,
+      "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+    },
   });
 };

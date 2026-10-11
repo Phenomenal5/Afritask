@@ -103,48 +103,50 @@ enum AccountTokenPurpose {
 }
 
 model User {
-  id            String       @id @default(uuid(7)) @db.Uuid
-  name          String
-  email         String       @unique
-  age           Int?
-  photo         String?
+  id              String       @id @default(uuid(7)) @db.Uuid
+  name            String
+  email           String       @unique
+  age             Int?
+  photo           String?
   // Null for Google-only accounts. Never returned by default — see the global omit in config/prisma.ts.
-  password      String?
+  password        String?
   // NOTE: legacy customer role from Mongo. Does NOT grant platform Superadmin (that's a separate grant later).
-  role          Role         @default(user)
-  provider      AuthProvider @default(local)
-  providerId    String?      @unique
-  isVerified    Boolean      @default(false)
+  role            Role         @default(user)
+  provider        AuthProvider @default(local)
+  providerId      String?      @unique
+  isVerified      Boolean      @default(false)
   // IANA zone, e.g. "Africa/Lagos". Detected from the device at signup, editable in profile.
-  timezone      String       @default("UTC")
+  timezone        String       @default("UTC")
   // Platform suspension (SRS SR17): set by an operator with a reason. Ends every session,
   // blocks sign-in and silences notifications; ownership and assignments are untouched.
-  suspendedAt   DateTime?    @db.Timestamptz(3)
-  suspendReason String?
+  suspendedAt     DateTime?    @db.Timestamptz(3)
+  suspendReason   String?
   // Terms of Service + Privacy Policy acceptance. termsVersion is the version they agreed to
   // (config/terms.ts); when it's older than the current one they're asked again.
-  termsAcceptedAt DateTime?  @db.Timestamptz(3)
+  termsAcceptedAt DateTime?    @db.Timestamptz(3)
   termsVersion    String?
   // Source Mongo _id, so the import script can be re-run without duplicating rows.
-  legacyMongoId String?      @unique
-  createdAt     DateTime     @default(now()) @db.Timestamptz(3)
-  updatedAt     DateTime     @updatedAt @db.Timestamptz(3)
+  legacyMongoId   String?      @unique
+  createdAt       DateTime     @default(now()) @db.Timestamptz(3)
+  updatedAt       DateTime     @updatedAt @db.Timestamptz(3)
 
-  createdTasks       Task[]            @relation("TaskCreator")
-  memberships        Membership[]
-  sentInvites        Invitation[]      @relation("InvitationInviter")
-  projects           Project[]         @relation("ProjectCreator")
-  sessions           Session[]
-  accountTokens      AccountToken[]
-  activities         Activity[]        @relation("ActivityActor")
-  comments           Comment[]         @relation("CommentAuthor")
-  deletedComments    Comment[]         @relation("CommentDeleter")
-  notifications      Notification[]    @relation("NotificationRecipient")
-  actedNotifications Notification[]    @relation("NotificationActor")
-  emailDeliveries    EmailDelivery[]   @relation("EmailDeliveryRecipient")
-  platformGrant      PlatformGrant?
-  adminAuditEntries  AdminAuditEntry[] @relation("AdminAuditActor")
-  deletedWorkspaces  Workspace[]       @relation("WorkspaceDeleter")
+  createdTasks           Task[]                @relation("TaskCreator")
+  memberships            Membership[]
+  sentInvites            Invitation[]          @relation("InvitationInviter")
+  projects               Project[]             @relation("ProjectCreator")
+  sessions               Session[]
+  accountTokens          AccountToken[]
+  activities             Activity[]            @relation("ActivityActor")
+  comments               Comment[]             @relation("CommentAuthor")
+  deletedComments        Comment[]             @relation("CommentDeleter")
+  notifications          Notification[]        @relation("NotificationRecipient")
+  actedNotifications     Notification[]        @relation("NotificationActor")
+  emailDeliveries        EmailDelivery[]       @relation("EmailDeliveryRecipient")
+  platformGrant          PlatformGrant?
+  adminAuditEntries      AdminAuditEntry[]     @relation("AdminAuditActor")
+  deletedWorkspaces      Workspace[]           @relation("WorkspaceDeleter")
+  newsletterSubscription NewsletterSubscriber?
+  newsletterPosts        NewsletterPost[]      @relation("NewsletterPostAuthor")
 }
 
 // Customer sessions (the web app) and operator sessions (the admin console) live in one
@@ -159,21 +161,21 @@ enum SessionKind {
 // A customer session is the REFRESH TOKEN (secretHash = its hash); access tokens are
 // short-lived JWTs that name it. Operator sessions use the secret directly (8h, MFA).
 model Session {
-  id            String      @id @default(uuid(7)) @db.Uuid
-  userId        String      @db.Uuid
-  secretHash    String      @unique
+  id                 String      @id @default(uuid(7)) @db.Uuid
+  userId             String      @db.Uuid
+  secretHash         String      @unique
   // The refresh token this one replaced, accepted for a minute after rotation so two
   // tabs refreshing at once don't sign each other out.
-  previousSecretHash String?   @unique
-  rotatedAt          DateTime? @db.Timestamptz(3)
-  expiresAt     DateTime    @db.Timestamptz(3)
-  revokedAt     DateTime?   @db.Timestamptz(3)
-  userAgent     String?
-  kind          SessionKind @default(customer)
+  previousSecretHash String?     @unique
+  rotatedAt          DateTime?   @db.Timestamptz(3)
+  expiresAt          DateTime    @db.Timestamptz(3)
+  revokedAt          DateTime?   @db.Timestamptz(3)
+  userAgent          String?
+  kind               SessionKind @default(customer)
   // Operator sessions only: set once the MFA code is verified. Until then the session can
   // do nothing but complete MFA.
-  mfaVerifiedAt DateTime?   @db.Timestamptz(3)
-  createdAt     DateTime    @default(now()) @db.Timestamptz(3)
+  mfaVerifiedAt      DateTime?   @db.Timestamptz(3)
+  createdAt          DateTime    @default(now()) @db.Timestamptz(3)
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -604,4 +606,80 @@ model AdminAuditEntry {
   @@index([createdAt])
   @@index([targetType, targetId, createdAt])
   @@index([actorId, createdAt])
+}
+
+// ─── Newsletter ─────────────────────
+// pending: waiting for the email to be confirmed (website form) or verified (signup box).
+// Only "subscribed" rows are ever emailed.
+enum NewsletterSubscriberStatus {
+  pending
+  subscribed
+  unsubscribed
+}
+
+// One row per email address, with or without an account (services/newsletterService.ts).
+model NewsletterSubscriber {
+  id             String                     @id @default(uuid(7)) @db.Uuid
+  email          String                     @unique
+  // Set when the address belongs to an account (the settings toggle manages this row).
+  userId         String?                    @unique @db.Uuid
+  status         NewsletterSubscriberStatus @default(pending)
+  // "signup" | "profile" | "website" — where they first subscribed.
+  source         String
+  confirmedAt    DateTime?                  @db.Timestamptz(3)
+  unsubscribedAt DateTime?                  @db.Timestamptz(3)
+  createdAt      DateTime                   @default(now()) @db.Timestamptz(3)
+  updatedAt      DateTime                   @updatedAt @db.Timestamptz(3)
+
+  user       User?                @relation(fields: [userId], references: [id], onDelete: SetNull)
+  deliveries NewsletterDelivery[]
+
+  @@index([status])
+}
+
+enum NewsletterPostStatus {
+  draft
+  published
+}
+
+// Written by operators in the admin console. Published posts are public (the News feed).
+model NewsletterPost {
+  id               String               @id @default(uuid(7)) @db.Uuid
+  title            String
+  summary          String               @default("")
+  // Plain text; blank lines separate paragraphs. Rendered as text, never HTML.
+  body             String
+  status           NewsletterPostStatus @default(draft)
+  publishedAt      DateTime?            @db.Timestamptz(3)
+  authorId         String?              @db.Uuid
+  // Published with "email subscribers": the minute sweep sends it in batches and sets
+  // emailCompletedAt when nobody is left.
+  emailRequested   Boolean              @default(false)
+  emailCompletedAt DateTime?            @db.Timestamptz(3)
+  createdAt        DateTime             @default(now()) @db.Timestamptz(3)
+  updatedAt        DateTime             @updatedAt @db.Timestamptz(3)
+
+  author     User?                @relation("NewsletterPostAuthor", fields: [authorId], references: [id], onDelete: SetNull)
+  deliveries NewsletterDelivery[]
+
+  @@index([status, publishedAt])
+}
+
+// One email of one post to one subscriber. The unique pair is the claim that stops a post
+// ever being emailed to someone twice.
+model NewsletterDelivery {
+  id           String              @id @default(uuid(7)) @db.Uuid
+  postId       String              @db.Uuid
+  subscriberId String              @db.Uuid
+  status       EmailDeliveryStatus @default(pending)
+  attempts     Int                 @default(0)
+  lastError    String?
+  sentAt       DateTime?           @db.Timestamptz(3)
+  createdAt    DateTime            @default(now()) @db.Timestamptz(3)
+  updatedAt    DateTime            @updatedAt @db.Timestamptz(3)
+
+  post       NewsletterPost       @relation(fields: [postId], references: [id], onDelete: Cascade)
+  subscriber NewsletterSubscriber @relation(fields: [subscriberId], references: [id], onDelete: Cascade)
+
+  @@unique([postId, subscriberId])
 }

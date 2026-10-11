@@ -5,6 +5,7 @@ import { sendTaskReminderEmail, type TaskEmailKind } from "../utils/email.js"
 import logger, { errorMessage } from "../utils/logger.js"
 import redisConnection from "../config/redis.js"
 import { notifyTaskSchedule } from "../services/notificationService.js"
+import { runNewsletterSweep } from "../services/newsletterService.js"
 
 // ─── Per-task reminders and overdue alerts (SRS SR10) ─────────────────────
 // Every minute a sweep looks for tasks whose remindAt / overdueCheckAt has arrived. For each:
@@ -216,7 +217,16 @@ const startTaskReminderJob = () => {
         .catch((error) => logger.error(`Failed to schedule the reminder sweep: ${error.stack || error.message}`));
 
     // concurrency 1: sweeps never overlap on one instance (claims keep multiple instances safe).
-    const reminderWorker = new Worker(REMINDER_QUEUE_NAME, () => runReminderSweep(), { connection: redisConnection, concurrency: 1 });
+    // The same minute also sends the next batch of any newsletter being emailed.
+    const reminderWorker = new Worker(
+        REMINDER_QUEUE_NAME,
+        async () => {
+            await runReminderSweep()
+            const newsletterEmails = await runNewsletterSweep()
+            if (newsletterEmails) logger.info(`Newsletter sweep: sent=${newsletterEmails}`)
+        },
+        { connection: redisConnection, concurrency: 1 },
+    );
 
     reminderWorker.on("failed", (job, error) => {
         logger.error(`Reminder sweep ${job?.id} failed: ${error.stack || error.message}`);

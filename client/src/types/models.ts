@@ -189,3 +189,19 @@ export interface TaskServerQuery {
   // Server-side search (titles, descriptions, project names) — also finds subtasks.
   q?: string;
 }
+
+// A published newsletter post, as the public feed returns it. The body is plain text:
+// blank lines separate paragraphs.
+export interface NewsletterPost {
+  id: string;
+  title: string;
+  summary: string;
+  body: string;
+  publishedAt: string;
+}
+
+// One page of a paged list (?page=&limit=).
+export interface Page<Item> {
+  items: Item[];
+  pagination: { page: number; limit: number; total: number; totalPages: number };
+}

@@ -15,12 +15,16 @@ export type AdminAuditAction =
     | "account.restored"
     | "workspace.suspended"
     | "workspace.restored"
-    | "delivery.retried";
+    | "delivery.retried"
+    | "newsletter.drafted"
+    | "newsletter.edited"
+    | "newsletter.published"
+    | "newsletter.deleted";
 
 export interface AdminAuditInput {
     actorId: string | null;
     action: AdminAuditAction;
-    targetType?: "user" | "workspace" | "delivery" | "operator";
+    targetType?: "user" | "workspace" | "delivery" | "operator" | "newsletter_post";
     targetId?: string;
     reason?: string;
     metadata?: Prisma.InputJsonValue;

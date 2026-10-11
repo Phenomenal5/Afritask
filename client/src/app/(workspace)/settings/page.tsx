@@ -13,6 +13,7 @@ import SettingsNav from "@/components/settings/SettingsNav";
 import SettingsSection from "@/components/settings/SettingsSection";
 import ThemeToggle from "@/components/layout/ThemeToggle";
 import InstallAppCard from "@/components/pwa/InstallAppCard";
+import NewsletterToggle from "@/components/newsletter/NewsletterToggle";
 import Avatar from "@/components/ui/Avatar";
 import Button from "@/components/ui/Button";
 import { SelectField, TextField } from "@/components/ui/Field";
@@ -269,6 +270,10 @@ export default function AccountSettingsPage() {
             </div>
             <Notice icon={Info}>Turning email types on or off isn&apos;t available yet — set a task&apos;s reminder to &ldquo;No reminder&rdquo; to silence it. Account emails (verification, password changes, invitations) are always sent.</Notice>
           </div>
+        </SettingsSection>
+
+        <SettingsSection id="newsletter" title="Newsletter" description="Optional product news by email. Separate from task and account emails.">
+          <NewsletterToggle />
         </SettingsSection>
 
         <SettingsSection title="Appearance" description="Saved on this device only.">

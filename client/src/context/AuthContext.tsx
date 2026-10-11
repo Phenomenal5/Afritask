@@ -35,6 +35,8 @@ interface SignupInput {
   password: string;
   age?: number;
   acceptTerms: boolean;
+  // Optional newsletter opt-in; starts once the email is verified.
+  newsletter: boolean;
 }
 
 interface AuthState {
@@ -118,9 +120,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => window.removeEventListener(TERMS_REQUIRED_EVENT, handleTermsRequired);
   }, []);
 
-  const signup = useCallback(async ({ name, email, password, age, acceptTerms }: SignupInput): Promise<ActionResult> => {
+  const signup = useCallback(async ({ name, email, password, age, acceptTerms, newsletter }: SignupInput): Promise<ActionResult> => {
     try {
-      const res = await signupRequest({ name, email, password, age, acceptTerms, timezone: detectTimezone() });
+      const res = await signupRequest({ name, email, password, age, acceptTerms, newsletter, timezone: detectTimezone() });
       return { success: true, message: res.data.message };
     } catch (error) {
       return { success: false, message: failureMessage(error, "We couldn't create your account. Check the details and try again.") };

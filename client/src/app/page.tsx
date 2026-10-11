@@ -3,6 +3,7 @@
 // the client. Everything described here is a feature that exists today.
 import type { Metadata } from "next";
 import Link from "next/link";
+import NewsletterSignupForm from "@/components/newsletter/NewsletterSignupForm";
 import {
   ArrowRight,
   BellRing,
@@ -367,14 +368,21 @@ export default function LandingPage() {
       </main>
 
       <footer className="border-t border-line">
-        <div className={`${SECTION} flex flex-col items-center justify-between gap-4 py-8 text-[14px] text-muted sm:flex-row`}>
-          <Logo />
-          <p>
-            &copy; {new Date().getFullYear()} Afritask ·{" "}
-            <Link href="/privacy" className="underline-offset-4 hover:underline">
-              Privacy policy
-            </Link>
-          </p>
+        <div className={`${SECTION} flex flex-col gap-8 py-10`}>
+          <NewsletterSignupForm />
+          <div className="flex flex-col items-center justify-between gap-4 text-[14px] text-muted sm:flex-row">
+            <Logo />
+            <p>
+              &copy; {new Date().getFullYear()} Afritask ·{" "}
+              <Link href="/terms" className="underline-offset-4 hover:underline">
+                Terms
+              </Link>{" "}
+              ·{" "}
+              <Link href="/privacy" className="underline-offset-4 hover:underline">
+                Privacy policy
+              </Link>
+            </p>
+          </div>
         </div>
       </footer>
     </div>

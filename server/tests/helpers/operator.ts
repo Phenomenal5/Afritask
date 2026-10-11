@@ -29,6 +29,8 @@ export const createOperatorClient = async (name = "Ola Operator") => {
     const client = {
         get: (path: string) => withHeaders(agent.get(`/api/v1/admin${path}`)),
         post: (path: string, body?: object) => withHeaders(agent.post(`/api/v1/admin${path}`)).send(body ?? {}),
+        patch: (path: string, body?: object) => withHeaders(agent.patch(`/api/v1/admin${path}`)).send(body ?? {}),
+        delete: (path: string) => withHeaders(agent.delete(`/api/v1/admin${path}`)),
     };
     return { user, client };
 };

@@ -60,7 +60,10 @@ describe("authentication on every protected route", () => {
 });
 
 describe("CSRF: every write requires X-Requested-With", () => {
-    const writes = operations.filter((operation) => operation.method !== "get");
+    // The one deliberate exception: RFC 8058 one-click unsubscribe, which mail apps POST with no
+    // custom headers. It uses no cookie, only the link's signature (see csrf.middleware.ts).
+    const CSRF_EXEMPT = new Set(["post /newsletter/unsubscribe"]);
+    const writes = operations.filter((operation) => operation.method !== "get" && !CSRF_EXEMPT.has(`${operation.method} ${operation.path}`));
 
     it.each(writes.map((operation) => [`${operation.method.toUpperCase()} ${operation.path}`, operation]))(
         "%s → 403 without the header, even with a valid session",

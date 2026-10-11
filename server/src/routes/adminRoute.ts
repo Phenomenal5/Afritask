@@ -13,6 +13,7 @@ import {
     suspendWorkspace,
 } from "../controllers/adminDirectory.controller.js";
 import { getOperationsHealth, listAudit, listDeliveries, retryDelivery } from "../controllers/adminOperations.controller.js";
+import { createPost, deleteDraft, getPost, getSubscriberSummary, listPosts, publishPost, updatePost } from "../controllers/adminNewsletter.controller.js";
 
 
 const router = express.Router();
@@ -44,6 +45,15 @@ router.get("/operations/health", requireOperator, getOperationsHealth);
 router.get("/deliveries", requireOperator, listDeliveries);
 router.post("/deliveries/:deliveryId/retry", requireOperator, retryDelivery);
 router.get("/audit", requireOperator, listAudit);
+
+// Newsletter: drafts, publishing (optionally emailed), subscriber counts — never addresses.
+router.get("/newsletter/posts", requireOperator, listPosts);
+router.post("/newsletter/posts", requireOperator, createPost);
+router.get("/newsletter/posts/:postId", requireOperator, getPost);
+router.patch("/newsletter/posts/:postId", requireOperator, updatePost);
+router.delete("/newsletter/posts/:postId", requireOperator, deleteDraft);
+router.post("/newsletter/posts/:postId/publish", requireOperator, publishPost);
+router.get("/newsletter/subscribers/summary", requireOperator, getSubscriberSummary);
 
 
 export default router;

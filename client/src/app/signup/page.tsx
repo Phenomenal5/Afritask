@@ -27,6 +27,8 @@ export default function SignupPage() {
   const { signup, isAuthenticated, authLoading } = useAuth();
   const [form, setForm] = useState({ name: "", email: "", password: "", age: "" });
   const [acceptedTerms, setAcceptedTerms] = useState(false);
+  // NOTE: unticked by default — newsletter consent has to be an active choice.
+  const [wantsNewsletter, setWantsNewsletter] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<Partial<Record<FieldName, string>>>({});
   const [formError, setFormError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -72,6 +74,7 @@ export default function SignupPage() {
       password: form.password,
       ...(form.age ? { age: Number(form.age) } : {}),
       acceptTerms: acceptedTerms,
+      newsletter: wantsNewsletter,
     });
     setSubmitting(false);
     if (result.success) setSentTo(form.email.trim());
@@ -148,6 +151,17 @@ export default function SignupPage() {
             }}
             error={fieldErrors.terms}
           />
+          <label className="flex cursor-pointer items-start gap-3 px-1 text-[14.5px] leading-relaxed text-ink">
+            <input
+              type="checkbox"
+              checked={wantsNewsletter}
+              onChange={(event) => setWantsNewsletter(event.target.checked)}
+              className="mt-1 size-[18px] shrink-0 accent-[var(--forest)]"
+            />
+            <span>
+              Send me the Afritask newsletter <span className="text-muted">(optional — unsubscribe any time)</span>
+            </span>
+          </label>
           <Button type="submit" size="lg" full loading={submitting}>
             Create account
           </Button>

@@ -35,6 +35,8 @@ interface EmailTemplateOptions {
   buttonText?: string;
   buttonUrl?: string;
   badge?: string;
+  // Trusted HTML shown above the copyright line — e.g. the newsletter's opt-out note.
+  footerNote?: string;
 }
 
 export const emailTemplate = ({
@@ -43,6 +45,7 @@ export const emailTemplate = ({
   buttonText,
   buttonUrl,
   badge,
+  footerNote,
 }: EmailTemplateOptions) => {
   const year = new Date().getFullYear();
   const logoUrl = getLogoUrl();
@@ -89,6 +92,7 @@ export const emailTemplate = ({
             <tr>
               <td style="background-color:${colors.paperRaised}; border:1px solid ${colors.line}; border-top:1px solid ${colors.line}; border-radius:0 0 28px 28px; padding:0 36px 28px;">
                 <div style="border-top:1px solid ${colors.line}; padding-top:20px; font-size:13px; line-height:1.7; color:${colors.stone}; text-align:center;">
+                  ${footerNote ? `<div style="margin-bottom:12px;">${footerNote}</div>` : ""}
                   <div>&copy; ${year} AfriTask. All rights reserved.</div>
                   <div style="margin-top:4px;">Built for thoughtful productivity.</div>
                 </div>

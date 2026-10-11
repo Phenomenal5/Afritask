@@ -14,6 +14,7 @@ import userRoute from "./routes/userRoute.js";
 import taskRoute from "./routes/taskRoute.js";
 import workspaceRoute from "./routes/workspaceRoute.js";
 import invitationRoute from "./routes/invitationRoute.js";
+import newsletterRoute from "./routes/newsletterRoute.js";
 import projectRoute from "./routes/projectRoute.js";
 import labelRoute from "./routes/labelRoute.js";
 import commentRoute from "./routes/commentRoute.js";
@@ -146,6 +147,9 @@ app.use("/api/v1/notifications", notificationRoute);
 
 // Invitation preview / accept / decline / resend / revoke
 app.use("/api/v1/invitations", invitationRoute);
+
+// Newsletter: public feed, subscribe/confirm/unsubscribe, and the settings toggle.
+app.use("/api/v1/newsletter", newsletterRoute);
 
 // Admin console (Platform Superadmin): own sign-in, session and MFA.
 app.use("/api/v1/admin", adminRoute);
