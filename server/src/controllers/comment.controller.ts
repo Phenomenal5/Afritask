@@ -9,6 +9,7 @@ import { requireUser } from "../middlewares/auth.middleware.js";
 import { notFoundUnlessSuspended, requireActiveMembership } from "../middlewares/workspaceAccess.middleware.js";
 import { loadTaskForMember } from "./task.controller.js";
 import { notifyMentions } from "../services/notificationService.js";
+import { dispatchNotificationsSoon, publishLiveEvent } from "../services/realtimeService.js";
 
 // ─── Comments and mentions (SRS SR08) ─────────────────────
 // - Any active member comments on work that isn't in an archived project.
@@ -141,6 +142,9 @@ export const createComment = catchAsync(async (req, res) => {
     });
 
     logger.info(`Comment created commentId=${comment.id} taskId=${task.id} userId=${membership.userId} mentions=${mentionIds.length}`);
+    // Live: anyone with this task open sees the new comment without reloading.
+    publishLiveEvent({ workspaceId: task.workspaceId }, { type: "comment", action: "created", taskId: task.id, commentId: comment.id });
+    dispatchNotificationsSoon();
     res.status(201).json({ status: "success", data: { comment: toCommentResponse(comment, membership) } });
 });
 
@@ -179,6 +183,8 @@ export const editComment = catchAsync(async (req, res) => {
     });
 
     logger.info(`Comment edited commentId=${comment.id} userId=${membership.userId}`);
+    publishLiveEvent({ workspaceId: comment.workspaceId }, { type: "comment", action: "edited", taskId: comment.taskId, commentId: comment.id });
+    dispatchNotificationsSoon();
     res.status(200).json({ status: "success", data: { comment: toCommentResponse(updated, membership) } });
 });
 
@@ -203,5 +209,6 @@ export const deleteComment = catchAsync(async (req, res) => {
     });
 
     logger.info(`Comment deleted commentId=${comment.id} by userId=${membership.userId}`);
+    publishLiveEvent({ workspaceId: comment.workspaceId }, { type: "comment", action: "deleted", taskId: comment.taskId, commentId: comment.id });
     res.status(200).json({ status: "success", data: { comment: toCommentResponse(deleted, membership) } });
 });

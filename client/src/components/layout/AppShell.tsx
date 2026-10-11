@@ -10,10 +10,12 @@ import { useWorkspaces } from "@/context/WorkspaceContext";
 import { WorkspaceResourcesProvider } from "@/context/WorkspaceResourcesContext";
 import { MyWorkProvider } from "@/context/MyWorkContext";
 import { TaskPanelProvider } from "@/context/TaskPanelContext";
+import { LiveUpdatesProvider } from "@/context/LiveUpdatesContext";
 import { saveReturnPath } from "@/utils/pendingInvite";
 import Sidebar from "./Sidebar";
 import MobileNav from "./MobileNav";
 import OfflineBanner from "./OfflineBanner";
+import PushPermissionBanner from "./PushPermissionBanner";
 import LoadingScreen from "./LoadingScreen";
 
 export default function AppShell({ children }: { children: ReactNode }) {
@@ -44,22 +46,25 @@ export default function AppShell({ children }: { children: ReactNode }) {
   return (
     <WorkspaceResourcesProvider>
       <MyWorkProvider>
-        {/* useSearchParams (the ?task= drawer) needs a Suspense boundary in Next. */}
-        <Suspense fallback={<LoadingScreen />}>
-          <TaskPanelProvider>
-            <a href="#main-content" className="skip-link">
-              Skip to content
-            </a>
-            <Sidebar />
-            <div className="flex min-h-dvh min-w-0 flex-col lg:pl-[272px]">
-              <MobileNav />
-              <OfflineBanner />
-              <main id="main-content" tabIndex={-1} className="mx-auto w-full min-w-0 max-w-[1200px] flex-1 px-4 py-6 outline-none sm:px-8 sm:py-10">
-                {children}
-              </main>
-            </div>
-          </TaskPanelProvider>
-        </Suspense>
+        <LiveUpdatesProvider>
+          {/* useSearchParams (the ?task= drawer) needs a Suspense boundary in Next. */}
+          <Suspense fallback={<LoadingScreen />}>
+            <TaskPanelProvider>
+              <a href="#main-content" className="skip-link">
+                Skip to content
+              </a>
+              <Sidebar />
+              <div className="flex min-h-dvh min-w-0 flex-col lg:pl-[272px]">
+                <MobileNav />
+                <OfflineBanner />
+                <PushPermissionBanner />
+                <main id="main-content" tabIndex={-1} className="mx-auto w-full min-w-0 max-w-[1200px] flex-1 px-4 py-6 outline-none sm:px-8 sm:py-10">
+                  {children}
+                </main>
+              </div>
+            </TaskPanelProvider>
+          </Suspense>
+        </LiveUpdatesProvider>
       </MyWorkProvider>
     </WorkspaceResourcesProvider>
   );

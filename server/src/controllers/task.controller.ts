@@ -13,6 +13,7 @@ import routeParam from "../utils/routeParam.js";
 import { DUE_VIEWS, dueViewWhere, isDueView } from "../utils/taskViews.js";
 import { diffFields, recordActivity } from "../services/activityService.js";
 import { notifyTaskAssigned } from "../services/notificationService.js";
+import { dispatchNotificationsSoon } from "../services/realtimeService.js";
 import {
     DEFAULT_REMINDER_OFFSET,
     computeSchedule,
@@ -309,6 +310,8 @@ const updateWithVersionCheck = async (
             });
         }
     });
+    // An assignment change may have created a notification — send it live now.
+    dispatchNotificationsSoon();
     return findTaskResponse(taskId);
 };
 
@@ -526,6 +529,7 @@ export const createWorkspaceTask = catchAsync(async (req, res) => {
         });
 
         logger.info(`Task created taskId=${task.id} workspaceId=${membership.workspaceId} userId=${membership.userId}`);
+        dispatchNotificationsSoon();
         res.status(201).json({ status: "success", data: { task: toTaskResponse(task) } });
     } catch (error) {
         // Two identical submits racing past the lookup above: the unique key stops the
@@ -710,5 +714,6 @@ export const createSubtask = catchAsync(async (req, res) => {
     });
 
     logger.info(`Subtask created taskId=${subtask.id} parentId=${parent.id} userId=${membership.userId}`);
+    dispatchNotificationsSoon();
     res.status(201).json({ status: "success", data: { task: toTaskResponse(subtask) } });
 });

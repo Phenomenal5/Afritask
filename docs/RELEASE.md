@@ -41,6 +41,9 @@ For each deployed environment also set:
 - `ACCESS_TOKEN_SECRET` — at least 32 random characters, different per environment. It
   signs the 15-minute access tokens (and newsletter unsubscribe links). Changing it signs
   nobody out — clients refresh — but retires unsubscribe links in emails already sent.
+- Web push (optional): `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` — one pair
+  per environment (`npx web-push generate-vapid-keys`). Changing a pair invalidates every
+  browser's subscription; people re-allow from the banner or Settings.
 - Google sign-in: `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_CALLBACK_URL` — one
   OAuth client per environment, with that environment's callback URL registered
   (`…/api/v1/auth/google/callback`; the old unversioned path still redirects there).

@@ -52,6 +52,14 @@ const env = {
   emailFromName: process.env.EMAIL_FROM_NAME ?? "AfriTask",
   emailFromAddress: requiredValue("EMAIL_FROM_ADDRESS"),
 
+  // Web push is optional: without these keys, push is "not configured" (the setting can't
+  // be turned on) and everything else — SSE, sound, email — works as usual.
+  // Generate a pair with: npx web-push generate-vapid-keys
+  vapidPublicKey: process.env.VAPID_PUBLIC_KEY,
+  vapidPrivateKey: process.env.VAPID_PRIVATE_KEY,
+  // A contact the push services can reach about abuse: "mailto:..." or an https URL.
+  vapidSubject: process.env.VAPID_SUBJECT ?? "mailto:support@afritask.app",
+
   // Google OAuth is optional: routes answer 500 "not configured" when these are missing.
   googleClientId: process.env.GOOGLE_CLIENT_ID,
   googleClientSecret: process.env.GOOGLE_CLIENT_SECRET,

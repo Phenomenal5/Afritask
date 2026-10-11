@@ -4,7 +4,7 @@
 // all workspaces), then what needs you in this workspace right now (invitations waiting,
 // overdue and due-today work). Opening an item re-checks access: a deleted task or a
 // workspace you've left shows why it can't open instead of its content.
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import toast from "react-hot-toast";
 import {
@@ -163,6 +163,19 @@ export default function NotificationsPage() {
     }
     openTask(notification.taskId);
   };
+
+  // A push notification links to /notifications?open=<id>: open that one once the inbox has
+  // loaded — the same as clicking it here (switches workspace, opens the task).
+  const openedFromLinkRef = useRef(false);
+  useEffect(() => {
+    if (openedFromLinkRef.current || !notifications) return;
+    const requestedId = new URLSearchParams(window.location.search).get("open");
+    if (!requestedId) return;
+    openedFromLinkRef.current = true;
+    window.history.replaceState(null, "", window.location.pathname);
+    const requested = notifications.find((notification) => notification.id === requestedId);
+    if (requested?.available) open(requested);
+  }, [notifications]);
 
   const hasUnread = (notifications ?? []).some((notification) => !notification.readAt);
 

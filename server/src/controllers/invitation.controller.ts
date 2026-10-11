@@ -2,6 +2,7 @@ import validator from "validator";
 import prisma from "../config/prisma.js";
 import { recordActivity } from "../services/activityService.js";
 import { notifyInvitation } from "../services/notificationService.js";
+import { dispatchNotificationsSoon } from "../services/realtimeService.js";
 import type { Invitation, Membership, WorkspaceRole } from "../generated/prisma/client.js";
 import AppError from "../utils/AppError.js";
 import catchAsync from "../utils/catchAsync.js";
@@ -152,6 +153,7 @@ export const createInvitation = catchAsync(async (req, res) => {
     const invitation = await issueAndSendInvitation(created.id);
 
     logger.info(`Invitation created invitationId=${invitation.id} workspaceId=${membership.workspaceId} by userId=${membership.userId}`);
+    dispatchNotificationsSoon();
     res.status(201).json({ status: "success", data: { invitation: publicInvitation(invitation) } });
 });
 

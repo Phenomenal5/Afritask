@@ -1580,3 +1580,41 @@ Admin console (operator session): `GET/POST /api/v1/admin/newsletter/posts`,
 `POST /api/v1/admin/newsletter/posts/:postId/publish` with `{ emailSubscribers }`, and
 `GET /api/v1/admin/newsletter/subscribers/summary` (counts only). Emailing happens in the
 minute sweep, 100 subscribers per batch, at most once per subscriber per post.
+
+## Live updates, notification sound and web push
+
+### Server-Sent Events
+
+```http
+GET /api/v1/events
+Accept: text/event-stream
+```
+
+One stream per signed-in tab. Events carry ids only — refetch through the normal
+endpoints to see content (so every access rule still applies):
+
+| Event | Data | Sent to |
+| --- | --- | --- |
+| `ready` | `{}` | on connect |
+| `notification` | `{ notificationId }` | the recipient's open tabs |
+| `comment` | `{ action: "created" \| "edited" \| "deleted", taskId, commentId }` | current members of the task's workspace |
+
+The server ends the stream when the access token would expire (15 minutes). Reconnect;
+on `401`, call `POST /api/v1/auth/refresh` first. Events cross API instances through Redis
+pub/sub.
+
+### Preferences and push subscriptions
+
+| Method | Path | What it does |
+| --- | --- | --- |
+| `GET` | `/api/v1/notifications/preferences` | `{ soundEnabled, pushEnabled, pushAvailable }` (sound on / push off by default) |
+| `PUT` | `/api/v1/notifications/preferences` | `{ soundEnabled?, pushEnabled? }`. Turning push off removes the account's push subscriptions. |
+| `GET` | `/api/v1/notifications/push/public-key` | The VAPID public key (`404` when push isn't configured) |
+| `POST` | `/api/v1/notifications/push/subscriptions` | Register this browser: its `PushSubscription.toJSON()` |
+| `DELETE` | `/api/v1/notifications/push/subscriptions` | `{ endpoint }` — this browser stops (the client does this on sign-out) |
+
+Every new notification is dispatched once: an SSE `notification` event plus a web push
+(`{ title, body, url, tag }`, url = `/notifications?open=<id>`) to each registered device
+of accounts with push on. Subscriptions the push service reports gone (404/410) are
+deleted. Push needs `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY`; without them it reports
+"not configured" and everything else works.

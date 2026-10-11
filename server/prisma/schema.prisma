@@ -130,23 +130,25 @@ model User {
   createdAt       DateTime     @default(now()) @db.Timestamptz(3)
   updatedAt       DateTime     @updatedAt @db.Timestamptz(3)
 
-  createdTasks           Task[]                @relation("TaskCreator")
+  createdTasks           Task[]                  @relation("TaskCreator")
   memberships            Membership[]
-  sentInvites            Invitation[]          @relation("InvitationInviter")
-  projects               Project[]             @relation("ProjectCreator")
+  sentInvites            Invitation[]            @relation("InvitationInviter")
+  projects               Project[]               @relation("ProjectCreator")
   sessions               Session[]
   accountTokens          AccountToken[]
-  activities             Activity[]            @relation("ActivityActor")
-  comments               Comment[]             @relation("CommentAuthor")
-  deletedComments        Comment[]             @relation("CommentDeleter")
-  notifications          Notification[]        @relation("NotificationRecipient")
-  actedNotifications     Notification[]        @relation("NotificationActor")
-  emailDeliveries        EmailDelivery[]       @relation("EmailDeliveryRecipient")
+  activities             Activity[]              @relation("ActivityActor")
+  comments               Comment[]               @relation("CommentAuthor")
+  deletedComments        Comment[]               @relation("CommentDeleter")
+  notifications          Notification[]          @relation("NotificationRecipient")
+  actedNotifications     Notification[]          @relation("NotificationActor")
+  emailDeliveries        EmailDelivery[]         @relation("EmailDeliveryRecipient")
   platformGrant          PlatformGrant?
-  adminAuditEntries      AdminAuditEntry[]     @relation("AdminAuditActor")
-  deletedWorkspaces      Workspace[]           @relation("WorkspaceDeleter")
+  adminAuditEntries      AdminAuditEntry[]       @relation("AdminAuditActor")
+  deletedWorkspaces      Workspace[]             @relation("WorkspaceDeleter")
   newsletterSubscription NewsletterSubscriber?
-  newsletterPosts        NewsletterPost[]      @relation("NewsletterPostAuthor")
+  notificationPreference NotificationPreference?
+  pushSubscriptions      PushSubscription[]
+  newsletterPosts        NewsletterPost[]        @relation("NewsletterPostAuthor")
 }
 
 // Customer sessions (the web app) and operator sessions (the admin console) live in one
@@ -545,6 +547,9 @@ model Notification {
   // (a retried request, a re-run job) hits this unique key instead of duplicating.
   deliveryKey  String           @unique
   readAt       DateTime?        @db.Timestamptz(3)
+  // When it was handed to the live channels (SSE to open tabs, web push to devices).
+  // Null = not yet; set by an atomic claim so it's dispatched once (services/realtimeService.ts).
+  dispatchedAt DateTime?        @db.Timestamptz(3)
   createdAt    DateTime         @default(now()) @db.Timestamptz(3)
 
   recipient User       @relation("NotificationRecipient", fields: [recipientId], references: [id], onDelete: Cascade)
@@ -554,6 +559,7 @@ model Notification {
   // The bell: my notifications newest first, and my unread count.
   @@index([recipientId, createdAt])
   @@index([recipientId, readAt])
+  @@index([dispatchedAt, createdAt])
 }
 
 // ─── Platform administration (SRS SR16–SR18) ─────────────────────
@@ -682,4 +688,39 @@ model NewsletterDelivery {
   subscriber NewsletterSubscriber @relation(fields: [subscriberId], references: [id], onDelete: Cascade)
 
   @@unique([postId, subscriberId])
+}
+
+// ─── Live notifications: preferences and web push ─────────────────────
+// One row per user, created the first time it's read or saved (defaults apply until then).
+model NotificationPreference {
+  id           String   @id @default(uuid(7)) @db.Uuid
+  userId       String   @unique @db.Uuid
+  // Play a chime in open Afritask tabs when a notification arrives.
+  soundEnabled Boolean  @default(true)
+  // Send web push to this account's registered browsers/devices. Off until they opt in —
+  // turning it on is what makes the browser ask for permission.
+  pushEnabled  Boolean  @default(false)
+  createdAt    DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt    DateTime @updatedAt @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// One browser/device that allowed notifications (the browser's PushSubscription).
+// Removed when the push service says it's gone (404/410), or when that browser signs out.
+model PushSubscription {
+  id         String    @id @default(uuid(7)) @db.Uuid
+  userId     String    @db.Uuid
+  // The push service URL for this browser. Unique: re-subscribing the same browser updates it.
+  endpoint   String    @unique
+  // Keys the browser gave us to encrypt payloads for it (base64url).
+  p256dh     String
+  auth       String
+  userAgent  String?
+  lastUsedAt DateTime? @db.Timestamptz(3)
+  createdAt  DateTime  @default(now()) @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }

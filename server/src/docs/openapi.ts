@@ -1077,6 +1077,11 @@ const commentPaths = {
     },
 };
 
+const notificationPreferencesSchema = {
+    type: "object",
+    properties: { soundEnabled: { type: "boolean" }, pushEnabled: { type: "boolean" }, pushAvailable: { type: "boolean" } },
+};
+
 const notificationPaths = {
     "/notifications": {
         get: {
@@ -1130,6 +1135,66 @@ const notificationPaths = {
             summary: "Mark one notification read (keeps the first read time)",
             security: signedIn,
             responses: { 200: jsonResponse("Marked", ref("UnreadCount")), ...errorResponses(401, 404) },
+        },
+    },
+    "/notifications/preferences": {
+        get: {
+            tags: ["Notifications"],
+            summary: "Sound and web push settings (pushAvailable: false when the server has no VAPID keys)",
+            security: signedIn,
+            responses: { 200: jsonResponse("Preferences", dataEnvelope("preferences", notificationPreferencesSchema)), ...errorResponses(401) },
+        },
+        put: {
+            tags: ["Notifications"],
+            summary: "Change sound / web push. Turning push off removes this account's push subscriptions.",
+            security: signedIn,
+            requestBody: jsonBody({ type: "object", properties: { soundEnabled: { type: "boolean" }, pushEnabled: { type: "boolean" } } }),
+            responses: { 200: jsonResponse("Saved", dataEnvelope("preferences", notificationPreferencesSchema)), ...errorResponses(400, 401, 409) },
+        },
+    },
+    "/notifications/push/public-key": {
+        get: {
+            tags: ["Notifications"],
+            summary: "The VAPID public key browsers subscribe with (404 when push isn't configured)",
+            security: signedIn,
+            responses: { 200: jsonResponse("Key", dataEnvelope("publicKey", { type: "string" })), ...errorResponses(401, 404) },
+        },
+    },
+    "/notifications/push/subscriptions": {
+        post: {
+            tags: ["Notifications"],
+            summary: "Register this browser for web push (its PushSubscription.toJSON())",
+            security: signedIn,
+            requestBody: jsonBody({
+                type: "object",
+                required: ["endpoint", "keys"],
+                properties: {
+                    endpoint: { type: "string", format: "uri", description: "https push service URL" },
+                    keys: { type: "object", required: ["p256dh", "auth"], properties: { p256dh: { type: "string" }, auth: { type: "string" } } },
+                },
+            }),
+            responses: { 201: jsonResponse("Saved", messageEnvelope), ...errorResponses(400, 401) },
+        },
+        delete: {
+            tags: ["Notifications"],
+            summary: "Stop web push to this browser (e.g. when signing out)",
+            security: signedIn,
+            requestBody: jsonBody({ type: "object", required: ["endpoint"], properties: { endpoint: { type: "string" } } }),
+            responses: { 204: jsonResponse("Removed"), ...errorResponses(400, 401) },
+        },
+    },
+};
+
+const eventsPaths = {
+    "/events": {
+        get: {
+            tags: ["Notifications"],
+            summary: "Live updates (Server-Sent Events): `notification` and `comment` events, ids only",
+            description:
+                "text/event-stream. Events: `ready` on connect; `notification` { notificationId }; `comment` { action, taskId, commentId }. " +
+                "Refetch through the normal endpoints to see content. The server ends the stream when the access token would expire — reconnect (refreshing first on 401).",
+            security: signedIn,
+            responses: { 200: { description: "Event stream", content: { "text/event-stream": { schema: { type: "string" } } } }, ...errorResponses(401) },
         },
     },
 };
@@ -1654,7 +1719,7 @@ const openApiDocument = {
         },
         schemas,
     },
-    paths: withOperationIds({ ...authPaths, ...userPaths, ...workspacePaths, ...invitationPaths, ...projectPaths, ...labelPaths, ...taskPaths, ...subtaskPaths, ...commentPaths, ...notificationPaths, ...activityPaths, ...dashboardPaths, ...healthPaths, ...adminAuthPaths, ...adminDirectoryPaths, ...adminOperationsPaths, ...newsletterPaths, ...adminNewsletterPaths }),
+    paths: withOperationIds({ ...authPaths, ...userPaths, ...workspacePaths, ...invitationPaths, ...projectPaths, ...labelPaths, ...taskPaths, ...subtaskPaths, ...commentPaths, ...notificationPaths, ...activityPaths, ...dashboardPaths, ...healthPaths, ...adminAuthPaths, ...adminDirectoryPaths, ...adminOperationsPaths, ...newsletterPaths, ...adminNewsletterPaths, ...eventsPaths }),
 };
 
 export default openApiDocument;

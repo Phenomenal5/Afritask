@@ -6,6 +6,7 @@ import logger, { errorMessage } from "../utils/logger.js"
 import redisConnection from "../config/redis.js"
 import { notifyTaskSchedule } from "../services/notificationService.js"
 import { runNewsletterSweep } from "../services/newsletterService.js"
+import { dispatchPendingNotifications } from "../services/realtimeService.js"
 
 // ─── Per-task reminders and overdue alerts (SRS SR10) ─────────────────────
 // Every minute a sweep looks for tasks whose remindAt / overdueCheckAt has arrived. For each:
@@ -222,6 +223,9 @@ const startTaskReminderJob = () => {
         REMINDER_QUEUE_NAME,
         async () => {
             await runReminderSweep()
+            // Reminder/overdue notifications made above, plus anything a request's fast
+            // path missed (e.g. the process restarted mid-dispatch).
+            await dispatchPendingNotifications()
             const newsletterEmails = await runNewsletterSweep()
             if (newsletterEmails) logger.info(`Newsletter sweep: sent=${newsletterEmails}`)
         },

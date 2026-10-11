@@ -66,3 +66,44 @@ self.addEventListener("fetch", (event) => {
     event.respondWith(fetch(request).catch(() => caches.match(OFFLINE_URL)));
   }
 });
+
+// ─── Web push ─────────────────────
+// The server sends { title, body, url, tag } (ids and a short line only — never task
+// content beyond the title it already showed in-app). Clicking opens the app at `url`,
+// reusing an open Afritask tab when there is one.
+self.addEventListener("push", (event) => {
+  let payload = { title: "Afritask", body: "", url: "/notifications", tag: "afritask" };
+  try {
+    payload = { ...payload, ...event.data.json() };
+  } catch {
+    // An empty or unreadable push still shows something rather than nothing.
+  }
+  event.waitUntil(
+    self.registration.showNotification(payload.title, {
+      body: payload.body,
+      tag: payload.tag,
+      icon: "/icons/icon-192.png",
+      badge: "/icons/icon-192.png",
+      data: { url: payload.url },
+    })
+  );
+});
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  // NOTE: only ever open a page on our own origin. A path like "//evil.example" would leave
+  // it, so the resolved URL's origin is checked, not just the leading slash.
+  const requested = typeof event.notification.data?.url === "string" ? new URL(event.notification.data.url, self.location.origin) : null;
+  const target = requested && requested.origin === self.location.origin ? requested.href : new URL("/notifications", self.location.origin).href;
+  event.waitUntil(
+    (async () => {
+      const tabs = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
+      const existing = tabs.find((tab) => new URL(tab.url).origin === self.location.origin);
+      if (existing) {
+        await existing.focus();
+        return existing.navigate(target);
+      }
+      return self.clients.openWindow(target);
+    })()
+  );
+});

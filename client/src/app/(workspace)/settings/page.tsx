@@ -14,6 +14,7 @@ import SettingsSection from "@/components/settings/SettingsSection";
 import ThemeToggle from "@/components/layout/ThemeToggle";
 import InstallAppCard from "@/components/pwa/InstallAppCard";
 import NewsletterToggle from "@/components/newsletter/NewsletterToggle";
+import LiveNotificationSettings from "@/components/settings/LiveNotificationSettings";
 import Avatar from "@/components/ui/Avatar";
 import Button from "@/components/ui/Button";
 import { SelectField, TextField } from "@/components/ui/Field";
@@ -250,6 +251,7 @@ export default function AccountSettingsPage() {
 
         <SettingsSection title="Notifications" description="What Afritask sends you, and where.">
           <div className="flex max-w-lg flex-col gap-3">
+            <LiveNotificationSettings />
             <div className="flex items-start gap-3 rounded-[12px] border border-line bg-surface p-4">
               <BellRing size={19} aria-hidden="true" className="mt-0.5 shrink-0 text-forest" />
               <div className="text-[14.5px]">

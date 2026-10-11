@@ -7,6 +7,7 @@
 // - A failed post keeps the draft (per task, this tab) and says why; nothing is shown as
 //   posted until the server confirms it.
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
+import { COMMENT_CHANGED_EVENT } from "@/context/LiveUpdatesContext";
 import { AtSign, MessageSquare, Pencil, Trash2 } from "lucide-react";
 import toast from "react-hot-toast";
 import { createComment, deleteComment, editComment, getTaskComments } from "@/lib/services/commentService";
@@ -393,6 +394,16 @@ export default function TaskComments({ taskId, readOnlyReason, heading }: TaskCo
     loadComments();
     setDraft(readDraft<CommentDraft>(draftKey) ?? { body: "", pickedMembershipIds: [] });
   }, [loadComments, draftKey]);
+
+  // Live: someone else commented, edited or deleted on this task (SSE via LiveUpdatesContext).
+  // The thread refetches, so what shows is still what the API allows; the draft is untouched.
+  useEffect(() => {
+    const handleCommentChanged = (event: Event) => {
+      if ((event as CustomEvent<{ taskId?: string }>).detail?.taskId === taskId) loadComments();
+    };
+    window.addEventListener(COMMENT_CHANGED_EVENT, handleCommentChanged);
+    return () => window.removeEventListener(COMMENT_CHANGED_EVENT, handleCommentChanged);
+  }, [taskId, loadComments]);
 
   const updateDraft = (nextDraft: CommentDraft) => {
     setDraft(nextDraft);

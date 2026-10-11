@@ -22,5 +22,8 @@ delete process.env.GOOGLE_CLIENT_SECRET;
 delete process.env.RATE_LIMITS_IN_TESTS;
 // Fixed, test-only signing key for access tokens.
 process.env.ACCESS_TOKEN_SECRET = "test-access-token-secret-0123456789abcdef";
+// A fixed, test-only VAPID pair (web push). Pushes are captured by testPushOutbox, never sent.
+process.env.VAPID_PUBLIC_KEY = "BDTFKdMGEFpjeg3Nur1H-Z0KAHR3QtFio_iYbvd0ImTCAThLqNK5C2zfHoyCCbSTrppya4YQn6QAnDILjJc3guI";
+process.env.VAPID_PRIVATE_KEY = "YBvHLb3m94oA8RPqqkuFHBET7XRCLEgyLhFx7LKkm_k";
 // A fixed, test-only key for operator MFA secrets (never a real environment's key).
 process.env.OPERATOR_MFA_KEY = "0".repeat(64);

@@ -25,6 +25,7 @@ import {
 import { detectTimezone } from "@/utils/timezones";
 import { clearPendingInvite, postSignInPath, saveReturnPath } from "@/utils/pendingInvite";
 import { clearAllDrafts } from "@/utils/draftStorage";
+import { unsubscribeThisBrowser } from "@/utils/browserPush";
 import { SESSION_EXPIRED_EVENT, TERMS_REQUIRED_EVENT } from "@/lib/api";
 import { failureMessage } from "@/lib/errors";
 import type { ActionResult, CurrentUser } from "@/types/models";
@@ -206,6 +207,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const logout = useCallback(async () => {
+    // NOTE: before signing out (it needs the session) — otherwise the next person to use
+    // this browser would get the previous account's push notifications.
+    await unsubscribeThisBrowser();
     try {
       await logoutRequest();
     } catch {
