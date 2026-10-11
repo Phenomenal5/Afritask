@@ -15,7 +15,7 @@ import api from "@/lib/api";
 import { useMyWork } from "@/context/MyWorkContext";
 import { getNotificationPreferences, updateNotificationPreferences, type NotificationPreferences } from "@/lib/services/notificationPreferenceService";
 import { askPermission, currentPermission, pushSupport, subscribeThisBrowser, unsubscribeThisBrowser, type PushSupport } from "@/utils/browserPush";
-import { playChime } from "@/utils/chime";
+import { playChime, preloadChime } from "@/utils/chime";
 import { failureMessage } from "@/lib/errors";
 import type { ActionResult } from "@/types/models";
 
@@ -94,10 +94,19 @@ export function LiveUpdatesProvider({ children }: { children: ReactNode }) {
     const connect = () => {
       if (stopped) return;
       source = new EventSource(EVENTS_URL);
-      source.addEventListener("notification", () => {
+      source.addEventListener("notification", (message) => {
         refreshUnreadRef.current();
-        // Visible tab: chime. Hidden tab: the system notification (web push) speaks instead.
-        if (soundEnabledRef.current && document.visibilityState === "visible") playChime();
+        // Every notification makes a sound (when sound is on) — in a background tab too.
+        // playChime makes sure only one open tab plays it; the service worker keeps the
+        // matching push notification silent while a tab is open, so it's never doubled.
+        if (!soundEnabledRef.current) return;
+        let notificationId: string | undefined;
+        try {
+          notificationId = JSON.parse((message as MessageEvent<string>).data).notificationId;
+        } catch {
+          // Still play it, just without the one-tab-only lock.
+        }
+        playChime(notificationId);
       });
       source.addEventListener("comment", (message) => {
         try {
@@ -123,6 +132,7 @@ export function LiveUpdatesProvider({ children }: { children: ReactNode }) {
       };
     };
 
+    preloadChime();
     connect();
     return () => {
       stopped = true;
@@ -175,7 +185,7 @@ export function LiveUpdatesProvider({ children }: { children: ReactNode }) {
   );
 
   const value = useMemo<LiveUpdatesState>(
-    () => ({ preferences, permission, support, setSoundEnabled, setPushEnabled, requestPushPermission, testChime: playChime }),
+    () => ({ preferences, permission, support, setSoundEnabled, setPushEnabled, requestPushPermission, testChime: () => playChime() }),
     [preferences, permission, support, setSoundEnabled, setPushEnabled, requestPushPermission]
   );
   return <LiveUpdatesContext.Provider value={value}>{children}</LiveUpdatesContext.Provider>;

@@ -82,7 +82,7 @@ export default function LiveNotificationSettings() {
       <SettingSwitch
         icon={Volume2}
         title="Notification sound"
-        description="A short chime when a notification arrives while Afritask is open."
+        description="A short chime for every notification while Afritask is open — even in a background tab."
         checked={preferences.soundEnabled}
         disabled={saving !== null}
         onChange={(checked) => run("sound", () => setSoundEnabled(checked), checked ? "Sound on." : "Sound off.")}

@@ -11,9 +11,10 @@
 //   so an update never interrupts someone mid-edit.
 
 // Bump when this file's caching rules change; old caches are deleted on activate.
-const CACHE_NAME = "afritask-static-v1";
+const CACHE_NAME = "afritask-static-v2";
 const OFFLINE_URL = "/offline.html";
-const PRECACHE = [OFFLINE_URL, "/icons/icon-192.png", "/icons/icon.svg"];
+// The notification sound is cached too, so it plays instantly (and offline).
+const PRECACHE = [OFFLINE_URL, "/icons/icon-192.png", "/icons/icon.svg", "/sounds/notification.wav"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(PRECACHE)));
@@ -33,7 +34,9 @@ self.addEventListener("message", (event) => {
   if (event.data && event.data.type === "SKIP_WAITING") self.skipWaiting();
 });
 
-const isStaticAsset = (url) => url.pathname.startsWith("/_next/static/") || url.pathname.startsWith("/icons/");
+// NOTE: icons and the notification sound keep their names when they change — bump CACHE_NAME
+// when replacing one, or browsers keep serving the cached copy.
+const isStaticAsset = (url) => url.pathname.startsWith("/_next/static/") || url.pathname.startsWith("/icons/") || url.pathname.startsWith("/sounds/");
 
 self.addEventListener("fetch", (event) => {
   const request = event.request;
@@ -79,13 +82,23 @@ self.addEventListener("push", (event) => {
     // An empty or unreadable push still shows something rather than nothing.
   }
   event.waitUntil(
-    self.registration.showNotification(payload.title, {
-      body: payload.body,
-      tag: payload.tag,
-      icon: "/icons/icon-192.png",
-      badge: "/icons/icon-192.png",
-      data: { url: payload.url },
-    })
+    (async () => {
+      // NOTE: an open Afritask tab already plays the notification sound (it hears the same
+      // notification over its live connection). Keep the system notification silent then,
+      // so each notification sounds exactly once; with no tab open, the device's sound plays.
+      const openTabs = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
+      const tabWillChime = openTabs.some((tab) => new URL(tab.url).origin === self.location.origin);
+      await self.registration.showNotification(payload.title, {
+        body: payload.body,
+        tag: payload.tag,
+        icon: "/icons/icon-192.png",
+        badge: "/icons/icon-192.png",
+        data: { url: payload.url },
+        silent: tabWillChime,
+        // Same tag replaces the old notification; renotify makes the replacement sound too.
+        renotify: !tabWillChime,
+      });
+    })()
   );
 });
 
