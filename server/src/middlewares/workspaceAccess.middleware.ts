@@ -16,14 +16,28 @@ import { requireUser } from "./auth.middleware.js";
 // NOTE: a soft-deleted workspace is closed to everyone, so its memberships stop counting
 // here — the one check every workspace route, task, comment and invitation goes through.
 export const findActiveMembership = (workspaceId: string, userId: string) =>
-    prisma.membership.findFirst({ where: { workspaceId, userId, status: "active", workspace: { deletedAt: null } } });
+    prisma.membership.findFirst({
+        where: { workspaceId, userId, status: "active", workspace: { deletedAt: null } },
+        include: { workspace: { select: { suspendedAt: true } } },
+    });
 
-// Membership for a workspace id, or a 404 AppError.
+export const WORKSPACE_SUSPENDED_MESSAGE = "This workspace has been suspended by Afritask. Contact support if you think this is a mistake.";
+
+// Membership for a workspace id, or an AppError: 404 for non-members (no existence leak),
+// 403 for members of a workspace an operator suspended — they're told why (SRS SR17).
 export const requireActiveMembership = async (workspaceId: string | undefined, userId: string): Promise<Membership> => {
     if (!workspaceId || !validator.isUUID(workspaceId)) throw new AppError("Workspace not found", 404);
-    const membership = await findActiveMembership(workspaceId, userId);
-    if (!membership) throw new AppError("Workspace not found", 404);
+    const found = await findActiveMembership(workspaceId, userId);
+    if (!found) throw new AppError("Workspace not found", 404);
+    const { workspace, ...membership } = found;
+    if (workspace.suspendedAt) throw new AppError(WORKSPACE_SUSPENDED_MESSAGE, 403);
     return membership;
+};
+
+// For item loaders that answer 404 for any access failure: let the suspension 403 through.
+export const notFoundUnlessSuspended = (notFoundMessage: string) => (error: unknown): never => {
+    if (error instanceof AppError && error.statusCode === 403) throw error;
+    throw new AppError(notFoundMessage, 404);
 };
 
 // For routes with :workspaceId — attaches req.membership. Mount after `protect`.

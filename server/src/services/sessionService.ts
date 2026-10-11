@@ -2,6 +2,7 @@ import type { Request, Response } from "express";
 import prisma from "../config/prisma.js";
 import env from "../config/env.js";
 import { generateSecureToken, hashSecureToken } from "../utils/secureToken.js";
+import AppError from "../utils/AppError.js";
 
 // ─── Server-side sessions behind an httpOnly cookie ─────────────────────
 // Replaces the old JWT-in-localStorage: JavaScript can't read the cookie (XSS can't
@@ -23,7 +24,13 @@ const cookieOptions = () => ({
 });
 
 // Create a session row and set its cookie. Returns the new session id.
+export const ACCOUNT_SUSPENDED_MESSAGE = "This account has been suspended. Contact Afritask support if you think this is a mistake.";
+
 export const startSession = async (req: Request, res: Response, userId: string) => {
+    // NOTE: the one place every sign-in path (password, Google hand-off) creates a session —
+    // a suspended account is refused here, whatever route it came through (SRS SR17).
+    const account = await prisma.user.findUnique({ where: { id: userId }, select: { suspendedAt: true } });
+    if (account?.suspendedAt) throw new AppError(ACCOUNT_SUSPENDED_MESSAGE, 403);
     const rawSecret = generateSecureToken();
     const expiresAt = new Date(Date.now() + sessionLifetimeMs());
 
@@ -54,6 +61,7 @@ export const findActiveSession = (rawSecret: string) =>
             kind: "customer",
             revokedAt: null,
             expiresAt: { gt: new Date() },
+            user: { suspendedAt: null },
         },
         include: { user: true },
     });

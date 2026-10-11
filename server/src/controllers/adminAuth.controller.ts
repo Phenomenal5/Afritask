@@ -41,7 +41,7 @@ export const operatorLogin = catchAsync(async (req, res) => {
     });
     const passwordMatches = await comparePassword(password, user?.password);
     const grant = user?.platformGrant;
-    if (!user || !passwordMatches || !user.isVerified || !grant || grant.revokedAt) {
+    if (!user || !passwordMatches || !user.isVerified || user.suspendedAt || !grant || grant.revokedAt) {
         logger.warn(`Operator login refused for email=${email}`);
         throw new AppError(LOGIN_FAILED, 401);
     }

@@ -6,7 +6,7 @@ import catchAsync from "../utils/catchAsync.js";
 import logger from "../utils/logger.js";
 import routeParam from "../utils/routeParam.js";
 import { requireUser } from "../middlewares/auth.middleware.js";
-import { requireActiveMembership, requireMembership } from "../middlewares/workspaceAccess.middleware.js";
+import { notFoundUnlessSuspended, requireActiveMembership, requireMembership } from "../middlewares/workspaceAccess.middleware.js";
 
 // ─── Labels (PRD FR07) ─────────────────────
 // Workspace-scoped. Every member can see them; Owners/Admins create, rename and delete.
@@ -48,9 +48,7 @@ const loadLabelForManager = async (labelId: string | undefined, userId: string) 
     if (!labelId || !validator.isUUID(labelId)) throw new AppError("Label not found", 404);
     const label = await prisma.label.findUnique({ where: { id: labelId } });
     if (!label) throw new AppError("Label not found", 404);
-    const membership = await requireActiveMembership(label.workspaceId, userId).catch(() => {
-        throw new AppError("Label not found", 404);
-    });
+    const membership = await requireActiveMembership(label.workspaceId, userId).catch(notFoundUnlessSuspended("Label not found"));
     if (!isManager(membership)) throw new AppError("Only Owners and Admins can manage labels", 403);
     return label;
 };

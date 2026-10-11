@@ -47,6 +47,7 @@ export const findOperatorSession = (rawSecret: string) =>
             kind: "operator",
             revokedAt: null,
             expiresAt: { gt: new Date() },
+            user: { suspendedAt: null },
         },
         include: { user: { include: { platformGrant: true } } },
     });

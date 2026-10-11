@@ -326,6 +326,71 @@ const schemas = {
         type: "object",
         properties: { status: { type: "string" }, data: { type: "object", properties: { unreadCount: { type: "integer" } } } },
     },
+    AdminDelivery: {
+        type: "object",
+        properties: {
+            id: { type: "string", format: "uuid" },
+            kind: { type: "string", enum: ["task_reminder", "task_overdue"] },
+            status: { type: "string", enum: ["pending", "sent", "failed", "suppressed"] },
+            attempts: { type: "integer" },
+            lastError: { type: ["string", "null"], description: "Sanitised provider error" },
+            recipient: { type: "object", properties: { id: { type: "string" }, email: { type: "string" } } },
+            taskId: { type: ["string", "null"] },
+            workspaceId: { type: ["string", "null"] },
+            createdAt: { type: "string", format: "date-time" },
+            updatedAt: { type: "string", format: "date-time" },
+        },
+    },
+    AdminAuditEntry: {
+        type: "object",
+        properties: {
+            id: { type: "string", format: "uuid" },
+            action: { type: "string", example: "account.suspended" },
+            actor: { type: ["object", "null"], description: "Null for deployment-script actions", properties: { id: { type: "string" }, name: { type: "string" }, email: { type: "string" } } },
+            targetType: { type: ["string", "null"] },
+            targetId: { type: ["string", "null"] },
+            reason: { type: "string" },
+            ipAddress: { type: ["string", "null"] },
+            createdAt: { type: "string", format: "date-time" },
+        },
+    },
+    AdminAccount: {
+        type: "object",
+        properties: {
+            id: { type: "string", format: "uuid" },
+            name: { type: "string" },
+            email: { type: "string" },
+            isVerified: { type: "boolean" },
+            status: { type: "string", enum: ["active", "suspended"] },
+            createdAt: { type: "string", format: "date-time" },
+            workspaceCount: { type: "integer" },
+            suspendedAt: { type: ["string", "null"], format: "date-time", description: "Detail only" },
+            suspendReason: { type: ["string", "null"], description: "Detail only" },
+            memberships: {
+                type: "array",
+                description: "Detail only — metadata, never workspace content",
+                items: {
+                    type: "object",
+                    properties: { workspaceId: { type: "string" }, workspaceName: { type: "string" }, role: ref("WorkspaceRole"), status: { type: "string" }, joinedAt: { type: "string", format: "date-time" } },
+                },
+            },
+        },
+    },
+    AdminWorkspace: {
+        type: "object",
+        properties: {
+            id: { type: "string", format: "uuid" },
+            name: { type: "string" },
+            status: { type: "string", enum: ["active", "suspended", "deleted"] },
+            createdAt: { type: "string", format: "date-time" },
+            memberCount: { type: "integer" },
+            owner: { type: ["object", "null"], properties: { id: { type: "string" }, name: { type: "string" }, email: { type: "string" } } },
+            suspendedAt: { type: ["string", "null"], format: "date-time", description: "Detail only" },
+            suspendReason: { type: ["string", "null"], description: "Detail only" },
+            deletedAt: { type: ["string", "null"], format: "date-time", description: "Detail only: deleted by its Owner (data kept)" },
+            counts: { type: "object", description: "Detail only", properties: { projects: { type: "integer" }, tasks: { type: "integer" } } },
+        },
+    },
     Operator: {
         type: "object",
         properties: {
@@ -1129,6 +1194,188 @@ const adminAuthPaths = {
     },
 };
 
+const reasonBody = jsonBody({
+    type: "object",
+    required: ["reason"],
+    properties: { reason: { type: "string", minLength: 5, maxLength: 500, description: "Kept in the audit trail" } },
+});
+const pagingParams = [
+    { name: "q", in: "query", schema: { type: "string" }, description: "Name or email (accounts) / name (workspaces), or an exact id" },
+    { name: "page", in: "query", schema: { type: "integer", minimum: 1 } },
+    { name: "limit", in: "query", schema: { type: "integer", minimum: 1, maximum: 100, default: 25 } },
+];
+const pageEnvelope = (itemSchema: SchemaRef) => ({
+    type: "object",
+    properties: {
+        status: { type: "string" },
+        data: {
+            type: "object",
+            properties: {
+                items: { type: "array", items: itemSchema },
+                pagination: { type: "object", properties: { page: { type: "integer" }, limit: { type: "integer" }, total: { type: "integer" }, totalPages: { type: "integer" } } },
+            },
+        },
+    },
+});
+
+// Directory (SRS SR17): metadata only — never a workspace's projects, tasks or comments.
+const adminDirectoryPaths = {
+    "/admin/accounts": {
+        get: {
+            tags: ["Admin"],
+            summary: "Search accounts by name, email or id",
+            security: operatorSession,
+            parameters: [...pagingParams, { name: "status", in: "query", schema: { type: "string", enum: ["active", "suspended"] } }],
+            responses: { 200: jsonResponse("Accounts", pageEnvelope(ref("AdminAccount"))), ...errorResponses(400, 401) },
+        },
+    },
+    "/admin/accounts/{accountId}": {
+        parameters: [pathParam("accountId", "Account id")],
+        get: {
+            tags: ["Admin"],
+            summary: "An account with its membership metadata",
+            security: operatorSession,
+            responses: { 200: jsonResponse("Account", dataEnvelope("account", ref("AdminAccount"))), ...errorResponses(401, 404) },
+        },
+    },
+    "/admin/accounts/{accountId}/suspend": {
+        parameters: [pathParam("accountId", "Account id")],
+        post: {
+            tags: ["Admin"],
+            summary: "Suspend: signs them out everywhere and blocks sign-in; ownership and assignments stay",
+            security: operatorSession,
+            requestBody: reasonBody,
+            responses: { 200: jsonResponse("Suspended", dataEnvelope("account", ref("AdminAccount"))), ...errorResponses(400, 401, 404, 409) },
+        },
+    },
+    "/admin/accounts/{accountId}/restore": {
+        parameters: [pathParam("accountId", "Account id")],
+        post: {
+            tags: ["Admin"],
+            summary: "Restore: they can sign in again (fresh login)",
+            security: operatorSession,
+            requestBody: reasonBody,
+            responses: { 200: jsonResponse("Restored", dataEnvelope("account", ref("AdminAccount"))), ...errorResponses(400, 401, 404, 409) },
+        },
+    },
+    "/admin/workspaces": {
+        get: {
+            tags: ["Admin"],
+            summary: "Search workspaces by name or id",
+            security: operatorSession,
+            parameters: [...pagingParams, { name: "status", in: "query", schema: { type: "string", enum: ["active", "suspended", "deleted"] } }],
+            responses: { 200: jsonResponse("Workspaces", pageEnvelope(ref("AdminWorkspace"))), ...errorResponses(400, 401) },
+        },
+    },
+    "/admin/workspaces/{workspaceId}": {
+        parameters: [workspaceIdParam],
+        get: {
+            tags: ["Admin"],
+            summary: "A workspace's owner, size and state (counts only)",
+            security: operatorSession,
+            responses: { 200: jsonResponse("Workspace", dataEnvelope("workspace", ref("AdminWorkspace"))), ...errorResponses(401, 404) },
+        },
+    },
+    "/admin/workspaces/{workspaceId}/suspend": {
+        parameters: [workspaceIdParam],
+        post: {
+            tags: ["Admin"],
+            summary: "Suspend: members can't read, change or join it; reminders pause",
+            security: operatorSession,
+            requestBody: reasonBody,
+            responses: { 200: jsonResponse("Suspended", dataEnvelope("workspace", ref("AdminWorkspace"))), ...errorResponses(400, 401, 404, 409) },
+        },
+    },
+    "/admin/workspaces/{workspaceId}/restore": {
+        parameters: [workspaceIdParam],
+        post: {
+            tags: ["Admin"],
+            summary: "Restore: access returns; reminders re-planned for future times only",
+            security: operatorSession,
+            requestBody: reasonBody,
+            responses: { 200: jsonResponse("Restored", dataEnvelope("workspace", ref("AdminWorkspace"))), ...errorResponses(400, 401, 404, 409) },
+        },
+    },
+};
+
+// Operations (SRS SR18). Failure details are sanitised provider errors — never task content.
+const adminOperationsPaths = {
+    "/admin/operations/health": {
+        get: {
+            tags: ["Admin"],
+            summary: "Dependency checks, reminder-queue depth and delivery counts",
+            security: operatorSession,
+            responses: {
+                200: jsonResponse("Health", {
+                    type: "object",
+                    properties: {
+                        status: { type: "string" },
+                        data: {
+                            allOf: [
+                                ref("Readiness"),
+                                {
+                                    type: "object",
+                                    properties: {
+                                        queues: { type: "object", description: "Omitted when Redis is unreachable", additionalProperties: { type: "object" } },
+                                        deliveries: { type: "object", properties: { failed: { type: "integer" }, pending: { type: "integer" } } },
+                                    },
+                                },
+                            ],
+                        },
+                    },
+                }),
+                ...errorResponses(401),
+            },
+        },
+    },
+    "/admin/deliveries": {
+        get: {
+            tags: ["Admin"],
+            summary: "Reminder/overdue email deliveries, newest first",
+            security: operatorSession,
+            parameters: [
+                { name: "status", in: "query", schema: { type: "string", enum: ["pending", "sent", "failed", "suppressed"] } },
+                { name: "page", in: "query", schema: { type: "integer", minimum: 1 } },
+                { name: "limit", in: "query", schema: { type: "integer", minimum: 1, maximum: 100 } },
+            ],
+            responses: { 200: jsonResponse("Deliveries", pageEnvelope(ref("AdminDelivery"))), ...errorResponses(400, 401) },
+        },
+    },
+    "/admin/deliveries/{deliveryId}/retry": {
+        parameters: [pathParam("deliveryId", "Delivery id")],
+        post: {
+            tags: ["Admin"],
+            summary: "Retry a failed delivery (same identity; re-checks the task and recipient first — may be suppressed instead)",
+            security: operatorSession,
+            requestBody: reasonBody,
+            responses: {
+                200: jsonResponse("Retried", {
+                    type: "object",
+                    properties: {
+                        status: { type: "string" },
+                        data: { type: "object", properties: { delivery: ref("AdminDelivery"), outcome: { type: "string", enum: ["sent", "failed", "suppressed"] } } },
+                    },
+                }),
+                ...errorResponses(400, 401, 404, 409),
+            },
+        },
+    },
+    "/admin/audit": {
+        get: {
+            tags: ["Admin"],
+            summary: "Operator audit trail, newest first (read-only)",
+            security: operatorSession,
+            parameters: [
+                { name: "action", in: "query", schema: { type: "string" } },
+                { name: "targetId", in: "query", schema: { type: "string", format: "uuid" } },
+                { name: "page", in: "query", schema: { type: "integer", minimum: 1 } },
+                { name: "limit", in: "query", schema: { type: "integer", minimum: 1, maximum: 100 } },
+            ],
+            responses: { 200: jsonResponse("Audit", pageEnvelope(ref("AdminAuditEntry"))), ...errorResponses(400, 401) },
+        },
+    },
+};
+
 const healthPaths = {
     "/health": {
         get: {
@@ -1249,7 +1496,7 @@ const openApiDocument = {
         },
         schemas,
     },
-    paths: withOperationIds({ ...authPaths, ...userPaths, ...workspacePaths, ...invitationPaths, ...projectPaths, ...labelPaths, ...taskPaths, ...subtaskPaths, ...commentPaths, ...notificationPaths, ...activityPaths, ...dashboardPaths, ...healthPaths, ...adminAuthPaths }),
+    paths: withOperationIds({ ...authPaths, ...userPaths, ...workspacePaths, ...invitationPaths, ...projectPaths, ...labelPaths, ...taskPaths, ...subtaskPaths, ...commentPaths, ...notificationPaths, ...activityPaths, ...dashboardPaths, ...healthPaths, ...adminAuthPaths, ...adminDirectoryPaths, ...adminOperationsPaths }),
 };
 
 export default openApiDocument;

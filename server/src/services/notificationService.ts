@@ -21,10 +21,18 @@ interface NotificationDraft {
     deliveryKey: string;
 }
 
-const createNotifications = (tx: Prisma.TransactionClient, drafts: NotificationDraft[]) => {
+const createNotifications = async (tx: Prisma.TransactionClient, drafts: NotificationDraft[]) => {
     const recipients = drafts.filter((draft) => draft.actorId === null || draft.recipientId !== draft.actorId);
-    if (recipients.length === 0) return Promise.resolve({ count: 0 });
-    return tx.notification.createMany({ data: recipients, skipDuplicates: true });
+    if (recipients.length === 0) return { count: 0 };
+    // Suspended accounts receive nothing while suspended (SRS SR17).
+    const suspended = await tx.user.findMany({
+        where: { id: { in: recipients.map((draft) => draft.recipientId) }, suspendedAt: { not: null } },
+        select: { id: true },
+    });
+    const suspendedIds = new Set(suspended.map((user) => user.id));
+    const deliverable = recipients.filter((draft) => !suspendedIds.has(draft.recipientId));
+    if (deliverable.length === 0) return { count: 0 };
+    return tx.notification.createMany({ data: deliverable, skipDuplicates: true });
 };
 
 // ─── Assignment ─────────────────────

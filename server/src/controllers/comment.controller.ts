@@ -6,7 +6,7 @@ import catchAsync from "../utils/catchAsync.js";
 import logger from "../utils/logger.js";
 import routeParam from "../utils/routeParam.js";
 import { requireUser } from "../middlewares/auth.middleware.js";
-import { requireActiveMembership } from "../middlewares/workspaceAccess.middleware.js";
+import { notFoundUnlessSuspended, requireActiveMembership } from "../middlewares/workspaceAccess.middleware.js";
 import { loadTaskForMember } from "./task.controller.js";
 import { notifyMentions } from "../services/notificationService.js";
 
@@ -93,9 +93,7 @@ const loadCommentForMember = async (commentId: string | undefined, userId: strin
         include: { task: { select: { projectId: true, title: true } }, mentions: { select: { membershipId: true } } },
     });
     if (!comment) throw new AppError("Comment not found", 404);
-    const membership = await requireActiveMembership(comment.workspaceId, userId).catch(() => {
-        throw new AppError("Comment not found", 404);
-    });
+    const membership = await requireActiveMembership(comment.workspaceId, userId).catch(notFoundUnlessSuspended("Comment not found"));
     return { comment, membership };
 };
 

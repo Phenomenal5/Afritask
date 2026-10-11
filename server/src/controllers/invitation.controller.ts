@@ -10,7 +10,7 @@ import routeParam from "../utils/routeParam.js";
 import { generateSecureToken, hashSecureToken } from "../utils/secureToken.js";
 import { sendInvitationEmail } from "../utils/email.js";
 import { requireUser } from "../middlewares/auth.middleware.js";
-import { requireActiveMembership, requireMembership } from "../middlewares/workspaceAccess.middleware.js";
+import { notFoundUnlessSuspended, requireActiveMembership, requireMembership } from "../middlewares/workspaceAccess.middleware.js";
 
 // ─── Email invitations (SRS SR03, PRD journeys J2/J3) ─────────────────────
 
@@ -97,9 +97,7 @@ const loadInvitationForManager = async (invitationId: string | undefined, userId
     const invitation = await prisma.invitation.findUnique({ where: { id: invitationId } });
     if (!invitation) throw new AppError("Invitation not found", 404);
 
-    const membership = await requireActiveMembership(invitation.workspaceId, userId).catch(() => {
-        throw new AppError("Invitation not found", 404);
-    });
+    const membership = await requireActiveMembership(invitation.workspaceId, userId).catch(notFoundUnlessSuspended("Invitation not found"));
     if (invitableRolesFor(membership.role).length === 0) throw new AppError("Invitation not found", 404);
     // An Admin can manage Member invitations, but not Admin ones (PRD §8: managing Admins is Owner-only).
     if (!invitableRolesFor(membership.role).includes(invitation.role as InvitableRole)) {
@@ -277,6 +275,9 @@ export const acceptInvitation = catchAsync(async (req, res) => {
     // Sessions only exist for verified accounts (login refuses unverified ones), so a
     // signed-in caller satisfies "verified account matching the invited email".
     const invitation = await loadInvitationForRecipient(req.body, user.email);
+    // A workspace an operator suspended (or its Owner deleted) can't take new members (SRS SR17).
+    const target = await prisma.workspace.findUnique({ where: { id: invitation.workspaceId }, select: { suspendedAt: true, deletedAt: true } });
+    if (target?.suspendedAt || target?.deletedAt) throw new AppError("This workspace isn't accepting new members right now.", 409);
 
     // One transaction: consume the invitation and create/reactivate the membership.
     // The conditional updateMany is the race guard — of two concurrent accepts, only one

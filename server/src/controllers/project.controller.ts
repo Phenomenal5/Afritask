@@ -7,7 +7,7 @@ import logger from "../utils/logger.js";
 import routeParam from "../utils/routeParam.js";
 import { normalizeWorkspaceName } from "../utils/workspaceValidation.js";
 import { requireUser } from "../middlewares/auth.middleware.js";
-import { requireActiveMembership, requireMembership } from "../middlewares/workspaceAccess.middleware.js";
+import { notFoundUnlessSuspended, requireActiveMembership, requireMembership } from "../middlewares/workspaceAccess.middleware.js";
 import { diffFields, recordActivity, type ActivityAction, type ActivityChanges } from "../services/activityService.js";
 import { computeSchedule } from "../utils/reminderSchedule.js";
 
@@ -53,9 +53,7 @@ const loadProjectForMember = async (projectId: string | undefined, userId: strin
     if (!projectId || !validator.isUUID(projectId)) throw new AppError("Project not found", 404);
     const project = await prisma.project.findUnique({ where: { id: projectId } });
     if (!project) throw new AppError("Project not found", 404);
-    const membership = await requireActiveMembership(project.workspaceId, userId).catch(() => {
-        throw new AppError("Project not found", 404);
-    });
+    const membership = await requireActiveMembership(project.workspaceId, userId).catch(notFoundUnlessSuspended("Project not found"));
     return { project, membership };
 };
 

@@ -523,6 +523,34 @@ they created or are currently assigned to, and delete only tasks they created.
 When a member leaves or is removed, their **open** tasks become unassigned.
 Task lists also filter by `?assignee=me|none|<membershipId>`.
 
+## Admin console (Platform Superadmin)
+
+A separate sign-in for platform operators. Access is granted only on the server with
+`npm run operator:grant -- --email <address>`; nothing in the app can grant it. Operators
+see account and workspace **metadata only**, never tasks or comments.
+
+| Method | Path | Purpose |
+|---|---|---|
+| POST | `/api/admin/auth/login` | password step (same 401 for every failure) |
+| POST | `/api/admin/auth/mfa/setup` | first sign-in: authenticator secret + `otpauth://` URI |
+| POST | `/api/admin/auth/mfa/verify` | `{ code }` — completes sign-in; a used code can't be replayed |
+| GET / POST | `/api/admin/auth/me`, `/api/admin/auth/logout` | |
+| GET | `/api/admin/accounts?q=&status=&page=&limit=` | search by name, email or id |
+| GET | `/api/admin/accounts/:id` | status, verification, membership metadata |
+| POST | `/api/admin/accounts/:id/suspend` · `/restore` | `{ reason }` — suspend signs them out everywhere and blocks sign-in; ownership and assignments stay; no notifications while suspended |
+| GET | `/api/admin/workspaces?q=&status=active\|suspended\|deleted` | search by name or id |
+| GET | `/api/admin/workspaces/:id` | owner, member count, project/task counts |
+| POST | `/api/admin/workspaces/:id/suspend` · `/restore` | `{ reason }` — members get `403` on every route, can't join, reminders pause; restore re-plans future reminders only |
+| GET | `/api/admin/operations/health` | dependency checks, reminder-queue depth, failed/pending deliveries |
+| GET | `/api/admin/deliveries?status=` | reminder/overdue emails with attempts and the sanitised provider error |
+| POST | `/api/admin/deliveries/:id/retry` | `{ reason }` — failed only; re-checks the task and recipient first (may be `suppressed`); a sent email is never resent |
+| GET | `/api/admin/audit?action=&targetId=` | append-only trail of operator actions with actor, reason and IP |
+
+The operator cookie (`afritask_operator_session`) is httpOnly, `SameSite=Strict`, sent only
+to `/api/admin`, and lasts 8 hours. Customer sessions are refused here, and operator sessions
+are refused everywhere else. Every suspend, restore and retry needs a reason (5–500
+characters) and writes an audit entry.
+
 ## Deleting a workspace (Owner only)
 
 `GET /api/workspaces/:workspaceId/deletion-preview` says what a delete would do;

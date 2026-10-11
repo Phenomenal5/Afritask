@@ -47,14 +47,19 @@ export const liveness = (req: import("express").Request, res: import("express").
 };
 
 export const readiness = catchAsync(async (req, res) => {
+    const report = await runReadinessChecks();
+    res.status(report.status === "ok" ? 200 : 503).json(report);
+});
+
+// Shared with the admin console's health page.
+export const runReadinessChecks = async () => {
     const checks = await Promise.all([check("database", () => prisma.$queryRaw`SELECT 1`), check("redis", pingRedis)]);
-    const ready = checks.every((result) => result.status === "ok");
-    res.status(ready ? 200 : 503).json({
-        status: ready ? "ok" : "unavailable",
+    return {
+        status: checks.every((result) => result.status === "ok") ? ("ok" as const) : ("unavailable" as const),
         version: releaseVersion,
         checks: Object.fromEntries(checks.map(({ name, status, latencyMs }) => [name, { status, latencyMs }])),
-    });
-});
+    };
+};
 
 // For graceful shutdown.
 export const closeHealthConnections = async () => {

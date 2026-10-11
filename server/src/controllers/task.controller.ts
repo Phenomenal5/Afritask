@@ -5,7 +5,7 @@ import catchAsync from "../utils/catchAsync.js";
 import AppError from "../utils/AppError.js";
 import logger from "../utils/logger.js";
 import { requireUser } from "../middlewares/auth.middleware.js";
-import { requireActiveMembership, requireMembership } from "../middlewares/workspaceAccess.middleware.js";
+import { notFoundUnlessSuspended, requireActiveMembership, requireMembership } from "../middlewares/workspaceAccess.middleware.js";
 import { canAssignTask, canDeleteTask, canEditTask } from "../utils/taskPermissions.js";
 import { parseDue } from "../utils/dueDate.js";
 import routeParam from "../utils/routeParam.js";
@@ -113,9 +113,7 @@ const parseSort = (sort: unknown): Prisma.TaskOrderByWithRelationInput[] => {
 export const loadTaskForMember = async (taskId: string, userId: string) => {
     const task = await prisma.task.findUnique({ where: { id: taskId } });
     if (!task) throw new AppError("Task not found", 404);
-    const membership = await requireActiveMembership(task.workspaceId, userId).catch(() => {
-        throw new AppError("Task not found", 404);
-    });
+    const membership = await requireActiveMembership(task.workspaceId, userId).catch(notFoundUnlessSuspended("Task not found"));
     return { task, membership };
 };
 

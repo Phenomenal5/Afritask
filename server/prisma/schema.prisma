@@ -117,6 +117,10 @@ model User {
   isVerified    Boolean      @default(false)
   // IANA zone, e.g. "Africa/Lagos". Detected from the device at signup, editable in profile.
   timezone      String       @default("UTC")
+  // Platform suspension (SRS SR17): set by an operator with a reason. Ends every session,
+  // blocks sign-in and silences notifications; ownership and assignments are untouched.
+  suspendedAt   DateTime?    @db.Timestamptz(3)
+  suspendReason String?
   // Source Mongo _id, so the import script can be re-run without duplicating rows.
   legacyMongoId String?      @unique
   createdAt     DateTime     @default(now()) @db.Timestamptz(3)
@@ -185,15 +189,19 @@ model AccountToken {
 // The boundary for shared work. Personal and team workspaces are the same model;
 // a personal one simply has a single member (PRD §1).
 model Workspace {
-  id          String    @id @default(uuid(7)) @db.Uuid
-  name        String
+  id            String    @id @default(uuid(7)) @db.Uuid
+  name          String
   // Soft delete (Owner action): set when other people had already left records here, so
   // their work is kept but nobody can open the workspace any more. A workspace with only
   // the Owner's own records is deleted outright instead.
-  deletedAt   DateTime? @db.Timestamptz(3)
-  deletedById String?   @db.Uuid
-  createdAt   DateTime  @default(now()) @db.Timestamptz(3)
-  updatedAt   DateTime  @updatedAt @db.Timestamptz(3)
+  deletedAt     DateTime? @db.Timestamptz(3)
+  deletedById   String?   @db.Uuid
+  // Platform suspension (SRS SR17): members can't read, write or join; reminders pause.
+  // Independent of the Owner's soft delete above.
+  suspendedAt   DateTime? @db.Timestamptz(3)
+  suspendReason String?
+  createdAt     DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt     DateTime  @updatedAt @db.Timestamptz(3)
 
   memberships   Membership[]
   invitations   Invitation[]

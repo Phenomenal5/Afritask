@@ -16,7 +16,7 @@ import { notifyTaskSchedule } from "../services/notificationService.js"
 // Schedules are only ever set to FUTURE times (utils/reminderSchedule.ts); one that comes due
 // more than MISSED_GRACE_MS late (e.g. the worker was down) is dropped, not sent in a burst.
 
-const QUEUE_NAME = "task-reminders"
+export const REMINDER_QUEUE_NAME = "task-reminders"
 const SWEEP_EVERY_MS = 60_000
 const BATCH_SIZE = 200
 const MISSED_GRACE_MS = 2 * 60 * 60 * 1000
@@ -43,8 +43,8 @@ const loadDeliverableTask = (taskId: string) =>
             status: true,
             creatorId: true,
             project: { select: { state: true } },
-            workspace: { select: { deletedAt: true } },
-            assignee: { select: { status: true, userId: true } },
+            workspace: { select: { deletedAt: true, suspendedAt: true } },
+            assignee: { select: { status: true, userId: true, user: { select: { suspendedAt: true } } } },
         },
     })
 
@@ -54,9 +54,9 @@ type DeliverableTask = NonNullable<Awaited<ReturnType<typeof loadDeliverableTask
 // creator — but ONLY while they're an active member, so a removed member never receives
 // the task's content. Subtasks follow the same rule (no inheriting the parent's assignee).
 const resolveRecipientId = async (task: DeliverableTask): Promise<string | null> => {
-    if (task.assignee) return task.assignee.status === "active" ? task.assignee.userId : null
+    if (task.assignee) return task.assignee.status === "active" && !task.assignee.user.suspendedAt ? task.assignee.userId : null
     const creatorMembership = await prisma.membership.findFirst({
-        where: { workspaceId: task.workspaceId, userId: task.creatorId, status: "active" },
+        where: { workspaceId: task.workspaceId, userId: task.creatorId, status: "active", user: { suspendedAt: null } },
         select: { id: true },
     })
     return creatorMembership ? task.creatorId : null
@@ -66,6 +66,7 @@ const resolveRecipientId = async (task: DeliverableTask): Promise<string | null>
 const suppressionReason = (task: DeliverableTask | null, field: ScheduleField, dueInstant: Date, now: Date): string | null => {
     if (!task) return "task deleted"
     if (task.workspace.deletedAt) return "workspace deleted"
+    if (task.workspace.suspendedAt) return "workspace suspended"
     if (task.status === "completed") return "task completed"
     if (task.project?.state === "archived") return "project archived"
     if (now.getTime() - dueInstant.getTime() > MISSED_GRACE_MS) return "missed while the worker was down"
@@ -153,17 +154,25 @@ const retryFailedEmails = async (now: Date) => {
     })
     let retried = 0
     for (const delivery of failed) {
-        const task = delivery.taskId ? await loadDeliverableTask(delivery.taskId) : null
-        const stillEligible = task && !task.workspace.deletedAt && task.status !== "completed" && task.project?.state !== "archived"
-            && (await resolveRecipientId(task)) === delivery.recipientId
-        if (!task || !stillEligible) {
-            await prisma.emailDelivery.update({ where: { id: delivery.id }, data: { status: "suppressed" } })
-            continue
-        }
-        const kind: TaskEmailKind = delivery.kind === "task_overdue" ? "overdue" : "reminder"
-        if (await attemptEmail(delivery.id, delivery.recipient.email, task, kind)) retried += 1
+        if ((await redeliver(delivery)) === "sent") retried += 1
     }
     return retried
+}
+
+// Re-check, then send one ledger row again. Shared by the automatic retry above and the
+// operator's manual retry, so both follow exactly the same rules: a task that's gone,
+// finished, archived, in a closed workspace, or whose recipient changed is suppressed —
+// never sent. Returns the outcome.
+export const redeliver = async (delivery: { id: string; kind: string; taskId: string | null; recipientId: string; recipient: { email: string } }) => {
+    const task = delivery.taskId ? await loadDeliverableTask(delivery.taskId) : null
+    const stillEligible = task && !task.workspace.deletedAt && !task.workspace.suspendedAt && task.status !== "completed" && task.project?.state !== "archived"
+        && (await resolveRecipientId(task)) === delivery.recipientId
+    if (!task || !stillEligible) {
+        await prisma.emailDelivery.update({ where: { id: delivery.id }, data: { status: "suppressed" } })
+        return "suppressed" as const
+    }
+    const kind: TaskEmailKind = delivery.kind === "task_overdue" ? "overdue" : "reminder"
+    return (await attemptEmail(delivery.id, delivery.recipient.email, task, kind)) ? ("sent" as const) : ("failed" as const)
 }
 
 // ─── The sweep (exported for tests: the BullMQ worker calls exactly this) ─────────────────────
@@ -182,7 +191,7 @@ export const runReminderSweep = async (now = new Date()) => {
 const startTaskReminderJob = () => {
     logger.info("Starting task reminder queue registration");
 
-    const reminderQueue = new Queue(QUEUE_NAME, { connection: redisConnection });
+    const reminderQueue = new Queue(REMINDER_QUEUE_NAME, { connection: redisConnection });
 
     // The old once-a-day "due tomorrow" scan is replaced by the per-task sweep; remove its
     // stored schedule so an upgraded Redis doesn't keep firing it.
@@ -196,7 +205,7 @@ const startTaskReminderJob = () => {
         .catch((error) => logger.error(`Failed to schedule the reminder sweep: ${error.stack || error.message}`));
 
     // concurrency 1: sweeps never overlap on one instance (claims keep multiple instances safe).
-    const reminderWorker = new Worker(QUEUE_NAME, () => runReminderSweep(), { connection: redisConnection, concurrency: 1 });
+    const reminderWorker = new Worker(REMINDER_QUEUE_NAME, () => runReminderSweep(), { connection: redisConnection, concurrency: 1 });
 
     reminderWorker.on("failed", (job, error) => {
         logger.error(`Reminder sweep ${job?.id} failed: ${error.stack || error.message}`);
