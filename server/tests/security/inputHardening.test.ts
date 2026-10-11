@@ -127,13 +127,13 @@ describe("request size and shape", () => {
     });
 
     it("rejects malformed JSON with 400", async () => {
-        const response = await anonymous().post("/api/auth/login").set("X-Requested-With", "XMLHttpRequest").set("Content-Type", "application/json").send('{"email": "a@b.co", ');
+        const response = await anonymous().post("/api/v1/auth/login").set("X-Requested-With", "XMLHttpRequest").set("Content-Type", "application/json").send('{"email": "a@b.co", ');
         expect(response.status).toBe(400);
         expect(response.body.message).toBe("Request body is not valid JSON");
     });
 
     it("never echoes internal error details", async () => {
-        const response = await anonymous().post("/api/auth/login").set("X-Requested-With", "XMLHttpRequest").set("Content-Type", "application/json").send("{bad");
+        const response = await anonymous().post("/api/v1/auth/login").set("X-Requested-With", "XMLHttpRequest").set("Content-Type", "application/json").send("{bad");
         expect(JSON.stringify(response.body)).not.toMatch(/stack|at .*\.ts|SyntaxError/);
     });
 });

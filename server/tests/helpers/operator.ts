@@ -27,8 +27,8 @@ export const createOperatorClient = async (name = "Ola Operator") => {
     const agent = request.agent(app);
     const withHeaders = (pending: request.Test) => pending.set(CSRF_HEADER).set("Cookie", `${OPERATOR_COOKIE_NAME}=${sessionSecret}`);
     const client = {
-        get: (path: string) => withHeaders(agent.get(`/api/admin${path}`)),
-        post: (path: string, body?: object) => withHeaders(agent.post(`/api/admin${path}`)).send(body ?? {}),
+        get: (path: string) => withHeaders(agent.get(`/api/v1/admin${path}`)),
+        post: (path: string, body?: object) => withHeaders(agent.post(`/api/v1/admin${path}`)).send(body ?? {}),
     };
     return { user, client };
 };

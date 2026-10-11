@@ -14,9 +14,9 @@ const routesInCode = () => {
     const fileByImport = new Map(
         [...appSource.matchAll(/import (\w+) from "\.\/routes\/(\w+)\.js"/g)].map((match) => [match[1]!, match[2]!])
     );
-    // app.use("/api/<prefix>", <identifier>)
+    // app.use("/api/v1/<prefix>", <identifier>) — or "/api/<prefix>" for unversioned health.
     const prefixByFile = new Map(
-        [...appSource.matchAll(/app\.use\("\/api(\/[\w-]+)", (\w+)\)/g)].map((match) => [fileByImport.get(match[2]!)!, match[1]!])
+        [...appSource.matchAll(/app\.use\("\/api(?:\/v1)?(\/[\w-]+)", (\w+)\)/g)].map((match) => [fileByImport.get(match[2]!)!, match[1]!])
     );
 
     const routes = new Set<string>();

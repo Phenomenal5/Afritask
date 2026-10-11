@@ -11,22 +11,22 @@ http://localhost:<PORT>
 Default route prefixes:
 
 ```txt
-/api/auth
-/api/users
-/api/workspaces
-/api/tasks
+/api/v1/auth
+/api/v1/users
+/api/v1/workspaces
+/api/v1/tasks
 ```
 
 Protected routes authenticate with two httpOnly cookies that login sets (there is
 no bearer token, and nothing is kept in localStorage):
 
 - `afritask_access` — a signed access token (JWT), valid **15 minutes**, sent with every request;
-- `afritask_refresh` — the refresh token, valid **30 days**, sent only to `/api/auth/*`.
+- `afritask_refresh` — the refresh token, valid **30 days**, sent only to `/api/v1/auth/*`.
   It's stored (hashed) in the database as the session, rotated on each refresh, and
   revoked by logout, a password reset or an account suspension.
 
 When a protected route answers `401` with `"code": "access_token_invalid"`, call
-`POST /api/auth/refresh` and retry. If the refresh answers `401`, the session is over.
+`POST /api/v1/auth/refresh` and retry. If the refresh answers `401`, the session is over.
 Browsers reach the API same-origin through the client's `/api` rewrite, so the cookies
 are sent automatically.
 
@@ -67,7 +67,7 @@ FRONTEND_URL=http://localhost:<frontend-port>
 
 GOOGLE_CLIENT_ID=your_google_client_id
 GOOGLE_CLIENT_SECRET=your_google_client_secret
-GOOGLE_CALLBACK_URL=http://localhost:<backend-port>/api/auth/google/callback
+GOOGLE_CALLBACK_URL=http://localhost:<backend-port>/api/v1/auth/google/callback
 ```
 
 ## Authentication
@@ -77,7 +77,7 @@ GOOGLE_CALLBACK_URL=http://localhost:<backend-port>/api/auth/google/callback
 Creates a local user and sends an email verification token.
 
 ```http
-POST /api/auth/signup
+POST /api/v1/auth/signup
 ```
 
 Request body:
@@ -127,13 +127,13 @@ Possible errors:
 Verifies a local user account using the token sent by email. A welcome email is sent after successful verification.
 
 ```http
-GET /api/auth/verify-email/:token
+GET /api/v1/auth/verify-email/:token
 ```
 
 Example:
 
 ```http
-GET /api/auth/verify-email/abc123token
+GET /api/v1/auth/verify-email/abc123token
 ```
 
 Success response:
@@ -162,7 +162,7 @@ Logs in a verified local user, starts a session and sets the `afritask_access` a
 `afritask_refresh` cookies (`HttpOnly; SameSite=Lax`, `Secure` in production).
 
 ```http
-POST /api/auth/login
+POST /api/v1/auth/login
 ```
 
 Request body:
@@ -221,7 +221,7 @@ Possible errors:
 Starts the Google OAuth login/signup flow.
 
 ```http
-GET /api/auth/google
+GET /api/v1/auth/google
 ```
 
 The browser will be redirected to Google for authentication.
@@ -229,7 +229,7 @@ The browser will be redirected to Google for authentication.
 Required Google redirect URI:
 
 ```txt
-http://localhost:<PORT>/api/auth/google/callback
+http://localhost:<PORT>/api/v1/auth/google/callback
 ```
 
 ### Google Callback
@@ -237,10 +237,10 @@ http://localhost:<PORT>/api/auth/google/callback
 Google redirects to this route after login. Because the whole flow is a
 top-level browser redirect (not an XHR) on the API's own domain, this route does
 **not** return JSON or set a cookie — it mints a single-use code (valid 2 minutes)
-and redirects to the frontend, which exchanges it via `POST /api/auth/google/exchange`.
+and redirects to the frontend, which exchanges it via `POST /api/v1/auth/google/exchange`.
 
 ```http
-GET /api/auth/google/callback
+GET /api/v1/auth/google/callback
 ```
 
 Success — redirects to the frontend callback with the one-time code:
@@ -273,7 +273,7 @@ Second half of Google sign-in: trades the one-time code for a session cookie.
 Each code works once.
 
 ```http
-POST /api/auth/google/exchange
+POST /api/v1/auth/google/exchange
 ```
 
 Request body:
@@ -294,7 +294,7 @@ token (both set as cookies). The 30-day login doesn't restart. `401` when the re
 token is missing, expired, revoked or replaced.
 
 ```http
-POST /api/auth/refresh
+POST /api/v1/auth/refresh
 ```
 
 ### Logout
@@ -304,7 +304,7 @@ the database and clears both cookies. Works with only the refresh cookie, so sig
 out never fails because the access token happened to expire.
 
 ```http
-POST /api/auth/logout
+POST /api/v1/auth/logout
 ```
 
 Auth required: the refresh cookie (no access token needed).
@@ -323,7 +323,7 @@ not the email is registered, so it can't be used to discover accounts. Requestin
 again replaces any earlier link.
 
 ```http
-POST /api/auth/forgot-password
+POST /api/v1/auth/forgot-password
 ```
 
 Request body:
@@ -349,7 +349,7 @@ Updates the user's password using a valid reset token. The link is single-use,
 and a successful reset signs the user out on every device.
 
 ```http
-PATCH /api/auth/reset-password/:token
+PATCH /api/v1/auth/reset-password/:token
 ```
 
 Request body:
@@ -397,7 +397,7 @@ Possible errors:
 Returns the authenticated user for the current session cookie.
 
 ```http
-GET /api/auth/me
+GET /api/v1/auth/me
 ```
 
 Auth required: yes.
@@ -433,7 +433,7 @@ Possible error:
 Updates the authenticated user's profile and optional photo.
 
 ```http
-PUT /api/users/profile
+PUT /api/v1/users/profile
 ```
 
 Auth required: yes.
@@ -465,7 +465,7 @@ Success response:
 Updates the authenticated user's password and sends a confirmation email.
 
 ```http
-PUT /api/users/password
+PUT /api/v1/users/password
 ```
 
 Auth required: yes.
@@ -513,15 +513,15 @@ signed-in session; a workspace you're not an active member of answers `404`
 
 | Method | Path | Who | Purpose |
 | --- | --- | --- | --- |
-| `GET` | `/api/workspaces` | any user | My workspaces: `{ id, name, role, memberCount }[]` |
-| `POST` | `/api/workspaces` | any user | Create `{ name }` (1–100 chars); the caller becomes Owner |
-| `GET` | `/api/workspaces/:workspaceId` | member | Details + active members |
-| `PATCH` | `/api/workspaces/:workspaceId` | owner | Rename `{ name }` |
-| `GET` | `/api/workspaces/:workspaceId/tasks` | member | The workspace's tasks (`?status`, `?priority`, `?sort`) |
-| `POST` | `/api/workspaces/:workspaceId/tasks` | member | Create a task |
+| `GET` | `/api/v1/workspaces` | any user | My workspaces: `{ id, name, role, memberCount }[]` |
+| `POST` | `/api/v1/workspaces` | any user | Create `{ name }` (1–100 chars); the caller becomes Owner |
+| `GET` | `/api/v1/workspaces/:workspaceId` | member | Details + active members |
+| `PATCH` | `/api/v1/workspaces/:workspaceId` | owner | Rename `{ name }` |
+| `GET` | `/api/v1/workspaces/:workspaceId/tasks` | member | The workspace's tasks (`?status`, `?priority`, `?sort`) |
+| `POST` | `/api/v1/workspaces/:workspaceId/tasks` | member | Create a task |
 
-Single-task routes use the task id: `GET/PUT/DELETE /api/tasks/:id`,
-`PATCH /api/tasks/:id/status`. Owners and Admins can edit or delete any task in
+Single-task routes use the task id: `GET/PUT/DELETE /api/v1/tasks/:id`,
+`PATCH /api/v1/tasks/:id/status`. Owners and Admins can edit or delete any task in
 the workspace; Members only the tasks they created (`403` otherwise).
 
 ## Task fields (V1)
@@ -554,30 +554,30 @@ see account and workspace **metadata only**, never tasks or comments.
 
 | Method | Path | Purpose |
 |---|---|---|
-| POST | `/api/admin/auth/login` | password step (same 401 for every failure) |
-| POST | `/api/admin/auth/mfa/setup` | first sign-in: authenticator secret + `otpauth://` URI |
-| POST | `/api/admin/auth/mfa/verify` | `{ code }` — completes sign-in; a used code can't be replayed |
-| GET / POST | `/api/admin/auth/me`, `/api/admin/auth/logout` | |
-| GET | `/api/admin/accounts?q=&status=&page=&limit=` | search by name, email or id |
-| GET | `/api/admin/accounts/:id` | status, verification, membership metadata |
-| POST | `/api/admin/accounts/:id/suspend` · `/restore` | `{ reason }` — suspend signs them out everywhere and blocks sign-in; ownership and assignments stay; no notifications while suspended |
-| GET | `/api/admin/workspaces?q=&status=active\|suspended\|deleted` | search by name or id |
-| GET | `/api/admin/workspaces/:id` | owner, member count, project/task counts |
-| POST | `/api/admin/workspaces/:id/suspend` · `/restore` | `{ reason }` — members get `403` on every route, can't join, reminders pause; restore re-plans future reminders only |
-| GET | `/api/admin/operations/health` | dependency checks, reminder-queue depth, failed/pending deliveries |
-| GET | `/api/admin/deliveries?status=` | reminder/overdue emails with attempts and the sanitised provider error |
-| POST | `/api/admin/deliveries/:id/retry` | `{ reason }` — failed only; re-checks the task and recipient first (may be `suppressed`); a sent email is never resent |
-| GET | `/api/admin/audit?action=&targetId=` | append-only trail of operator actions with actor, reason and IP |
+| POST | `/api/v1/admin/auth/login` | password step (same 401 for every failure) |
+| POST | `/api/v1/admin/auth/mfa/setup` | first sign-in: authenticator secret + `otpauth://` URI |
+| POST | `/api/v1/admin/auth/mfa/verify` | `{ code }` — completes sign-in; a used code can't be replayed |
+| GET / POST | `/api/v1/admin/auth/me`, `/api/v1/admin/auth/logout` | |
+| GET | `/api/v1/admin/accounts?q=&status=&page=&limit=` | search by name, email or id |
+| GET | `/api/v1/admin/accounts/:id` | status, verification, membership metadata |
+| POST | `/api/v1/admin/accounts/:id/suspend` · `/restore` | `{ reason }` — suspend signs them out everywhere and blocks sign-in; ownership and assignments stay; no notifications while suspended |
+| GET | `/api/v1/admin/workspaces?q=&status=active\|suspended\|deleted` | search by name or id |
+| GET | `/api/v1/admin/workspaces/:id` | owner, member count, project/task counts |
+| POST | `/api/v1/admin/workspaces/:id/suspend` · `/restore` | `{ reason }` — members get `403` on every route, can't join, reminders pause; restore re-plans future reminders only |
+| GET | `/api/v1/admin/operations/health` | dependency checks, reminder-queue depth, failed/pending deliveries |
+| GET | `/api/v1/admin/deliveries?status=` | reminder/overdue emails with attempts and the sanitised provider error |
+| POST | `/api/v1/admin/deliveries/:id/retry` | `{ reason }` — failed only; re-checks the task and recipient first (may be `suppressed`); a sent email is never resent |
+| GET | `/api/v1/admin/audit?action=&targetId=` | append-only trail of operator actions with actor, reason and IP |
 
 The operator cookie (`afritask_operator_session`) is httpOnly, `SameSite=Strict`, sent only
-to `/api/admin`, and lasts 8 hours. Customer sessions are refused here, and operator sessions
+to `/api/v1/admin`, and lasts 8 hours. Customer sessions are refused here, and operator sessions
 are refused everywhere else. Every suspend, restore and retry needs a reason (5–500
 characters) and writes an audit entry.
 
 ## Deleting a workspace (Owner only)
 
-`GET /api/workspaces/:workspaceId/deletion-preview` says what a delete would do;
-`DELETE /api/workspaces/:workspaceId` with `{ "confirmName": "<exact workspace name>" }` does it.
+`GET /api/v1/workspaces/:workspaceId/deletion-preview` says what a delete would do;
+`DELETE /api/v1/workspaces/:workspaceId` with `{ "confirmName": "<exact workspace name>" }` does it.
 
 - **Permanent** when nobody but the Owner has a record there (tasks, comments, projects or
   changes they made — being invited, joining or leaving doesn't count): the workspace and
@@ -586,11 +586,11 @@ characters) and writes an audit entry.
   (every route answers `404`, it leaves everyone's list), pending invitations are revoked and
   reminders stop, but all the data is kept. There's no in-app restore.
 
-Renaming stays `PATCH /api/workspaces/:workspaceId` (Owner only).
+Renaming stays `PATCH /api/v1/workspaces/:workspaceId` (Owner only).
 
 ## Dashboard
 
-`GET /api/workspaces/:workspaceId/dashboard` (any active member) returns:
+`GET /api/v1/workspaces/:workspaceId/dashboard` (any active member) returns:
 
 - `personal` — `dueToday`, `overdue`, `inProgress`, `completedThisWeek`: work assigned to
   you, subtasks included. Each equals the list at `?assignee=me&due=today|overdue`,
@@ -605,7 +605,7 @@ profile timezone.
 
 ## Search, filters and paging
 
-`GET /api/workspaces/:workspaceId/tasks` also takes:
+`GET /api/v1/workspaces/:workspaceId/tasks` also takes:
 
 - `q` — searches task titles, descriptions and project names (case-insensitive, up to 200
   characters). Matching subtasks are included, each with `parent`.
@@ -617,11 +617,11 @@ profile timezone.
   every match is returned.
 
 Results never leave the workspace in the URL, whatever the filters.
-`GET /api/workspaces/:workspaceId/projects?q=` searches project names.
+`GET /api/v1/workspaces/:workspaceId/projects?q=` searches project names.
 
 ## My Tasks views
 
-`GET /api/workspaces/:workspaceId/tasks?assignee=me&due=<view>` is My Tasks: everything
+`GET /api/v1/workspaces/:workspaceId/tasks?assignee=me&due=<view>` is My Tasks: everything
 assigned to you, including separately assigned subtasks (each with `parent`). `due` works
 with any other filter and is judged in your profile timezone at request time:
 
@@ -640,18 +640,18 @@ other filters, so a count and the list it opens always match.
 
 ## Subtasks and labels
 
-**Subtasks** (one level only): `POST /api/tasks/:id/subtasks` with the usual task fields.
+**Subtasks** (one level only): `POST /api/v1/tasks/:id/subtasks` with the usual task fields.
 A subtask inherits its parent's workspace and project, has its own assignee/status/due date
 and its own permissions, and is deleted with its parent. Workspace task lists show
 top-level tasks only (`?includeSubtasks=true` to include them); filtering by `assignee`
-includes that person's subtasks, each with `parent: { id, title }`. `GET /api/tasks/:id`
+includes that person's subtasks, each with `parent: { id, title }`. `GET /api/v1/tasks/:id`
 returns a `subtasks` list; every task carries `subtaskCounts { total, completed }`.
 Moving a parent to another project moves its subtasks; a subtask can't move on its own.
 Completing a parent never completes its subtasks.
 
-**Labels**: `GET/POST /api/workspaces/:workspaceId/labels` (create = Owner/Admin; name
+**Labels**: `GET/POST /api/v1/workspaces/:workspaceId/labels` (create = Owner/Admin; name
 1–40 chars, unique per workspace ignoring case; `color` one of gray, moss, clay, gold,
-sky, plum), `PATCH/DELETE /api/labels/:labelId` (Owner/Admin). Apply with
+sky, plum), `PATCH/DELETE /api/v1/labels/:labelId` (Owner/Admin). Apply with
 `labelIds: [...]` on task create/edit (replaces the set; anyone who can edit the task).
 Filter lists with `?labelId=`. Deleting a label removes it from tasks; tasks stay.
 
@@ -659,10 +659,10 @@ Filter lists with `?labelId=`. Deleting a label removes it from tasks; tasks sta
 
 | Method | Path | Who | Purpose |
 |---|---|---|---|
-| GET | `/api/tasks/:id/comments` | any active member | the thread, oldest first |
-| POST | `/api/tasks/:id/comments` | any active member | `{ body, mentionMembershipIds? }` |
-| PATCH | `/api/comments/:commentId` | the author | edit; omit `mentionMembershipIds` to keep the current mentions |
-| DELETE | `/api/comments/:commentId` | the author, or an Owner/Admin | soft delete: text and mentions removed, `deletedBy` kept |
+| GET | `/api/v1/tasks/:id/comments` | any active member | the thread, oldest first |
+| POST | `/api/v1/tasks/:id/comments` | any active member | `{ body, mentionMembershipIds? }` |
+| PATCH | `/api/v1/comments/:commentId` | the author | edit; omit `mentionMembershipIds` to keep the current mentions |
+| DELETE | `/api/v1/comments/:commentId` | the author, or an Owner/Admin | soft delete: text and mentions removed, `deletedBy` kept |
 
 `body` is trimmed, 1–5,000 characters, stored and returned as plain text. Mentions are
 **membership ids** of active members of the task's workspace (duplicates collapse; anyone
@@ -699,10 +699,10 @@ In-app notifications belong to the signed-in account, across all its workspaces.
 
 | Method | Path | Purpose |
 |---|---|---|
-| GET | `/api/notifications?unread=true&limit=&before=` | newest first, with `unreadCount` and `nextCursor` |
-| GET | `/api/notifications/unread-count` | `{ unreadCount }` for the bell badge |
-| POST | `/api/notifications/:id/read` | mark one read (keeps the first read time) |
-| POST | `/api/notifications/read-all` | mark all read |
+| GET | `/api/v1/notifications?unread=true&limit=&before=` | newest first, with `unreadCount` and `nextCursor` |
+| GET | `/api/v1/notifications/unread-count` | `{ unreadCount }` for the bell badge |
+| POST | `/api/v1/notifications/:id/read` | mark one read (keeps the first read time) |
+| POST | `/api/v1/notifications/read-all` | mark all read |
 
 Types: `task_reminder` / `task_overdue` (see Reminders), `task_starting` (see Start dates), `task_assigned` (someone else made you the assignee of a task or subtask),
 `comment_mention` (you were newly mentioned — unchanged mentions on edit don't re-notify),
@@ -719,8 +719,8 @@ Read-only, newest first, for every active member (outsiders get `404`):
 
 | Method | Path | Purpose |
 |---|---|---|
-| GET | `/api/tasks/:id/activity` | one task's history (subtask additions/deletions included) |
-| GET | `/api/workspaces/:workspaceId/activity` | the workspace's history; `?projectId=` narrows to one project and its tasks |
+| GET | `/api/v1/tasks/:id/activity` | one task's history (subtask additions/deletions included) |
+| GET | `/api/v1/workspaces/:workspaceId/activity` | the workspace's history; `?projectId=` narrows to one project and its tasks |
 
 Each entry: `{ id, action, entityType, entityId, projectId, actor { id, name, photo }, summary, changes, createdAt }`.
 `changes` lists only the fields that changed, as `{ field: { from, to } }`. Assignee, project
@@ -741,12 +741,12 @@ them; Owners and Admins create and manage them. A task's project is optional
 
 | Method | Path | Who | Purpose |
 | --- | --- | --- | --- |
-| `GET` | `/api/workspaces/:workspaceId/projects` | member | Projects with `taskCounts { total, open, completed }`. Archived ones only with `?includeArchived=true` |
-| `POST` | `/api/workspaces/:workspaceId/projects` | owner, admin | `{ name, description? }` (name 1–100 chars) |
-| `GET` | `/api/projects/:projectId` | member | One project + `canManage` |
-| `PATCH` | `/api/projects/:projectId` | owner, admin | `{ name?, description?, state? }` — `state` is `active`, `on_hold` or `completed` |
-| `POST` | `/api/projects/:projectId/archive` | owner, admin | Archive (records the previous state) |
-| `POST` | `/api/projects/:projectId/restore` | owner, admin | Back to the state it had before archiving |
+| `GET` | `/api/v1/workspaces/:workspaceId/projects` | member | Projects with `taskCounts { total, open, completed }`. Archived ones only with `?includeArchived=true` |
+| `POST` | `/api/v1/workspaces/:workspaceId/projects` | owner, admin | `{ name, description? }` (name 1–100 chars) |
+| `GET` | `/api/v1/projects/:projectId` | member | One project + `canManage` |
+| `PATCH` | `/api/v1/projects/:projectId` | owner, admin | `{ name?, description?, state? }` — `state` is `active`, `on_hold` or `completed` |
+| `POST` | `/api/v1/projects/:projectId/archive` | owner, admin | Archive (records the previous state) |
+| `POST` | `/api/v1/projects/:projectId/restore` | owner, admin | Back to the state it had before archiving |
 
 - Completing a project never completes its tasks; clients should warn using `taskCounts.open`.
 - Archived projects are read-only: editing the project or creating, editing,
@@ -759,10 +759,10 @@ them; Owners and Admins create and manage them. A task's project is optional
 
 | Method | Path | Who | Purpose |
 | --- | --- | --- | --- |
-| `PATCH` | `/api/workspaces/:workspaceId/members/:membershipId` | owner | `{ role: "admin" \| "member" }` |
-| `DELETE` | `/api/workspaces/:workspaceId/members/:membershipId` | owner, admin | Remove (Admin: Members only; nobody removes the Owner) |
-| `POST` | `/api/workspaces/:workspaceId/leave` | admin, member | Leave (the Owner gets `409` — transfer first) |
-| `POST` | `/api/workspaces/:workspaceId/transfer-ownership` | owner | `{ membershipId }` → target becomes Owner, caller becomes Admin |
+| `PATCH` | `/api/v1/workspaces/:workspaceId/members/:membershipId` | owner | `{ role: "admin" \| "member" }` |
+| `DELETE` | `/api/v1/workspaces/:workspaceId/members/:membershipId` | owner, admin | Remove (Admin: Members only; nobody removes the Owner) |
+| `POST` | `/api/v1/workspaces/:workspaceId/leave` | admin, member | Leave (the Owner gets `409` — transfer first) |
+| `POST` | `/api/v1/workspaces/:workspaceId/transfer-ownership` | owner | `{ membershipId }` → target becomes Owner, caller becomes Admin |
 
 Removal and leaving keep the membership row (status `removed`) so history keeps
 its attribution; access ends immediately. Ownership transfer is one transaction
@@ -778,14 +778,14 @@ stop working).
 
 | Method | Path | Who | Purpose |
 | --- | --- | --- | --- |
-| `POST` | `/api/workspaces/:workspaceId/invitations` | owner, admin | `{ email, role }` — Owner may offer `admin`/`member`, Admin only `member`. `409` if already a member or already invited. |
-| `GET` | `/api/workspaces/:workspaceId/invitations` | owner, admin | Pending invitations with `status` (`pending`/`expired`) and `deliveryStatus` (`sent`/`failed`) |
-| `POST` | `/api/invitations/:invitationId/resend` | owner, admin* | New link + email |
-| `POST` | `/api/invitations/:invitationId/revoke` | owner, admin* | Withdraw it |
-| `GET` | `/api/invitations/preview/:token` | public | Workspace name, inviter, role, invited email, status |
-| `GET` | `/api/invitations/mine` | signed in | Pending invitations addressed to my email |
-| `POST` | `/api/invitations/accept` | invited account | `{ token }` or `{ invitationId }` → `{ workspaceId, role }` |
-| `POST` | `/api/invitations/decline` | invited account | Same body |
+| `POST` | `/api/v1/workspaces/:workspaceId/invitations` | owner, admin | `{ email, role }` — Owner may offer `admin`/`member`, Admin only `member`. `409` if already a member or already invited. |
+| `GET` | `/api/v1/workspaces/:workspaceId/invitations` | owner, admin | Pending invitations with `status` (`pending`/`expired`) and `deliveryStatus` (`sent`/`failed`) |
+| `POST` | `/api/v1/invitations/:invitationId/resend` | owner, admin* | New link + email |
+| `POST` | `/api/v1/invitations/:invitationId/revoke` | owner, admin* | Withdraw it |
+| `GET` | `/api/v1/invitations/preview/:token` | public | Workspace name, inviter, role, invited email, status |
+| `GET` | `/api/v1/invitations/mine` | signed in | Pending invitations addressed to my email |
+| `POST` | `/api/v1/invitations/accept` | invited account | `{ token }` or `{ invitationId }` → `{ workspaceId, role }` |
+| `POST` | `/api/v1/invitations/decline` | invited account | Same body |
 
 \* Admins manage Member invitations only. Accepting twice (or two tabs at once)
 creates exactly one membership; the second request gets `409`. Wrong account →
@@ -812,7 +812,7 @@ Stored and returned as `in_progress`. For older clients the API also accepts `in
 ### Create Task
 
 ```http
-POST /api/workspaces/:workspaceId/tasks
+POST /api/v1/workspaces/:workspaceId/tasks
 ```
 
 Auth required: yes.
@@ -861,7 +861,7 @@ Success response:
 Returns only tasks owned by the authenticated user.
 
 ```http
-GET /api/workspaces/:workspaceId/tasks
+GET /api/v1/workspaces/:workspaceId/tasks
 ```
 
 Auth required: yes.
@@ -877,10 +877,10 @@ sort=deadline
 Examples:
 
 ```http
-GET /api/workspaces/:workspaceId/tasks?status=pending
-GET /api/workspaces/:workspaceId/tasks?priority=high
-GET /api/workspaces/:workspaceId/tasks?sort=deadline
-GET /api/workspaces/:workspaceId/tasks?sort=-createdAt
+GET /api/v1/workspaces/:workspaceId/tasks?status=pending
+GET /api/v1/workspaces/:workspaceId/tasks?priority=high
+GET /api/v1/workspaces/:workspaceId/tasks?sort=deadline
+GET /api/v1/workspaces/:workspaceId/tasks?sort=-createdAt
 ```
 
 Success response:
@@ -910,7 +910,7 @@ Success response:
 Returns one task only if it belongs to the authenticated user.
 
 ```http
-GET /api/tasks/:id
+GET /api/v1/tasks/:id
 ```
 
 Auth required: yes.
@@ -918,7 +918,7 @@ Auth required: yes.
 Example:
 
 ```http
-GET /api/tasks/665f1c2d3a4b5c6d7e8f9012
+GET /api/v1/tasks/665f1c2d3a4b5c6d7e8f9012
 ```
 
 Success response:
@@ -943,7 +943,7 @@ Success response:
 Updates task fields only if the task belongs to the authenticated user.
 
 ```http
-PUT /api/tasks/:id
+PUT /api/v1/tasks/:id
 ```
 
 Auth required: yes.
@@ -984,7 +984,7 @@ Success response:
 Updates only the task status.
 
 ```http
-PATCH /api/tasks/:id/status
+PATCH /api/v1/tasks/:id/status
 ```
 
 Auth required: yes.
@@ -1026,7 +1026,7 @@ Success response:
 Deletes a task only if it belongs to the authenticated user.
 
 ```http
-DELETE /api/tasks/:id
+DELETE /api/v1/tasks/:id
 ```
 
 Auth required: yes.
@@ -1104,27 +1104,27 @@ sendTaskReminderEmail
 1. Signup:
 
 ```http
-POST /api/auth/signup
+POST /api/v1/auth/signup
 ```
 
 2. Verify email using the token sent to email:
 
 ```http
-GET /api/auth/verify-email/:token
+GET /api/v1/auth/verify-email/:token
 ```
 
 3. Login:
 
 ```http
-POST /api/auth/login
+POST /api/v1/auth/login
 ```
 
-4. Keep the cookies the login response set (e.g. `curl -c jar.txt` then `-b jar.txt`). After 15 minutes, `POST /api/auth/refresh` with the same jar.
+4. Keep the cookies the login response set (e.g. `curl -c jar.txt` then `-b jar.txt`). After 15 minutes, `POST /api/v1/auth/refresh` with the same jar.
 
 5. Create task:
 
 ```http
-POST /api/workspaces/:workspaceId/tasks
+POST /api/v1/workspaces/:workspaceId/tasks
 Cookie: afritask_access=<from login>
 X-Requested-With: XMLHttpRequest
 ```
@@ -1132,7 +1132,7 @@ X-Requested-With: XMLHttpRequest
 6. Get all tasks:
 
 ```http
-GET /api/workspaces/:workspaceId/tasks
+GET /api/v1/workspaces/:workspaceId/tasks
 Cookie: afritask_access=<from login>
 ```
 
@@ -1140,7 +1140,7 @@ Cookie: afritask_access=<from login>
 Updates the authenticated user's profile.
 
 ```http
-PUT /api/users/profile
+PUT /api/v1/users/profile
 ```
 
 Auth required: yes.
@@ -1175,7 +1175,7 @@ Success response:
 Updates the authenticated user's password and sends a password-changed email.
 
 ```http
-PUT /api/users/password
+PUT /api/v1/users/password
 ```
 
 Auth required: yes.
@@ -1235,7 +1235,7 @@ Stored and returned as `in_progress`. For older clients the API also accepts `in
 ### Create Task
 
 ```http
-POST /api/workspaces/:workspaceId/tasks
+POST /api/v1/workspaces/:workspaceId/tasks
 ```
 
 Auth required: yes.
@@ -1284,7 +1284,7 @@ Success response:
 Returns only tasks owned by the authenticated user.
 
 ```http
-GET /api/workspaces/:workspaceId/tasks
+GET /api/v1/workspaces/:workspaceId/tasks
 ```
 
 Auth required: yes.
@@ -1300,10 +1300,10 @@ sort=deadline
 Examples:
 
 ```http
-GET /api/workspaces/:workspaceId/tasks?status=pending
-GET /api/workspaces/:workspaceId/tasks?priority=high
-GET /api/workspaces/:workspaceId/tasks?sort=deadline
-GET /api/workspaces/:workspaceId/tasks?sort=-createdAt
+GET /api/v1/workspaces/:workspaceId/tasks?status=pending
+GET /api/v1/workspaces/:workspaceId/tasks?priority=high
+GET /api/v1/workspaces/:workspaceId/tasks?sort=deadline
+GET /api/v1/workspaces/:workspaceId/tasks?sort=-createdAt
 ```
 
 Success response:
@@ -1333,7 +1333,7 @@ Success response:
 Returns one task only if it belongs to the authenticated user.
 
 ```http
-GET /api/tasks/:id
+GET /api/v1/tasks/:id
 ```
 
 Auth required: yes.
@@ -1341,7 +1341,7 @@ Auth required: yes.
 Example:
 
 ```http
-GET /api/tasks/665f1c2d3a4b5c6d7e8f9012
+GET /api/v1/tasks/665f1c2d3a4b5c6d7e8f9012
 ```
 
 Success response:
@@ -1366,7 +1366,7 @@ Success response:
 Updates task fields only if the task belongs to the authenticated user.
 
 ```http
-PUT /api/tasks/:id
+PUT /api/v1/tasks/:id
 ```
 
 Auth required: yes.
@@ -1407,7 +1407,7 @@ Success response:
 Updates only the task status.
 
 ```http
-PATCH /api/tasks/:id/status
+PATCH /api/v1/tasks/:id/status
 ```
 
 Auth required: yes.
@@ -1449,7 +1449,7 @@ Success response:
 Deletes a task only if it belongs to the authenticated user.
 
 ```http
-DELETE /api/tasks/:id
+DELETE /api/v1/tasks/:id
 ```
 
 Auth required: yes.
@@ -1525,27 +1525,27 @@ sendTaskReminderEmail
 1. Signup:
 
 ```http
-POST /api/auth/signup
+POST /api/v1/auth/signup
 ```
 
 2. Verify email using the token sent to email:
 
 ```http
-GET /api/auth/verify-email/:token
+GET /api/v1/auth/verify-email/:token
 ```
 
 3. Login:
 
 ```http
-POST /api/auth/login
+POST /api/v1/auth/login
 ```
 
-4. Keep the cookies the login response set (e.g. `curl -c jar.txt` then `-b jar.txt`). After 15 minutes, `POST /api/auth/refresh` with the same jar.
+4. Keep the cookies the login response set (e.g. `curl -c jar.txt` then `-b jar.txt`). After 15 minutes, `POST /api/v1/auth/refresh` with the same jar.
 
 5. Create task:
 
 ```http
-POST /api/workspaces/:workspaceId/tasks
+POST /api/v1/workspaces/:workspaceId/tasks
 Cookie: afritask_access=<from login>
 X-Requested-With: XMLHttpRequest
 ```
@@ -1553,6 +1553,6 @@ X-Requested-With: XMLHttpRequest
 6. Get all tasks:
 
 ```http
-GET /api/workspaces/:workspaceId/tasks
+GET /api/v1/workspaces/:workspaceId/tasks
 Cookie: afritask_access=<from login>
 ```

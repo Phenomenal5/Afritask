@@ -11,7 +11,7 @@ export const startServer = async () => {
     });
     const { port } = server.address() as AddressInfo;
     return {
-        baseUrl: `http://127.0.0.1:${port}/api`,
+        baseUrl: `http://127.0.0.1:${port}/api/v1`,
         stop: () => new Promise<void>((resolve) => server.close(() => resolve())),
     };
 };

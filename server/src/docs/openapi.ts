@@ -1404,6 +1404,8 @@ const adminOperationsPaths = {
 
 const healthPaths = {
     "/health": {
+        // Unversioned: probed by infrastructure, not part of the API contract.
+        servers: [{ url: "/api" }],
         get: {
             tags: ["Health"],
             summary: "Liveness: the process is up (never checks dependencies)",
@@ -1417,6 +1419,8 @@ const healthPaths = {
         },
     },
     "/health/ready": {
+        // Unversioned: probed by infrastructure, not part of the API contract.
+        servers: [{ url: "/api" }],
         get: {
             tags: ["Health"],
             summary: "Readiness: PostgreSQL and Redis both answer (503 if not)",
@@ -1498,7 +1502,7 @@ const openApiDocument = {
             "**Isolation:** anything in a workspace you're not an active member of answers `404`, exactly like something that doesn't exist.",
         ].join("\n"),
     },
-    servers: [{ url: "/api" }],
+    servers: [{ url: "/api/v1" }],
     tags: [
         { name: "Auth", description: "Sign-up, email verification, sessions, password recovery and Google sign-in" },
         { name: "Users", description: "Your own profile and password" },

@@ -7,7 +7,7 @@ import { TERMS_REQUIRED_MESSAGE, hasAcceptedCurrentTerms } from "../config/terms
 
 // Reachable before accepting the terms: signing out, /auth/me, accepting itself, and the
 // account's own profile and password — refusing the terms mustn't lock anyone out of their account.
-const ROUTES_OPEN_BEFORE_TERMS = new Set(["/api/auth", "/api/users"]);
+const ROUTES_OPEN_BEFORE_TERMS = new Set(["/api/v1/auth", "/api/v1/users"]);
 
 // Authenticates via the httpOnly access-token cookie (see services/sessionService.ts).
 // A 401 carries code "access_token_invalid": the client then calls POST /auth/refresh once

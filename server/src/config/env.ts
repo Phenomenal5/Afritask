@@ -55,7 +55,7 @@ const env = {
   // Google OAuth is optional: routes answer 500 "not configured" when these are missing.
   googleClientId: process.env.GOOGLE_CLIENT_ID,
   googleClientSecret: process.env.GOOGLE_CLIENT_SECRET,
-  googleCallbackUrl: process.env.GOOGLE_CALLBACK_URL ?? "/api/auth/google/callback",
+  googleCallbackUrl: process.env.GOOGLE_CALLBACK_URL ?? "/api/v1/auth/google/callback",
 
   // Swagger UI at /api/docs. On by default except in production (set API_DOCS=on there
   // to expose it, or API_DOCS=off anywhere to hide it).

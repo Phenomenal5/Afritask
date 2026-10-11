@@ -104,37 +104,62 @@ if (env.apiDocsEnabled) {
 
 // Cookie-authenticated writes must prove they came from our own JS (see middleware).
 app.use("/api", requireAjaxHeader);
+
+// ─── Versioned API: /api/v1 ─────────────────────
+// Every route the clients call lives under /api/v1. A breaking change ships as /api/v2
+// next to it, so old clients keep working while they move over. Health checks and the
+// docs UI stay unversioned: they're for infrastructure and people, not API clients.
+
+// NOTE: the Google OAuth redirect URI is registered in Google Cloud Console (and may sit in
+// GOOGLE_CALLBACK_URL) as the pre-versioning path. Forward it, query string included, so
+// Google sign-in keeps working until that registration is updated to /api/v1/....
+app.get("/api/auth/google/callback", (req, res) => {
+  const queryStart = req.originalUrl.indexOf("?");
+  const queryString = queryStart === -1 ? "" : req.originalUrl.slice(queryStart);
+  res.redirect(307, `/api/v1/auth/google/callback${queryString}`);
+});
+
 // Routes
 // Authentication routes
-app.use("/api/auth", authRoutes);
+app.use("/api/v1/auth", authRoutes);
 
 // User routes
-app.use("/api/users", userRoute);
+app.use("/api/v1/users", userRoute);
 
 // Workspace routes (incl. a workspace's task list/create, invitations, projects, members)
-app.use("/api/workspaces", workspaceRoute);
+app.use("/api/v1/workspaces", workspaceRoute);
 
 // Single-task routes
-app.use("/api/tasks", taskRoute);
+app.use("/api/v1/tasks", taskRoute);
 
 // Single-project routes
-app.use("/api/projects", projectRoute);
+app.use("/api/v1/projects", projectRoute);
 
 // Single-label routes
-app.use("/api/labels", labelRoute);
+app.use("/api/v1/labels", labelRoute);
 
 // Edit/delete one comment (list/create are under /api/tasks/:id/comments).
-app.use("/api/comments", commentRoute);
+app.use("/api/v1/comments", commentRoute);
 
 // The signed-in account's in-app notifications.
-app.use("/api/notifications", notificationRoute);
+app.use("/api/v1/notifications", notificationRoute);
 
 // Invitation preview / accept / decline / resend / revoke
-app.use("/api/invitations", invitationRoute);
+app.use("/api/v1/invitations", invitationRoute);
 
 // Admin console (Platform Superadmin): own sign-in, session and MFA.
-app.use("/api/admin", adminRoute);
+app.use("/api/v1/admin", adminRoute);
 
+
+// Anything else under /api: a JSON 404 (not Express's HTML page), pointing old,
+// unversioned paths at /api/v1.
+app.use("/api", (req, res) => {
+  const unversioned = !/^\/v\d+\//.test(req.path);
+  res.status(404).json({
+    status: "fail",
+    message: unversioned ? `Not found. The API is versioned — use /api/v1${req.path}` : "Not found",
+  });
+});
 
 app.use(globalErrorHandler);
 

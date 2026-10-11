@@ -16,7 +16,7 @@ const cookieOptions = () => ({
     httpOnly: true,
     sameSite: "strict" as const,
     secure: env.isProduction,
-    path: "/api/admin",
+    path: "/api/v1/admin",
 });
 
 export const startOperatorSession = async (req: Request, res: Response, userId: string) => {

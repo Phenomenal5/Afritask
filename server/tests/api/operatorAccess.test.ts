@@ -36,8 +36,8 @@ describe("operator sign-in", () => {
 
         const login = await browser.post("/admin/auth/login", { email: operator.email, password: DEFAULT_PASSWORD });
         expect(login.body.data).toMatchObject({ next: "mfa_setup", operator: { email: operator.email, mfa: { enrolled: false, verified: false } } });
-        // The operator cookie is scoped to /api/admin and strict.
-        expect(String(login.headers["set-cookie"])).toMatch(/afritask_operator_session=.*Path=\/api\/admin.*HttpOnly.*SameSite=Strict/i);
+        // The operator cookie is scoped to /api/v1/admin and strict.
+        expect(String(login.headers["set-cookie"])).toMatch(/afritask_operator_session=.*Path=\/api\/v1\/admin.*HttpOnly.*SameSite=Strict/i);
 
         // Before MFA the session can only finish MFA.
         expect((await browser.get("/admin/auth/me")).body.data.operator.mfa).toEqual({ enrolled: false, verified: false });

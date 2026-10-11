@@ -29,7 +29,8 @@ rehearsed — migrations included — before it reaches real data.
 ### Server environment
 
 All variables are listed in `server/.env.example`. The server refuses to boot without the
-required ones (`DATABASE_URL`, `REDIS_URL`, `BREVO_API_KEY`, `EMAIL_FROM_ADDRESS`).
+required ones (`DATABASE_URL`, `REDIS_URL`, `BREVO_API_KEY`, `EMAIL_FROM_ADDRESS`,
+`ACCESS_TOKEN_SECRET`).
 For each deployed environment also set:
 
 - `DIRECT_DATABASE_URL` — the non-pooled Neon URL; migrations need it.
@@ -37,8 +38,15 @@ For each deployed environment also set:
 - `TRUST_PROXY_HOPS` — number of proxies in front of the API (the client's `/api`
   rewrite counts as one).
 - `RELEASE_VERSION` — the git SHA being deployed; `GET /api/health` reports it.
+- `ACCESS_TOKEN_SECRET` — at least 32 random characters, different per environment. It
+  signs the 15-minute access tokens (and newsletter unsubscribe links). Changing it signs
+  nobody out — clients refresh — but retires unsubscribe links in emails already sent.
 - Google sign-in: `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_CALLBACK_URL` — one
-  OAuth client per environment, with that environment's callback URL registered.
+  OAuth client per environment, with that environment's callback URL registered
+  (`…/api/v1/auth/google/callback`; the old unversioned path still redirects there).
+
+The API is versioned: clients call `/api/v1/...`. `/api/health` and `/api/docs` stay
+unversioned.
 
 ### Client environment
 

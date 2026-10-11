@@ -96,12 +96,12 @@ const main = async () => {
                         "content-type": "application/json",
                     };
                     // 60% list, 30% detail, 10% create — a read-heavy task manager.
-                    if (scenario < 6) return { ...request, method: "GET", path: `/api/workspaces/${workspaceId}/tasks?status=todo`, headers };
-                    if (scenario < 9) return { ...request, method: "GET", path: `/api/tasks/${sampleTaskId}`, headers };
+                    if (scenario < 6) return { ...request, method: "GET", path: `/api/v1/workspaces/${workspaceId}/tasks?status=todo`, headers };
+                    if (scenario < 9) return { ...request, method: "GET", path: `/api/v1/tasks/${sampleTaskId}`, headers };
                     return {
                         ...request,
                         method: "POST",
-                        path: `/api/workspaces/${workspaceId}/tasks`,
+                        path: `/api/v1/workspaces/${workspaceId}/tasks`,
                         headers,
                         body: JSON.stringify({ title: `Load task ${requestCounter}`, clientRequestId: randomUUID() }),
                     };

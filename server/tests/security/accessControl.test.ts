@@ -21,7 +21,8 @@ const operations: Operation[] = Object.entries(openApiDocument.paths).flatMap(([
 );
 
 // Fill {params} with well-formed but non-existent ids.
-const concretePath = (path: string) => `/api${path.replace(/\{[^}]+\}/g, () => randomUUID())}`;
+// Spec paths are relative to /api/v1 — except the unversioned health checks.
+const concretePath = (path: string) => `${path.startsWith("/health") ? "/api" : "/api/v1"}${path.replace(/\{[^}]+\}/g, () => randomUUID())}`;
 
 const send = (agent: ReturnType<typeof anonymous>, operation: Operation, headers: Record<string, string>) =>
     (agent as unknown as Record<string, (path: string) => { set: (headers: Record<string, string>) => Promise<{ status: number; body: { message?: string } }> }>)
@@ -48,12 +49,12 @@ describe("authentication on every protected route", () => {
         // {"alg":"none"} — the classic JWT bypass; the algorithm is never read from the token.
         ["an unsigned alg:none token", `${ACCESS_TOKEN_COOKIE}=eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0.eyJzdWIiOiJ4Iiwic2lkIjoieCIsInR5cCI6ImFjY2VzcyIsImV4cCI6OTk5OTk5OTk5OX0.`],
     ])("rejects %s", async (_label, cookie) => {
-        const response = await anonymous().get("/api/auth/me").set("Cookie", cookie);
+        const response = await anonymous().get("/api/v1/auth/me").set("Cookie", cookie);
         expect(response.status).toBe(401);
     });
 
     it("ignores the old Authorization: Bearer scheme entirely", async () => {
-        const response = await anonymous().get("/api/workspaces").set("Authorization", "Bearer eyJhbGciOiJIUzI1NiJ9.e30.x");
+        const response = await anonymous().get("/api/v1/workspaces").set("Authorization", "Bearer eyJhbGciOiJIUzI1NiJ9.e30.x");
         expect(response.status).toBe(401);
     });
 });
@@ -73,7 +74,7 @@ describe("CSRF: every write requires X-Requested-With", () => {
 
     it("reads (GET) don't need it", async () => {
         const { client } = await createSignedInUser();
-        const response = await anonymous().get("/api/workspaces").set("Cookie", `${ACCESS_TOKEN_COOKIE}=${client.accessToken}`);
+        const response = await anonymous().get("/api/v1/workspaces").set("Cookie", `${ACCESS_TOKEN_COOKIE}=${client.accessToken}`);
         expect(response.status).toBe(200);
     });
 });

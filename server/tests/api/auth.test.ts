@@ -1,4 +1,4 @@
-// API: /api/auth — signup, verification, login/logout, sessions, recovery, Google hand-off.
+// API: /api/v1/auth — signup, verification, login/logout, sessions, recovery, Google hand-off.
 import { afterAll, beforeEach, describe, expect, it } from "@jest/globals";
 import { issueAccountToken } from "../../src/services/accountTokenService.js";
 import { anonymous, createClient } from "../helpers/client.js";
@@ -84,7 +84,7 @@ describe("GET /auth/verify-email/:token", () => {
 
     it("verifies the account and sends the welcome email", async () => {
         const { email, token } = await signUpAndGetToken();
-        const response = await anonymous().get(`/api/auth/verify-email/${token}`);
+        const response = await anonymous().get(`/api/v1/auth/verify-email/${token}`);
 
         expect(response.status).toBe(200);
         expect(response.body.message).toBe("Email verified successfully");
@@ -94,8 +94,8 @@ describe("GET /auth/verify-email/:token", () => {
 
     it("is idempotent — a repeated link (mail scanner, StrictMode) still answers success, one welcome email", async () => {
         const { email, token } = await signUpAndGetToken();
-        await anonymous().get(`/api/auth/verify-email/${token}`);
-        const repeat = await anonymous().get(`/api/auth/verify-email/${token}`);
+        await anonymous().get(`/api/v1/auth/verify-email/${token}`);
+        const repeat = await anonymous().get(`/api/v1/auth/verify-email/${token}`);
 
         expect(repeat.status).toBe(200);
         expect(repeat.body.message).toBe("Email already verified");
@@ -103,14 +103,14 @@ describe("GET /auth/verify-email/:token", () => {
     });
 
     it("rejects an unknown token", async () => {
-        const response = await anonymous().get("/api/auth/verify-email/0123456789abcdef");
+        const response = await anonymous().get("/api/v1/auth/verify-email/0123456789abcdef");
         expect(response.status).toBe(400);
     });
 
     it("on an expired link, sends a fresh one", async () => {
         const { email, token } = await signUpAndGetToken();
         await prisma.accountToken.updateMany({ data: { expiresAt: new Date(Date.now() - 1000) } });
-        const response = await anonymous().get(`/api/auth/verify-email/${token}`);
+        const response = await anonymous().get(`/api/v1/auth/verify-email/${token}`);
 
         expect(response.status).toBe(400);
         expect(response.body.message).toContain("A new verification email has been sent");
@@ -121,7 +121,7 @@ describe("GET /auth/verify-email/:token", () => {
         const { email, token: firstToken } = await signUpAndGetToken();
         // Logging in while unverified re-sends (and replaces) the link.
         await createClient().post("/auth/login", { email, password: "analytical-engine" });
-        const response = await anonymous().get(`/api/auth/verify-email/${firstToken}`);
+        const response = await anonymous().get(`/api/v1/auth/verify-email/${firstToken}`);
         expect(response.status).toBe(400);
     });
 });
@@ -139,7 +139,7 @@ describe("POST /auth/login", () => {
         expect(accessCookie).toMatch(/Path=\/;/);
         expect(accessCookie).toMatch(/Max-Age=900/);
         expect(refreshCookie).toMatch(/HttpOnly/i);
-        expect(refreshCookie).toMatch(/Path=\/api\/auth/);
+        expect(refreshCookie).toMatch(/Path=\/api\/v1\/auth/);
         expect(response.body.token).toBeUndefined();
         expect(response.body.user.email).toBe(user.email);
         expect(response.body.user).not.toHaveProperty("password");
@@ -181,7 +181,7 @@ describe("POST /auth/login", () => {
 
 describe("GET /auth/me and POST /auth/logout", () => {
     it("me answers 401 without a session and the user with one", async () => {
-        await expect(anonymous().get("/api/auth/me")).resolves.toMatchObject({ status: 401 });
+        await expect(anonymous().get("/api/v1/auth/me")).resolves.toMatchObject({ status: 401 });
         const user = await createUser();
         const client = await signIn(user.email);
         const response = await client.get("/auth/me");
@@ -319,7 +319,7 @@ describe("password recovery", () => {
 
 describe("Google sign-in", () => {
     it("reports that Google isn't configured (tests run without credentials)", async () => {
-        const response = await anonymous().get("/api/auth/google");
+        const response = await anonymous().get("/api/v1/auth/google");
         expect(response.status).toBe(500);
         expect(response.body.message).toBe("Google OAuth credentials are not configured");
     });

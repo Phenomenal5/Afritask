@@ -45,7 +45,7 @@ describe("no secrets in responses", () => {
 
 describe("HTTP security headers (helmet)", () => {
     it("sets the hardening headers and hides the framework", async () => {
-        const response = await anonymous().get("/api/auth/me");
+        const response = await anonymous().get("/api/v1/auth/me");
         expect(response.headers["x-content-type-options"]).toBe("nosniff");
         expect(response.headers["x-frame-options"]).toBe("SAMEORIGIN");
         expect(response.headers["content-security-policy"]).toContain("default-src 'self'");
@@ -57,16 +57,16 @@ describe("HTTP security headers (helmet)", () => {
 
 describe("CORS", () => {
     it("only allows the configured client origin", async () => {
-        const allowed = await anonymous().options("/api/auth/login").set("Origin", "http://client.test").set("Access-Control-Request-Method", "POST");
+        const allowed = await anonymous().options("/api/v1/auth/login").set("Origin", "http://client.test").set("Access-Control-Request-Method", "POST");
         expect(allowed.headers["access-control-allow-origin"]).toBe("http://client.test");
 
-        const evil = await anonymous().options("/api/auth/login").set("Origin", "https://evil.example").set("Access-Control-Request-Method", "POST");
+        const evil = await anonymous().options("/api/v1/auth/login").set("Origin", "https://evil.example").set("Access-Control-Request-Method", "POST");
         expect(evil.headers["access-control-allow-origin"]).not.toBe("https://evil.example");
     });
 
     it("a cross-site preflight can't get X-Requested-With approved for a foreign origin", async () => {
         const preflight = await anonymous()
-            .options("/api/workspaces")
+            .options("/api/v1/workspaces")
             .set("Origin", "https://evil.example")
             .set("Access-Control-Request-Method", "POST")
             .set("Access-Control-Request-Headers", "x-requested-with");
@@ -86,7 +86,7 @@ describe("cookies", () => {
             expect(cookie).not.toMatch(/Domain=/i);
         }
         // The refresh token only travels to the auth routes.
-        expect(setCookies.find((value) => value.startsWith("afritask_refresh="))).toMatch(/Path=\/api\/auth/);
+        expect(setCookies.find((value) => value.startsWith("afritask_refresh="))).toMatch(/Path=\/api\/v1\/auth/);
     });
 });
 

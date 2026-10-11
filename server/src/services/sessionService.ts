@@ -15,7 +15,7 @@ import AppError from "../utils/AppError.js";
 export const ACCESS_TOKEN_COOKIE = "afritask_access";
 export const REFRESH_TOKEN_COOKIE = "afritask_refresh";
 // NOTE: covers /auth/refresh and /auth/logout — the only routes that need the refresh token.
-export const REFRESH_COOKIE_PATH = "/api/auth";
+export const REFRESH_COOKIE_PATH = "/api/v1/auth";
 
 // A refresh token that was JUST rotated still works for this long. Two tabs refreshing at
 // the same moment both send the old token; without this, the slower one would be signed out.

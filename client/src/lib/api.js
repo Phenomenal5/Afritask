@@ -4,9 +4,10 @@ import axios from "axios";
 // Relative on purpose: next.config.mjs rewrites /api to the backend, so requests are
 // same-origin and the browser attaches the httpOnly token cookies automatically:
 // a 15-minute access token on every request, and a 30-day refresh token that only goes
-// to /api/auth. JavaScript can't read either — nothing is kept in localStorage.
+// to /api/v1/auth. JavaScript can't read either — nothing is kept in localStorage.
 const api = axios.create({
-  baseURL: "/api",
+  // Versioned API: a breaking server change will arrive as /api/v2 beside this.
+  baseURL: "/api/v1",
   headers: {
     "Content-Type": "application/json",
     // NOTE: required on every write — the server's CSRF guard rejects cookie-authenticated

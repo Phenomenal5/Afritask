@@ -56,4 +56,4 @@ export const getMe = () => {
 };
 
 // Google OAuth entry point — a full-page navigation through the /api rewrite.
-export const googleLoginUrl = () => "/api/auth/google";
+export const googleLoginUrl = () => "/api/v1/auth/google";

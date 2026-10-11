@@ -24,10 +24,10 @@ export default function assignRequestId(req: Request, res: Response, next: NextF
 }
 
 // ─── Redaction for logs ─────────────────────
-// NOTE: URLs can carry secrets — invitation tokens in /api/invitations/preview/:token, and
+// NOTE: URLs can carry secrets — invitation tokens in /api/v1/invitations/preview/:token, and
 // ?token= / ?code= on verification, reset and OAuth hand-off links. Logs must never hold
 // them (Technical Design: "prevent reset tokens entering operational output").
-const SECRET_PATH_SEGMENTS = [/(\/api\/invitations\/preview\/)[^/?#]+/i, /(\/verify-email\/)[^/?#]+/i, /(\/reset-password\/)[^/?#]+/i];
+const SECRET_PATH_SEGMENTS = [/(\/invitations\/preview\/)[^/?#]+/i, /(\/verify-email\/)[^/?#]+/i, /(\/reset-password\/)[^/?#]+/i];
 const SECRET_QUERY_KEYS = /([?&](?:token|code|secret|password)=)[^&#]*/gi;
 
 export const redactUrl = (url: string): string =>

@@ -8,7 +8,7 @@ afterAll(disconnectDatabase);
 
 describe("smoke", () => {
     it("answers 401 to an anonymous /auth/me", async () => {
-        const response = await anonymous().get("/api/auth/me");
+        const response = await anonymous().get("/api/v1/auth/me");
         expect(response.status).toBe(401);
     });
 
@@ -17,5 +17,23 @@ describe("smoke", () => {
         const response = await client.get("/auth/me");
         expect(response.status).toBe(200);
         expect(response.body.user.email).toBe(user.email);
+    });
+});
+
+describe("API versioning", () => {
+    it("answers an old unversioned path with a JSON 404 pointing at /api/v1", async () => {
+        const response = await anonymous().get("/api/auth/me");
+        expect(response.status).toBe(404);
+        expect(response.body.message).toBe("Not found. The API is versioned — use /api/v1/auth/me");
+    });
+
+    it("keeps health checks unversioned", async () => {
+        await expect(anonymous().get("/api/health")).resolves.toMatchObject({ status: 200 });
+    });
+
+    it("forwards the pre-versioning Google callback, query string included", async () => {
+        const response = await anonymous().get("/api/auth/google/callback?code=abc&state=xyz");
+        expect(response.status).toBe(307);
+        expect(response.headers.location).toBe("/api/v1/auth/google/callback?code=abc&state=xyz");
     });
 });

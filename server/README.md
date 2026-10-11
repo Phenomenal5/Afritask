@@ -58,28 +58,28 @@ Every variable is listed and explained in [`.env.example`](.env.example). The se
 
 ### Auth routes
 
-- `POST /api/auth/signup`
-- `POST /api/auth/login`
-- `GET /api/auth/verify-email/:token`
-- `POST /api/auth/forgot-password`
-- `PATCH /api/auth/reset-password/:token`
-- `GET /api/auth/me`
-- `GET /api/auth/google`
-- `GET /api/auth/google/callback`
+- `POST /api/v1/auth/signup`
+- `POST /api/v1/auth/login`
+- `GET /api/v1/auth/verify-email/:token`
+- `POST /api/v1/auth/forgot-password`
+- `PATCH /api/v1/auth/reset-password/:token`
+- `GET /api/v1/auth/me`
+- `GET /api/v1/auth/google`
+- `GET /api/v1/auth/google/callback`
 
 ### User routes
 
-- `PUT /api/users/profile`
-- `PUT /api/users/password`
+- `PUT /api/v1/users/profile`
+- `PUT /api/v1/users/password`
 
-`PUT /api/users/profile` accepts multipart form data and stores uploaded avatars from the `photo` field.
+`PUT /api/v1/users/profile` accepts multipart form data and stores uploaded avatars from the `photo` field.
 
 ### Workspace & task routes
 
-- `GET /api/workspaces`, `POST /api/workspaces`
-- `GET /api/workspaces/:workspaceId`, `PATCH /api/workspaces/:workspaceId` (owner)
-- `GET /api/workspaces/:workspaceId/tasks`, `POST /api/workspaces/:workspaceId/tasks`
-- `GET /api/tasks/:id`, `PUT /api/tasks/:id`, `PATCH /api/tasks/:id/status`, `DELETE /api/tasks/:id`
+- `GET /api/v1/workspaces`, `POST /api/v1/workspaces`
+- `GET /api/v1/workspaces/:workspaceId`, `PATCH /api/v1/workspaces/:workspaceId` (owner)
+- `GET /api/v1/workspaces/:workspaceId/tasks`, `POST /api/v1/workspaces/:workspaceId/tasks`
+- `GET /api/v1/tasks/:id`, `PUT /api/v1/tasks/:id`, `PATCH /api/v1/tasks/:id/status`, `DELETE /api/v1/tasks/:id`
 
 Every workspace-owned route checks the caller's active membership; non-members get `404`.
 

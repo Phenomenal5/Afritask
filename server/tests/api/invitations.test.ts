@@ -83,8 +83,8 @@ describe("listing, resending and revoking", () => {
         expect(resent.status).toBe(200);
         const newToken = tokenFromEmail(email, INVITE_LINK);
         expect(newToken).not.toBe(oldToken);
-        await expect(anonymous().get(`/api/invitations/preview/${oldToken}`)).resolves.toMatchObject({ status: 404 });
-        await expect(anonymous().get(`/api/invitations/preview/${newToken}`)).resolves.toMatchObject({ status: 200 });
+        await expect(anonymous().get(`/api/v1/invitations/preview/${oldToken}`)).resolves.toMatchObject({ status: 404 });
+        await expect(anonymous().get(`/api/v1/invitations/preview/${newToken}`)).resolves.toMatchObject({ status: 200 });
     });
 
     it("Admins manage Member invitations but not Admin ones; Members manage none", async () => {
@@ -110,7 +110,7 @@ describe("recipient side", () => {
 
     it("public preview shows what the invitation is for", async () => {
         const { token, invitee } = await setup();
-        const response = await anonymous().get(`/api/invitations/preview/${token}`);
+        const response = await anonymous().get(`/api/v1/invitations/preview/${token}`);
         expect(response.status).toBe(200);
         expect(response.body.data.invitation).toMatchObject({ workspaceName: "Team Space", inviterName: "Olu Owner", role: "member", status: "pending", email: invitee.user.email });
     });
