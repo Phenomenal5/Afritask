@@ -247,6 +247,18 @@ const parseCompletionNote = (rawNote: unknown, isSubtask: boolean): string | nul
     return note || null;
 };
 
+// ─── Due-date extension reason ─────────────────────
+const EXTENSION_REASON_MAX_LENGTH = 500;
+
+// Optional "why" sent with a due date moved later. Ignored for any other date change.
+const parseExtensionReason = (rawReason: unknown): string | null => {
+    if (rawReason === undefined || rawReason === null) return null;
+    if (typeof rawReason !== "string") throw new AppError("dueChangeReason must be text", 400);
+    const reason = rawReason.trim();
+    if (reason.length > EXTENSION_REASON_MAX_LENGTH) throw new AppError(`Keep the reason under ${EXTENSION_REASON_MAX_LENGTH} characters`, 400);
+    return reason || null;
+};
+
 // What a status change does to completedAt and the completion note. Reopening clears both
 // (the history entry keeps the old note).
 const completionChange = (previousStatus: TaskStatus, nextStatus: TaskStatus | undefined, rawNote: unknown, isSubtask: boolean) => {
@@ -292,7 +304,9 @@ const updateWithVersionCheck = async (
     expectedVersion: number,
     actorId: string,
     data: Prisma.TaskUncheckedUpdateManyInput,
-    alsoInTransaction?: (tx: Prisma.TransactionClient) => Promise<unknown>
+    alsoInTransaction?: (tx: Prisma.TransactionClient) => Promise<unknown>,
+    // Extra lines for the history entry that aren't task fields (e.g. why a date moved).
+    historyExtras: Record<string, { from: unknown; to: unknown }> = {}
 ) => {
     await prisma.$transaction(async (tx) => {
         const before = await tx.task.findUnique({ where: { id: taskId }, include: taskInclude });
@@ -314,7 +328,8 @@ const updateWithVersionCheck = async (
         if (scheduleInputsChanged({ ...before, projectState: projectStateOf(before) }, { ...after, projectState: projectStateOf(after) })) {
             await tx.task.update({ where: { id: taskId }, data: computeSchedule(after, projectStateOf(after)) });
         }
-        const changes = diffFields(toHistorySnapshot(before), toHistorySnapshot(after), [...HISTORY_FIELDS]);
+        const fieldChanges = diffFields(toHistorySnapshot(before), toHistorySnapshot(after), [...HISTORY_FIELDS]);
+        const changes = Object.keys(fieldChanges).length > 0 ? { ...fieldChanges, ...historyExtras } : fieldChanges;
         if (Object.keys(changes).length > 0) {
             await recordActivity(tx, {
                 workspaceId: after.workspaceId,
@@ -528,6 +543,7 @@ export const createWorkspaceTask = catchAsync(async (req, res) => {
                     status,
                     priority: parsePriority(req.body.priority),
                     ...(due ?? {}),
+                    originalDueAt: due?.dueAt ?? null,
                     ...reminder,
                     completedAt: status === TaskStatus.completed ? new Date() : null,
                     // Created already done: it needs its note like any other completion.
@@ -615,6 +631,11 @@ export const editTask = catchAsync(async (req, res) => {
     }
     const movesProject = !existingTask.parentTaskId && projectId !== undefined && projectId !== existingTask.projectId;
 
+    // An extension = an existing due date moved LATER (not added, cleared or brought forward).
+    const extension = due?.dueAt && existingTask.dueAt && due.dueAt.getTime() > existingTask.dueAt.getTime()
+        ? { fromDueAt: existingTask.dueAt, toDueAt: due.dueAt, reason: parseExtensionReason(req.body.dueChangeReason) }
+        : null;
+
     const task = await updateWithVersionCheck(
         id,
         expectedVersion,
@@ -625,6 +646,9 @@ export const editTask = catchAsync(async (req, res) => {
             status,
             priority: parsePriority(req.body.priority),
             ...(due ?? {}),
+            // The first due date a task gets is its original deadline (kept through extensions).
+            ...(due?.dueAt && !existingTask.originalDueAt && { originalDueAt: due.dueAt }),
+            ...(extension && { dueExtensionCount: { increment: 1 } }),
             ...(start ?? {}),
             reminderOffset,
             ...completionChange(existingTask.status, status, req.body.completionNote, !!existingTask.parentTaskId),
@@ -641,7 +665,22 @@ export const editTask = catchAsync(async (req, res) => {
             if (movesProject) {
                 await tx.task.updateMany({ where: { parentTaskId: id }, data: { projectId, version: { increment: 1 } } });
             }
-        }
+            // Log the extension against whoever the task belongs to now (assignee, else creator).
+            if (extension) {
+                const owner = await tx.task.findUniqueOrThrow({ where: { id }, select: { creatorId: true, assignee: { select: { userId: true } } } });
+                await tx.dueDateExtension.create({
+                    data: {
+                        taskId: id,
+                        workspaceId: existingTask.workspaceId,
+                        extendedById: membership.userId,
+                        responsibleUserId: owner.assignee?.userId ?? owner.creatorId,
+                        ...extension,
+                    },
+                });
+            }
+        },
+        // The reason shows next to the due-date change in the task's history.
+        extension?.reason ? { dueChangeReason: { from: null, to: extension.reason } } : {}
     );
 
     logger.info(`Task updated taskId=${id} userId=${membership.userId} version=${task?.version}`);
@@ -724,6 +763,7 @@ export const createSubtask = catchAsync(async (req, res) => {
                 status,
                 priority: parsePriority(req.body.priority),
                 ...(due ?? {}),
+                originalDueAt: due?.dueAt ?? null,
                 ...reminder,
                 completedAt: status === TaskStatus.completed ? new Date() : null,
                 completionNote: status === TaskStatus.completed ? parseCompletionNote(req.body.completionNote, true) : null,

@@ -159,6 +159,8 @@ const schemas = {
             dueTimezone: { type: ["string", "null"] },
             completedAt: { type: ["string", "null"], format: "date-time" },
             completionNote: { type: ["string", "null"], description: "What was done — set when the task was completed; null once reopened" },
+            originalDueAt: { type: ["string", "null"], format: "date-time", description: "The first due date the task was given" },
+            dueExtensionCount: { type: "integer", description: "How many times the due date was moved later" },
             reminderOffset: { type: ["string", "null"], enum: ["at_due", "one_hour", "one_day", "three_days", "one_week", null] },
             remindAt: { type: ["string", "null"], format: "date-time", description: "When the pending reminder fires (null: none pending)" },
             startAt: { type: ["string", "null"], format: "date-time" },
@@ -202,6 +204,7 @@ const schemas = {
             "Send dueDate (YYYY-MM-DD → due 23:59 that day in dueTimezone, default your profile timezone) OR dueAt (exact ISO instant); null clears. Legacy `deadline` and statuses `pending`/`in progress` are still accepted.",
         properties: {
             completionNote: { type: "string", maxLength: 2000, description: "With status \"completed\": what was done (required for top-level tasks). On a completed task: corrects the note." },
+            dueChangeReason: { type: "string", maxLength: 500, description: "Optional: why the due date is moving later. Only used when dueDate/dueAt extends an existing deadline." },
             title: { type: "string", minLength: 1, maxLength: 200 },
             description: { type: "string", maxLength: 20000 },
             status: ref("TaskStatus"),

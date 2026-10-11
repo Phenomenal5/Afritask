@@ -34,7 +34,7 @@ import { useNow } from "@/hooks/useNow";
 import { useOnlineStatus } from "@/hooks/useOnlineStatus";
 import { canDeleteTask, canEditTask, editBlockedReason } from "@/utils/permissions";
 import { PRIORITY_STYLES, TASK_PRIORITIES } from "@/utils/taskMeta";
-import { dueFieldError, dueFieldsOf, duePayload } from "@/utils/dueFields";
+import { dueFieldError, dueFieldsOf, duePayload, isDueExtension } from "@/utils/dueFields";
 import { startFieldError, startFieldsOf, startPayload } from "@/utils/startFields";
 import { detectTimezone, formatTimezoneLabel } from "@/utils/timezones";
 import { describeFailure, type Failure } from "@/lib/errors";
@@ -65,9 +65,12 @@ interface DetailForm {
   startTime: string;
   reminderOffset: ReminderChoice;
   labelIds: string[];
+  // Only asked when the deadline moves later; optional.
+  dueChangeReason: string;
 }
 
 const formOf = (task: Task): DetailForm => ({
+  dueChangeReason: "",
   title: task.title,
   description: task.description || "",
   priority: task.priority,
@@ -235,6 +238,7 @@ export default function TaskDrawer({ taskId, onClose, onOpenTask }: TaskDrawerPr
     // Sent whenever it differs, and always when a deadline is first added, so the server
     // never substitutes its default for what the picker showed.
     if (form.dueDate && (form.reminderOffset !== original.reminderOffset || !original.dueDate)) changes.reminderOffset = form.reminderOffset;
+    if (isDueExtension(original, form) && form.dueChangeReason.trim()) changes.dueChangeReason = form.dueChangeReason.trim();
 
     setSaveState("saving");
     setSaveError(null);
@@ -479,6 +483,19 @@ export default function TaskDrawer({ taskId, onClose, onOpenTask }: TaskDrawerPr
               disabled={!viewerCanEdit}
             />
           </div>
+
+          {isDueExtension(dueFieldsOf(task), form) && (
+            <TextField
+              label="Why is the deadline moving?"
+              optional
+              wrapperClassName="sm:col-span-2"
+              maxLength={500}
+              value={form.dueChangeReason}
+              onChange={(event) => updateField("dueChangeReason", event.target.value)}
+              placeholder="e.g. Waiting on the client's figures"
+              hint="Shown in the task's history. Extensions also count in your monthly summary."
+            />
+          )}
 
           {isSubtask ? (
             <p className="text-[14px] leading-relaxed text-muted sm:col-span-2">

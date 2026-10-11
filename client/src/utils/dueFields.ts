@@ -20,6 +20,13 @@ export const dueFieldsOf = (task: Task): DueFields => {
   return { dueDate: isoDateInZone(task.dueAt, deviceTimezone()), dueTime: localTimeOf(task.dueAt) };
 };
 
+// True when an existing deadline is being moved LATER (what the server counts as an
+// extension). Compared as shown: a date-only deadline is the end of that day.
+export const isDueExtension = (original: DueFields, next: DueFields) => {
+  if (!original.dueDate || !next.dueDate) return false;
+  return `${next.dueDate}T${next.dueTime || "23:59"}` > `${original.dueDate}T${original.dueTime || "23:59"}`;
+};
+
 export const dueFieldError = (fields: DueFields): string | null =>
   fields.dueTime && !fields.dueDate ? "Pick a date for this time, or clear the time." : null;
 

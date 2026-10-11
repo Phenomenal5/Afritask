@@ -33,6 +33,7 @@ const FIELD_LABELS = {
   dueAt: "Due",
   startAt: "Start",
   completionNote: "What was done",
+  dueChangeReason: "Why the date moved",
   project: "Project",
   assignee: "Assignee",
   labels: "Labels",
@@ -59,6 +60,7 @@ const formatValue = (field, value) => {
 export const describeChanges = (entry) =>
   Object.entries(entry.changes ?? {}).map(([field, change]) => {
     if (field === "description") return { field: FIELD_LABELS.description, from: null, to: "changed" };
+    if (field === "dueChangeReason") return { field: FIELD_LABELS.dueChangeReason, from: null, to: String(change.to) };
     if (field === "completionNote") return { field: FIELD_LABELS.completionNote, from: null, to: change.to ? String(change.to) : "cleared (reopened)" };
     return { field: FIELD_LABELS[field] ?? field, from: formatValue(field, change.from), to: formatValue(field, change.to) };
   });

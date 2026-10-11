@@ -146,6 +146,8 @@ model User {
   adminAuditEntries      AdminAuditEntry[]       @relation("AdminAuditActor")
   deletedWorkspaces      Workspace[]             @relation("WorkspaceDeleter")
   newsletterSubscription NewsletterSubscriber?
+  dueExtensionsMade      DueDateExtension[]      @relation("DueExtensionAuthor")
+  dueExtensionsOwned     DueDateExtension[]      @relation("DueExtensionResponsible")
   notificationPreference NotificationPreference?
   pushSubscriptions      PushSubscription[]
   newsletterPosts        NewsletterPost[]        @relation("NewsletterPostAuthor")
@@ -225,7 +227,8 @@ model Workspace {
   activities    Activity[]
   comments      Comment[]
   notifications Notification[]
-  deletedBy     User?          @relation("WorkspaceDeleter", fields: [deletedById], references: [id], onDelete: SetNull)
+  deletedBy     User?              @relation("WorkspaceDeleter", fields: [deletedById], references: [id], onDelete: SetNull)
+  dueExtensions DueDateExtension[]
 }
 
 // Workspace-scoped tags for tasks (PRD FR07). Owners/Admins manage them; anyone who can
@@ -362,6 +365,10 @@ model Task {
   // "What was done" — required to complete a top-level task, optional for subtasks. Cleared
   // when the task is reopened; the activity history keeps every version.
   completionNote       String?
+  // The first due date the task was given, and how many times it was pushed LATER since.
+  // Together they answer "met its deadline without extending?" (monthly summary).
+  originalDueAt        DateTime?       @db.Timestamptz(3)
+  dueExtensionCount    Int             @default(0)
   // Optimistic concurrency: every write must name the version it read (SRS SR06).
   version              Int             @default(1)
   reminderOffset       ReminderOffset?
@@ -387,15 +394,16 @@ model Task {
   createdAt            DateTime        @default(now()) @db.Timestamptz(3)
   updatedAt            DateTime        @updatedAt @db.Timestamptz(3)
 
-  workspace Workspace   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  workspace     Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   // Restrict: deleting a user must never silently delete shared work (DB design §3).
-  creator   User        @relation("TaskCreator", fields: [creatorId], references: [id], onDelete: Restrict)
-  project   Project?    @relation(fields: [projectId], references: [id], onDelete: Restrict)
-  assignee  Membership? @relation("TaskAssignee", fields: [assigneeMembershipId], references: [id], onDelete: SetNull)
-  parent    Task?       @relation("Subtasks", fields: [parentTaskId], references: [id], onDelete: Cascade)
-  subtasks  Task[]      @relation("Subtasks")
-  labels    TaskLabel[]
-  comments  Comment[]
+  creator       User               @relation("TaskCreator", fields: [creatorId], references: [id], onDelete: Restrict)
+  project       Project?           @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  assignee      Membership?        @relation("TaskAssignee", fields: [assigneeMembershipId], references: [id], onDelete: SetNull)
+  parent        Task?              @relation("Subtasks", fields: [parentTaskId], references: [id], onDelete: Cascade)
+  subtasks      Task[]             @relation("Subtasks")
+  labels        TaskLabel[]
+  comments      Comment[]
+  dueExtensions DueDateExtension[]
 
   @@unique([workspaceId, clientRequestId])
   // Every task query is workspace-scoped, newest first.
@@ -726,4 +734,28 @@ model PushSubscription {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
+}
+
+// One time a task's due date was moved LATER, with the optional reason given. Kept per
+// event so the monthly summary can count extensions in a month for whoever owned the task.
+model DueDateExtension {
+  id                String   @id @default(uuid(7)) @db.Uuid
+  taskId            String   @db.Uuid
+  workspaceId       String   @db.Uuid
+  // Who changed the date, and whose task it was then (assignee, or the creator if none).
+  extendedById      String?  @db.Uuid
+  responsibleUserId String?  @db.Uuid
+  fromDueAt         DateTime @db.Timestamptz(3)
+  toDueAt           DateTime @db.Timestamptz(3)
+  // Optional — "why did this move?"
+  reason            String?
+  createdAt         DateTime @default(now()) @db.Timestamptz(3)
+
+  task            Task      @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  workspace       Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  extendedBy      User?     @relation("DueExtensionAuthor", fields: [extendedById], references: [id], onDelete: SetNull)
+  responsibleUser User?     @relation("DueExtensionResponsible", fields: [responsibleUserId], references: [id], onDelete: SetNull)
+
+  @@index([taskId, createdAt])
+  @@index([responsibleUserId, createdAt])
 }

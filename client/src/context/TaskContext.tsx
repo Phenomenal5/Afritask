@@ -52,6 +52,8 @@ export interface TaskInput {
   startTimezone?: string;
   // With status "completed" (or to correct it on a completed task): what was done.
   completionNote?: string;
+  // Optional: why a deadline is being moved later (kept with the extension and in history).
+  dueChangeReason?: string;
   clientRequestId?: string;
 }
 
