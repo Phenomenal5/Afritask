@@ -51,6 +51,16 @@ const THEME_BOOTSTRAP = `(function () {
     else root.removeAttribute("data-theme");
     root.style.colorScheme = theme;
   } catch (storageError) {}
+  // Landing reveals: hide blocks only if they can be revealed (observer + motion allowed),
+  // and un-hide everything if the reveal controller hasn't started within 3 seconds.
+  try {
+    if ("IntersectionObserver" in window && !window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      document.documentElement.classList.add("reveal-ready");
+      setTimeout(function () {
+        if (!window.afritaskRevealStarted) document.documentElement.classList.remove("reveal-ready");
+      }, 3000);
+    }
+  } catch (motionError) {}
 })();`;
 
 export default function RootLayout({ children }: { children: ReactNode }) {

@@ -2,7 +2,9 @@
 // A server component (static, indexable); only the header's session-aware actions run on
 // the client. Everything described here is a feature that exists today.
 import type { Metadata } from "next";
+import type { CSSProperties } from "react";
 import Link from "next/link";
+import LandingMotion from "@/components/landing/LandingMotion";
 import NewsletterSignupForm from "@/components/newsletter/NewsletterSignupForm";
 import {
   ArrowRight,
@@ -66,11 +68,12 @@ const SECTION = "mx-auto w-full max-w-[1160px] px-4 sm:px-8";
 export default function LandingPage() {
   return (
     <div className="flex min-h-dvh flex-col bg-page">
+      <LandingMotion />
       <a href="#main-content" className="skip-link">
         Skip to content
       </a>
 
-      <header className="sticky top-0 z-30 border-b border-line/70 bg-page/90 backdrop-blur">
+      <header className="landing-header sticky top-0 z-30 border-b border-line/70 bg-page/90 backdrop-blur">
         <div className={`${SECTION} flex h-[72px] items-center justify-between gap-4`}>
           <Link href="/" className="rounded-[8px]" aria-label="Afritask home">
             <Logo />
@@ -95,17 +98,17 @@ export default function LandingPage() {
         {/* ─── Hero ───────────────────── */}
         <section className={`${SECTION} grid items-center gap-10 pb-16 pt-12 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)] lg:pb-24 lg:pt-20`}>
           <div>
-            <p className="mb-5 inline-flex items-center gap-2 rounded-full border border-lime-deep bg-lime px-3.5 py-1 text-[14px] font-medium text-forest-deep">
+            <p className="hero-rise mb-5 inline-flex items-center gap-2 rounded-full border border-lime-deep bg-lime px-3.5 py-1 text-[14px] font-medium text-forest-deep">
               <span aria-hidden="true" className="h-2 w-2 rounded-full bg-forest" />
               Workspaces, projects and tasks — for you and your team
             </p>
-            <h1 className="font-display text-[44px] font-semibold leading-[1.02] tracking-tight text-ink sm:text-[60px] lg:text-[68px]">
+            <h1 className="hero-rise font-display text-[44px] font-semibold leading-[1.02] tracking-tight text-ink sm:text-[60px] lg:text-[68px]" style={{ "--rise-delay": "80ms" } as CSSProperties}>
               A clear place for your <em className="font-medium text-forest">next step.</em>
             </h1>
-            <p className="mt-6 max-w-[34rem] text-[18px] leading-relaxed text-muted sm:text-[19px]">
+            <p className="hero-rise mt-6 max-w-[34rem] text-[18px] leading-relaxed text-muted sm:text-[19px]" style={{ "--rise-delay": "160ms" } as CSSProperties}>
               Big plans. Small tasks. People to bring along. Keep them together, and move forward with a little more clarity.
             </p>
-            <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+            <div className="hero-rise mt-8 flex flex-col gap-3 sm:flex-row" style={{ "--rise-delay": "240ms" } as CSSProperties}>
               <ButtonLink href="/signup" size="lg" icon={<ArrowRight size={18} aria-hidden="true" />} className="flex-row-reverse">
                 Get started
               </ButtonLink>
@@ -113,16 +116,18 @@ export default function LandingPage() {
                 See how it works
               </ButtonLink>
             </div>
-            <p className="mt-4 text-[14px] text-muted">Works for one person. Grows when you invite others.</p>
+            <p className="hero-rise mt-4 text-[14px] text-muted" style={{ "--rise-delay": "300ms" } as CSSProperties}>
+              Works for one person. Grows when you invite others.
+            </p>
           </div>
-          <PathIllustration className="mx-auto w-full max-w-[560px]" />
+          <PathIllustration className="hero-rise mx-auto w-full max-w-[560px]" />
         </section>
 
         {/* ─── How it's organised ───────────────────── */}
         <section id="how-it-works" aria-labelledby="how-heading" className="scroll-mt-20 border-y border-line bg-surface py-16 lg:py-24">
           <div className={`${SECTION} grid items-center gap-12 lg:grid-cols-2`}>
             <StructureIllustration className="order-2 w-full lg:order-1" />
-            <div className="order-1 lg:order-2">
+            <div className="order-1 lg:order-2" data-reveal>
               <p className="text-[14px] font-semibold uppercase tracking-[0.1em] text-forest">How it works</p>
               <h2 id="how-heading" className="mt-3 font-display text-[36px] font-semibold leading-tight tracking-tight text-ink sm:text-[44px]">
                 Three layers. No guesswork.
@@ -153,13 +158,13 @@ export default function LandingPage() {
 
         {/* ─── Principles ───────────────────── */}
         <section aria-labelledby="principles-heading" className={`${SECTION} py-16 lg:py-24`}>
-          <div className="max-w-2xl">
+          <div className="max-w-2xl" data-reveal>
             <h2 id="principles-heading" className="font-display text-[36px] font-semibold leading-tight tracking-tight text-ink sm:text-[44px]">
               What Afritask keeps clear
             </h2>
             <p className="mt-3 text-[17px] leading-relaxed text-muted">Four ideas shape every screen.</p>
           </div>
-          <ol className="relative mt-12 grid gap-x-12 gap-y-10 md:grid-cols-2">
+          <ol className="relative mt-12 grid gap-x-12 gap-y-10 md:grid-cols-2" data-reveal-stagger>
             {PRINCIPLES.map(({ icon: Icon, title, body }, index) => (
               <li key={title} className="flex gap-5">
                 <span className="font-display text-[56px] font-semibold leading-none text-lime-deep" aria-hidden="true">
@@ -185,14 +190,14 @@ export default function LandingPage() {
           <div className={`${SECTION} grid items-center gap-12 lg:grid-cols-2`}>
             <div>
               <p className="text-[14px] font-semibold uppercase tracking-[0.1em] text-lime">Ownership</p>
-              <h2 id="ownership-heading" className="mt-3 font-display text-[36px] font-semibold leading-tight tracking-tight sm:text-[44px]">
+              <h2 data-reveal id="ownership-heading" className="mt-3 font-display text-[36px] font-semibold leading-tight tracking-tight sm:text-[44px]">
                 Every task has a name next to it.
               </h2>
               <p className="mt-4 max-w-lg text-[17px] leading-relaxed text-on-forest/80">
                 When several people share work, &ldquo;someone will do it&rdquo; becomes nobody. Afritask gives each task exactly one owner, and shows
                 &ldquo;Unassigned&rdquo; out loud when there isn&apos;t one yet.
               </p>
-              <ul className="mt-8 flex flex-col gap-4 text-[16px]">
+              <ul className="mt-8 flex flex-col gap-4 text-[16px]" data-reveal-stagger>
                 <li className="flex gap-3">
                   <ListTree size={21} aria-hidden="true" className="mt-0.5 shrink-0 text-lime" />
                   <span>Split big work into subtasks — each one can have a different owner.</span>
@@ -242,20 +247,20 @@ export default function LandingPage() {
           <div className="grid gap-10 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.3fr)] lg:gap-16">
             <div>
               <p className="text-[14px] font-semibold uppercase tracking-[0.1em] text-forest">Bring people along</p>
-              <h2 id="together-heading" className="mt-3 font-display text-[36px] font-semibold leading-tight tracking-tight text-ink sm:text-[44px]">
+              <h2 data-reveal id="together-heading" className="mt-3 font-display text-[36px] font-semibold leading-tight tracking-tight text-ink sm:text-[44px]">
                 Invite by email. They join when they say yes.
               </h2>
               <p className="mt-4 text-[17px] leading-relaxed text-muted">
                 Opening an invitation link grants nothing on its own — access starts only when the invited person accepts with that email.
               </p>
             </div>
-            <ol className="flex flex-col gap-4">
+            <ol className="flex flex-col gap-4" data-reveal-stagger>
               {[
                 { icon: MailPlus, title: "An Owner or Admin invites", body: "Enter an email and a role. You can see whether the email was delivered, and resend or withdraw it." },
                 { icon: UserCheck, title: "They accept", body: "New to Afritask? They sign up with that email, verify it, and come straight back to the invitation." },
                 { icon: Users, title: "Everyone works from the same plan", body: "Members see every project and task. Owners and Admins manage projects, labels and people." },
               ].map(({ icon: Icon, title, body }, index) => (
-                <li key={title} className="flex gap-4 rounded-[14px] border border-line bg-surface p-5">
+                <li key={title} className="lift-on-hover flex gap-4 rounded-[14px] border border-line bg-surface p-5">
                   <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-lime text-forest-deep">
                     <Icon size={20} aria-hidden="true" />
                   </span>
@@ -274,13 +279,13 @@ export default function LandingPage() {
         {/* ─── Progress ───────────────────── */}
         <section id="progress" aria-labelledby="progress-heading" className="scroll-mt-20 border-y border-line bg-surface py-16 lg:py-24">
           <div className={SECTION}>
-            <div className="max-w-2xl">
+            <div className="max-w-2xl" data-reveal>
               <p className="text-[14px] font-semibold uppercase tracking-[0.1em] text-forest">Progress</p>
               <h2 id="progress-heading" className="mt-3 font-display text-[36px] font-semibold leading-tight tracking-tight text-ink sm:text-[44px]">
                 See how work is moving — honestly.
               </h2>
             </div>
-            <ol aria-label="Task statuses" className="mt-10 grid grid-cols-2 gap-3 md:grid-cols-4">
+            <ol aria-label="Task statuses" className="mt-10 grid grid-cols-2 gap-3 md:grid-cols-4" data-reveal-stagger>
               {STATUSES.map(({ icon: Icon, label, color, tint }, index) => (
                 <li key={label} className="relative flex items-center gap-3 rounded-[14px] p-4" style={{ background: tint }}>
                   <Icon size={22} aria-hidden="true" style={{ color }} strokeWidth={2.3} />
@@ -291,7 +296,7 @@ export default function LandingPage() {
                 </li>
               ))}
             </ol>
-            <ul className="mt-10 grid gap-6 md:grid-cols-3">
+            <ul className="mt-10 grid gap-6 md:grid-cols-3" data-reveal-stagger>
               <li className="flex gap-3">
                 <span className="inline-flex shrink-0 gap-1 text-forest">
                   <LayoutList size={21} aria-hidden="true" />
@@ -319,16 +324,16 @@ export default function LandingPage() {
 
         {/* ─── Getting started ───────────────────── */}
         <section id="get-started" aria-labelledby="start-heading" className={`${SECTION} scroll-mt-20 py-16 lg:py-24`}>
-          <h2 id="start-heading" className="font-display text-[36px] font-semibold leading-tight tracking-tight text-ink sm:text-[44px]">
+          <h2 data-reveal id="start-heading" className="font-display text-[36px] font-semibold leading-tight tracking-tight text-ink sm:text-[44px]">
             Up and running in three steps
           </h2>
-          <ol className="mt-10 grid gap-4 md:grid-cols-3">
+          <ol className="mt-10 grid gap-4 md:grid-cols-3" data-reveal-stagger>
             {[
               { title: "Create your account", body: "Sign up with your email (and verify it) or with Google." },
               { title: "Name your workspace", body: "Invite people now, or later — it works the same with just you." },
               { title: "Write your first step", body: "A title is enough. Add a date, a project or an owner when it helps." },
             ].map((step, index) => (
-              <li key={step.title} className="rounded-[14px] border border-line bg-surface p-6">
+              <li key={step.title} className="lift-on-hover rounded-[14px] border border-line bg-surface p-6">
                 <span aria-hidden="true" className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-forest font-display text-[18px] font-semibold text-on-forest">
                   {index + 1}
                 </span>

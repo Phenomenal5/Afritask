@@ -441,3 +441,79 @@ html[data-theme="dark"] .theme-toggle .theme-toggle-sun {
   background: var(--border);
   border-radius: 8px;
 }
+
+/* ─── Landing motion ─────────────────────
+   Calm and one-off — it's a work tool: the hero settles in on load, sections ease into
+   view once as you scroll, cards lift a hair on hover, and the header gains a hairline
+   shadow once you scroll. Nothing loops, nothing moves twice.
+   NOTE: content is only hidden under html.reveal-ready, which the boot script adds when
+   IntersectionObserver exists and motion is allowed — and removes again if the reveal
+   controller never starts — so a script failure can never leave the page blank. */
+@keyframes hero-rise {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.hero-rise {
+  animation: hero-rise 0.6s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  animation-delay: var(--rise-delay, 0ms);
+}
+
+.reveal-ready [data-reveal],
+.reveal-ready [data-reveal-stagger] > * {
+  opacity: 0;
+  transform: translateY(14px);
+  transition:
+    opacity 0.6s cubic-bezier(0.2, 0.7, 0.2, 1),
+    transform 0.6s cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+.reveal-ready [data-reveal].is-revealed,
+.reveal-ready [data-reveal-stagger].is-revealed > * {
+  opacity: 1;
+  transform: none;
+}
+/* Lists settle item by item, 70ms apart. */
+.reveal-ready [data-reveal-stagger].is-revealed > :nth-child(2) { transition-delay: 70ms; }
+.reveal-ready [data-reveal-stagger].is-revealed > :nth-child(3) { transition-delay: 140ms; }
+.reveal-ready [data-reveal-stagger].is-revealed > :nth-child(4) { transition-delay: 210ms; }
+.reveal-ready [data-reveal-stagger].is-revealed > :nth-child(5) { transition-delay: 280ms; }
+.reveal-ready [data-reveal-stagger].is-revealed > :nth-child(n + 6) { transition-delay: 350ms; }
+
+.lift-on-hover {
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease,
+    border-color 0.2s ease;
+}
+.lift-on-hover:hover {
+  transform: translateY(-2px);
+  border-color: color-mix(in srgb, var(--forest) 35%, var(--border));
+  box-shadow: 0 10px 24px -14px color-mix(in srgb, var(--forest) 45%, transparent);
+}
+
+.landing-header {
+  transition: box-shadow 0.25s ease;
+}
+.landing-header[data-scrolled="true"] {
+  box-shadow: 0 8px 20px -16px color-mix(in srgb, var(--text) 60%, transparent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hero-rise {
+    animation: none;
+  }
+  .reveal-ready [data-reveal],
+  .reveal-ready [data-reveal-stagger] > * {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+  .lift-on-hover:hover {
+    transform: none;
+  }
+}
