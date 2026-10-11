@@ -52,15 +52,15 @@ export const createWorkspace = catchAsync(async (req, res) => {
 
     // Nested create = one transaction: there is never a workspace without its Owner,
     // nor an Owner membership pointing at a half-created workspace (SRS SR02).
-    const workspace = await prisma.$transaction(async (tx) => {
-        const createdWorkspace = await tx.workspace.create({
+    const workspace = await prisma.$transaction(async (transaction) => {
+        const createdWorkspace = await transaction.workspace.create({
             data: {
                 name,
                 memberships: { create: { userId: user.id, role: "owner" } },
             },
             select: { id: true, name: true, createdAt: true },
         });
-        await recordActivity(tx, {
+        await recordActivity(transaction, {
             workspaceId: createdWorkspace.id,
             actorId: user.id,
             entityType: "workspace",
@@ -109,15 +109,15 @@ export const renameWorkspace = catchAsync(async (req, res) => {
     const membership = requireMembership(req);
     const name = normalizeWorkspaceName(req.body.name);
 
-    const workspace = await prisma.$transaction(async (tx) => {
-        const previous = await tx.workspace.findUniqueOrThrow({ where: { id: membership.workspaceId }, select: { name: true } });
-        const renamed = await tx.workspace.update({
+    const workspace = await prisma.$transaction(async (transaction) => {
+        const previous = await transaction.workspace.findUniqueOrThrow({ where: { id: membership.workspaceId }, select: { name: true } });
+        const renamed = await transaction.workspace.update({
             where: { id: membership.workspaceId },
             data: { name },
             select: { id: true, name: true },
         });
         if (previous.name !== renamed.name) {
-            await recordActivity(tx, {
+            await recordActivity(transaction, {
                 workspaceId: renamed.id,
                 actorId: membership.userId,
                 entityType: "workspace",
@@ -196,22 +196,22 @@ export const deleteWorkspace = catchAsync(async (req, res) => {
 
     const plan = await deletionPlan(workspace.id, membership.userId);
     if (plan.mode === "permanent") {
-        await prisma.$transaction(async (tx) => {
+        await prisma.$transaction(async (transaction) => {
             // Tasks first: a project can't be removed while tasks still point at it.
-            await tx.task.deleteMany({ where: { workspaceId: workspace.id } });
-            await tx.workspace.delete({ where: { id: workspace.id } });
+            await transaction.task.deleteMany({ where: { workspaceId: workspace.id } });
+            await transaction.workspace.delete({ where: { id: workspace.id } });
         });
     } else {
-        await prisma.$transaction(async (tx) => {
-            const { count } = await tx.workspace.updateMany({
+        await prisma.$transaction(async (transaction) => {
+            const { count } = await transaction.workspace.updateMany({
                 where: { id: workspace.id, deletedAt: null },
                 data: { deletedAt: new Date(), deletedById: membership.userId },
             });
             if (count === 0) throw new AppError("This workspace was already deleted.", 409);
             // Nobody can join a closed workspace, and nothing in it sends reminders any more.
-            await tx.invitation.updateMany({ where: { workspaceId: workspace.id, status: "pending" }, data: { status: "revoked", respondedAt: new Date() } });
-            await tx.task.updateMany({ where: { workspaceId: workspace.id }, data: { remindAt: null, overdueCheckAt: null } });
-            await recordActivity(tx, {
+            await transaction.invitation.updateMany({ where: { workspaceId: workspace.id, status: "pending" }, data: { status: "revoked", respondedAt: new Date() } });
+            await transaction.task.updateMany({ where: { workspaceId: workspace.id }, data: { remindAt: null, overdueCheckAt: null } });
+            await recordActivity(transaction, {
                 workspaceId: workspace.id,
                 actorId: membership.userId,
                 entityType: "workspace",

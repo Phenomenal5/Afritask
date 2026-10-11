@@ -103,8 +103,8 @@ export function TaskProvider({ children }: { children: ReactNode }) {
   const createTask = useCallback(
     async (workspaceId: string, input: TaskInput): Promise<ActionResult<Task>> => {
       try {
-        const res = await createTaskRequest(workspaceId, input);
-        const task: Task = res.data.data.task;
+        const response = await createTaskRequest(workspaceId, input);
+        const task: Task = response.data.data.task;
         emit({ type: "created", task });
         toast.success(`Added “${task.title}”`);
         return { success: true, data: task };
@@ -118,8 +118,8 @@ export function TaskProvider({ children }: { children: ReactNode }) {
   const createSubtask = useCallback(
     async (parent: Task, input: TaskInput): Promise<ActionResult<Task>> => {
       try {
-        const res = await createSubtaskRequest(parent.id, input);
-        const subtask: Task = res.data.data.task;
+        const response = await createSubtaskRequest(parent.id, input);
+        const subtask: Task = response.data.data.task;
         emit({ type: "created", task: subtask });
         return { success: true, data: subtask };
       } catch (error) {
@@ -132,8 +132,8 @@ export function TaskProvider({ children }: { children: ReactNode }) {
   const updateTask = useCallback(
     async (task: Task, changes: TaskInput): Promise<ActionResult<Task>> => {
       try {
-        const res = await updateTaskRequest(task.id, { ...changes, version: task.version });
-        const saved: Task = res.data.data.task;
+        const response = await updateTaskRequest(task.id, { ...changes, version: task.version });
+        const saved: Task = response.data.data.task;
         emit({ type: "upsert", task: saved });
         toast.success("Changes saved");
         return { success: true, data: saved };
@@ -151,8 +151,8 @@ export function TaskProvider({ children }: { children: ReactNode }) {
       if (task.status === status) return { success: true, data: task };
       emit({ type: "upsert", task: { ...task, status } });
       try {
-        const res = await updateTaskStatusRequest(task.id, status, task.version, completionNote);
-        const saved: Task = res.data.data.task;
+        const response = await updateTaskStatusRequest(task.id, status, task.version, completionNote);
+        const saved: Task = response.data.data.task;
         emit({ type: "upsert", task: saved });
         toast.success(`“${saved.title}” moved to ${STATUS_LABELS[status]}`, { id: `status-${task.id}` });
         return { success: true, data: saved };
@@ -189,7 +189,7 @@ export function TaskProvider({ children }: { children: ReactNode }) {
 }
 
 export function useTaskActions(): TaskActions {
-  const ctx = useContext(TaskContext);
-  if (!ctx) throw new Error("useTaskActions must be used within a TaskProvider");
-  return ctx;
+  const context = useContext(TaskContext);
+  if (!context) throw new Error("useTaskActions must be used within a TaskProvider");
+  return context;
 }

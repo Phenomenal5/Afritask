@@ -64,9 +64,9 @@ export function LiveUpdatesProvider({ children }: { children: ReactNode }) {
     setSupport(pushSupport());
     setPermission(currentPermission());
     getNotificationPreferences()
-      .then(async (res) => {
+      .then(async (response) => {
         if (cancelled) return;
-        const loaded = res.data.data.preferences;
+        const loaded = response.data.data.preferences;
         setPreferences(loaded);
         if (!loaded.pushEnabled || !loaded.pushAvailable || pushSupport() !== "supported") return;
         // Push is on: make sure THIS browser can deliver it.
@@ -144,8 +144,8 @@ export function LiveUpdatesProvider({ children }: { children: ReactNode }) {
   // ─── Actions ─────────────────────
   const savePreference = useCallback(async (changes: Partial<Pick<NotificationPreferences, "soundEnabled" | "pushEnabled">>): Promise<ActionResult> => {
     try {
-      const res = await updateNotificationPreferences(changes);
-      setPreferences(res.data.data.preferences);
+      const response = await updateNotificationPreferences(changes);
+      setPreferences(response.data.data.preferences);
       return { success: true };
     } catch (error) {
       return { success: false, message: failureMessage(error, "That setting didn't save. Try again.") };

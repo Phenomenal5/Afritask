@@ -60,8 +60,8 @@ function TaskRow({ task, now, showProject }: { task: Task; now: Date | null; sho
     setExpanded(willExpand);
     if (!willExpand) return;
     try {
-      const res = await getOneTask(task.id);
-      setSubtasks(res.data.data.task.subtasks ?? []);
+      const response = await getOneTask(task.id);
+      setSubtasks(response.data.data.task.subtasks ?? []);
       setSubtasksFailed(false);
     } catch {
       setSubtasksFailed(true);

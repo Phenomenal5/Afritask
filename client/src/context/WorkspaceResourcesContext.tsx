@@ -47,20 +47,20 @@ export function WorkspaceResourcesProvider({ children }: { children: ReactNode }
 
   const reloadWorkspace = useCallback(async () => {
     if (!workspaceId) return;
-    const res = await getWorkspace(workspaceId);
-    if (currentWorkspaceRef.current === workspaceId) setWorkspace(res.data.data.workspace);
+    const response = await getWorkspace(workspaceId);
+    if (currentWorkspaceRef.current === workspaceId) setWorkspace(response.data.data.workspace);
   }, [workspaceId]);
 
   const reloadProjects = useCallback(async () => {
     if (!workspaceId) return;
-    const res = await getWorkspaceProjects(workspaceId);
-    if (currentWorkspaceRef.current === workspaceId) setProjects(res.data.data.projects);
+    const response = await getWorkspaceProjects(workspaceId);
+    if (currentWorkspaceRef.current === workspaceId) setProjects(response.data.data.projects);
   }, [workspaceId]);
 
   const reloadLabels = useCallback(async () => {
     if (!workspaceId) return;
-    const res = await getWorkspaceLabels(workspaceId);
-    if (currentWorkspaceRef.current === workspaceId) setLabels(res.data.data.labels);
+    const response = await getWorkspaceLabels(workspaceId);
+    if (currentWorkspaceRef.current === workspaceId) setLabels(response.data.data.labels);
   }, [workspaceId]);
 
   useEffect(() => {
@@ -99,7 +99,7 @@ export function WorkspaceResourcesProvider({ children }: { children: ReactNode }
 }
 
 export function useWorkspaceResources(): WorkspaceResources {
-  const ctx = useContext(WorkspaceResourcesContext);
-  if (!ctx) throw new Error("useWorkspaceResources must be used within a WorkspaceResourcesProvider");
-  return ctx;
+  const context = useContext(WorkspaceResourcesContext);
+  if (!context) throw new Error("useWorkspaceResources must be used within a WorkspaceResourcesProvider");
+  return context;
 }

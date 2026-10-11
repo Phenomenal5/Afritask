@@ -20,7 +20,7 @@ export default function NewsletterPostPage() {
 
   useEffect(() => {
     getNewsletterPost(postId)
-      .then((res) => setPost(res.data.data.post))
+      .then((response) => setPost(response.data.data.post))
       .catch((error) => setFailure(describeFailure(error, "We couldn't load this post.")));
   }, [postId]);
 

@@ -131,14 +131,14 @@ export const suspendAccount = catchAsync(async (req, res) => {
     const reason = parseReason(req.body?.reason);
     if (accountId === operator.userId) throw new AppError("You can't suspend your own account.", 409);
 
-    await prisma.$transaction(async (tx) => {
-        const { count } = await tx.user.updateMany({ where: { id: accountId, suspendedAt: null }, data: { suspendedAt: new Date(), suspendReason: reason } });
+    await prisma.$transaction(async (transaction) => {
+        const { count } = await transaction.user.updateMany({ where: { id: accountId, suspendedAt: null }, data: { suspendedAt: new Date(), suspendReason: reason } });
         if (count === 0) {
-            const exists = await tx.user.count({ where: { id: accountId } });
+            const exists = await transaction.user.count({ where: { id: accountId } });
             throw exists ? new AppError("This account is already suspended.", 409) : new AppError("Account not found", 404);
         }
-        await tx.session.updateMany({ where: { userId: accountId, revokedAt: null }, data: { revokedAt: new Date() } });
-        await recordAdminAudit(tx, { actorId: operator.userId, action: "account.suspended", targetType: "user", targetId: accountId, reason, ipAddress: requestIp(req) });
+        await transaction.session.updateMany({ where: { userId: accountId, revokedAt: null }, data: { revokedAt: new Date() } });
+        await recordAdminAudit(transaction, { actorId: operator.userId, action: "account.suspended", targetType: "user", targetId: accountId, reason, ipAddress: requestIp(req) });
     });
 
     logger.info(`Account suspended accountId=${accountId} by operator=${operator.userId}`);
@@ -153,13 +153,13 @@ export const restoreAccount = catchAsync(async (req, res) => {
     const accountId = requireId(routeParam(req, "accountId"), "Account not found");
     const reason = parseReason(req.body?.reason);
 
-    await prisma.$transaction(async (tx) => {
-        const { count } = await tx.user.updateMany({ where: { id: accountId, suspendedAt: { not: null } }, data: { suspendedAt: null, suspendReason: null } });
+    await prisma.$transaction(async (transaction) => {
+        const { count } = await transaction.user.updateMany({ where: { id: accountId, suspendedAt: { not: null } }, data: { suspendedAt: null, suspendReason: null } });
         if (count === 0) {
-            const exists = await tx.user.count({ where: { id: accountId } });
+            const exists = await transaction.user.count({ where: { id: accountId } });
             throw exists ? new AppError("This account isn't suspended.", 409) : new AppError("Account not found", 404);
         }
-        await recordAdminAudit(tx, { actorId: operator.userId, action: "account.restored", targetType: "user", targetId: accountId, reason, ipAddress: requestIp(req) });
+        await recordAdminAudit(transaction, { actorId: operator.userId, action: "account.restored", targetType: "user", targetId: accountId, reason, ipAddress: requestIp(req) });
     });
 
     logger.info(`Account restored accountId=${accountId} by operator=${operator.userId}`);
@@ -242,13 +242,13 @@ export const suspendWorkspace = catchAsync(async (req, res) => {
     const workspaceId = requireId(routeParam(req, "workspaceId"), "Workspace not found");
     const reason = parseReason(req.body?.reason);
 
-    await prisma.$transaction(async (tx) => {
-        const current = await tx.workspace.findUnique({ where: { id: workspaceId }, select: { suspendedAt: true, deletedAt: true } });
+    await prisma.$transaction(async (transaction) => {
+        const current = await transaction.workspace.findUnique({ where: { id: workspaceId }, select: { suspendedAt: true, deletedAt: true } });
         if (!current) throw new AppError("Workspace not found", 404);
         if (current.deletedAt) throw new AppError("This workspace was deleted by its Owner.", 409);
         if (current.suspendedAt) throw new AppError("This workspace is already suspended.", 409);
-        await tx.workspace.update({ where: { id: workspaceId }, data: { suspendedAt: new Date(), suspendReason: reason } });
-        await recordAdminAudit(tx, { actorId: operator.userId, action: "workspace.suspended", targetType: "workspace", targetId: workspaceId, reason, ipAddress: requestIp(req) });
+        await transaction.workspace.update({ where: { id: workspaceId }, data: { suspendedAt: new Date(), suspendReason: reason } });
+        await recordAdminAudit(transaction, { actorId: operator.userId, action: "workspace.suspended", targetType: "workspace", targetId: workspaceId, reason, ipAddress: requestIp(req) });
     });
 
     logger.info(`Workspace suspended workspaceId=${workspaceId} by operator=${operator.userId}`);
@@ -263,20 +263,20 @@ export const restoreWorkspace = catchAsync(async (req, res) => {
     const workspaceId = requireId(routeParam(req, "workspaceId"), "Workspace not found");
     const reason = parseReason(req.body?.reason);
 
-    await prisma.$transaction(async (tx) => {
-        const { count } = await tx.workspace.updateMany({ where: { id: workspaceId, suspendedAt: { not: null } }, data: { suspendedAt: null, suspendReason: null } });
+    await prisma.$transaction(async (transaction) => {
+        const { count } = await transaction.workspace.updateMany({ where: { id: workspaceId, suspendedAt: { not: null } }, data: { suspendedAt: null, suspendReason: null } });
         if (count === 0) {
-            const exists = await tx.workspace.count({ where: { id: workspaceId } });
+            const exists = await transaction.workspace.count({ where: { id: workspaceId } });
             throw exists ? new AppError("This workspace isn't suspended.", 409) : new AppError("Workspace not found", 404);
         }
-        const openTasks = await tx.task.findMany({
+        const openTasks = await transaction.task.findMany({
             where: { workspaceId, status: { not: "completed" }, OR: [{ dueAt: { not: null } }, { startAt: { not: null } }] },
             select: { id: true, dueAt: true, dueKind: true, dueTimezone: true, reminderOffset: true, status: true, startAt: true, startKind: true, startTimezone: true, project: { select: { state: true } } },
         });
         for (const task of openTasks) {
-            await tx.task.update({ where: { id: task.id }, data: computeSchedule(task, task.project?.state ?? null) });
+            await transaction.task.update({ where: { id: task.id }, data: computeSchedule(task, task.project?.state ?? null) });
         }
-        await recordAdminAudit(tx, { actorId: operator.userId, action: "workspace.restored", targetType: "workspace", targetId: workspaceId, reason, ipAddress: requestIp(req) });
+        await recordAdminAudit(transaction, { actorId: operator.userId, action: "workspace.restored", targetType: "workspace", targetId: workspaceId, reason, ipAddress: requestIp(req) });
     });
 
     logger.info(`Workspace restored workspaceId=${workspaceId} by operator=${operator.userId}`);

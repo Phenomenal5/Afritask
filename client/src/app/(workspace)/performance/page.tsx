@@ -32,11 +32,11 @@ export default function PerformancePage() {
   const load = useCallback(async (requestedMonth?: string) => {
     setFailure(null);
     try {
-      const res = await getMyPerformance(requestedMonth);
-      setReport(res.data.data);
-      setMonth(res.data.data.summary.month);
+      const response = await getMyPerformance(requestedMonth);
+      setReport(response.data.data);
+      setMonth(response.data.data.summary.month);
       // The server decides "this month" in your timezone; remember it to stop at the present.
-      if (!requestedMonth) setCurrentMonth(res.data.data.summary.month);
+      if (!requestedMonth) setCurrentMonth(response.data.data.summary.month);
     } catch (error) {
       setFailure(describeFailure(error, "We couldn't load your summary."));
     }
@@ -44,8 +44,8 @@ export default function PerformancePage() {
 
   const loadShares = useCallback(async () => {
     try {
-      const res = await listPerformanceShares();
-      setShares(res.data.data.shares);
+      const response = await listPerformanceShares();
+      setShares(response.data.data.shares);
     } catch {
       // The summary still works; the share list just stays as it was.
     }
@@ -65,8 +65,8 @@ export default function PerformancePage() {
     if (!month) return;
     setSharing(true);
     try {
-      const res = await createPerformanceShare(month);
-      const created = res.data.data.share;
+      const response = await createPerformanceShare(month);
+      const created = response.data.data.share;
       const url = shareUrlFor(created.token!);
       try {
         await navigator.clipboard.writeText(url);

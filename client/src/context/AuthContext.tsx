@@ -83,9 +83,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Storage blocked — nothing to clean up.
     }
     getMe()
-      .then((res) => {
-        setUser(res.data.user);
-        setTermsRequired(!!res.data.termsRequired);
+      .then((response) => {
+        setUser(response.data.user);
+        setTermsRequired(!!response.data.termsRequired);
       })
       .catch(() => setUser(null))
       .finally(() => setAuthLoading(false));
@@ -123,8 +123,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signup = useCallback(async ({ name, email, password, age, acceptTerms, newsletter }: SignupInput): Promise<ActionResult> => {
     try {
-      const res = await signupRequest({ name, email, password, age, acceptTerms, newsletter, timezone: detectTimezone() });
-      return { success: true, message: res.data.message };
+      const response = await signupRequest({ name, email, password, age, acceptTerms, newsletter, timezone: detectTimezone() });
+      return { success: true, message: response.data.message };
     } catch (error) {
       return { success: false, message: failureMessage(error, "We couldn't create your account. Check the details and try again.") };
     }
@@ -132,8 +132,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const verifyEmail = useCallback(async (token: string): Promise<ActionResult> => {
     try {
-      const res = await verifyEmailRequest(token);
-      return { success: true, message: res.data.message };
+      const response = await verifyEmailRequest(token);
+      return { success: true, message: response.data.message };
     } catch (error) {
       return { success: false, message: failureMessage(error, "This verification link is invalid or has expired.") };
     }
@@ -142,10 +142,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = useCallback(
     async ({ email, password }: { email: string; password: string }): Promise<ActionResult> => {
       try {
-        const res = await loginRequest({ email, password });
-        setUser(res.data.user);
-        setTermsRequired(!!res.data.termsRequired);
-        toast.success(`Welcome back, ${firstNameOf(res.data.user.name)}`);
+        const response = await loginRequest({ email, password });
+        setUser(response.data.user);
+        setTermsRequired(!!response.data.termsRequired);
+        toast.success(`Welcome back, ${firstNameOf(response.data.user.name)}`);
         // Back to a pending invitation (or the page a session expired on) first.
         router.push(postSignInPath());
         return { success: true };
@@ -161,10 +161,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const completeOAuthLogin = useCallback(
     async (code: string): Promise<ActionResult> => {
       try {
-        const res = await exchangeGoogleCode(code);
-        setUser(res.data.user);
-        setTermsRequired(!!res.data.termsRequired);
-        toast.success(`Welcome, ${firstNameOf(res.data.user.name)}`);
+        const response = await exchangeGoogleCode(code);
+        setUser(response.data.user);
+        setTermsRequired(!!response.data.termsRequired);
+        toast.success(`Welcome, ${firstNameOf(response.data.user.name)}`);
         router.push(postSignInPath());
         return { success: true };
       } catch (error) {
@@ -179,8 +179,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const acceptTerms = useCallback(async (): Promise<ActionResult> => {
     try {
-      const res = await acceptTermsRequest();
-      setUser(res.data.user);
+      const response = await acceptTermsRequest();
+      setUser(response.data.user);
       setTermsRequired(false);
       return { success: true };
     } catch (error) {
@@ -190,8 +190,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const forgotPassword = useCallback(async (email: string): Promise<ActionResult> => {
     try {
-      const res = await forgotPasswordRequest(email);
-      return { success: true, message: res.data.message };
+      const response = await forgotPasswordRequest(email);
+      return { success: true, message: response.data.message };
     } catch (error) {
       return { success: false, message: failureMessage(error, "We couldn't send the reset link. Try again in a moment.") };
     }
@@ -199,8 +199,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const resetPassword = useCallback(async ({ token, password }: { token: string; password: string }): Promise<ActionResult> => {
     try {
-      const res = await resetPasswordRequest({ token, password });
-      return { success: true, message: res.data.message };
+      const response = await resetPasswordRequest({ token, password });
+      return { success: true, message: response.data.message };
     } catch (error) {
       return { success: false, message: failureMessage(error, "This reset link is invalid or has expired.") };
     }
@@ -248,7 +248,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 }
 
 export function useAuth(): AuthState {
-  const ctx = useContext(AuthContext);
-  if (!ctx) throw new Error("useAuth must be used within an AuthProvider");
-  return ctx;
+  const context = useContext(AuthContext);
+  if (!context) throw new Error("useAuth must be used within an AuthProvider");
+  return context;
 }

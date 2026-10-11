@@ -38,8 +38,8 @@ export default function NewsletterLinkAction({ title, description, actionLabel, 
     if (!params) return;
     setSubmitting(true);
     try {
-      const res = await perform(params);
-      setResult({ tone: "success", text: res.data.message });
+      const response = await perform(params);
+      setResult({ tone: "success", text: response.data.message });
     } catch (error) {
       setResult({ tone: "error", text: failureMessage(error, "That didn't work. Try the link again.") });
     } finally {

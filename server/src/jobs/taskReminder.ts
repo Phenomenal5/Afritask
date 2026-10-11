@@ -137,13 +137,13 @@ const processDueSchedules = async (field: ScheduleField, now: Date) => {
 
         const kind = KIND_OF[field]
         const scheduleKey = dueInstant.toISOString()
-        const delivery = await prisma.$transaction(async (tx) => {
-            await notifyTaskSchedule(tx, kind.notification, task, recipientId, scheduleKey)
-            await tx.emailDelivery.createMany({
+        const delivery = await prisma.$transaction(async (transaction) => {
+            await notifyTaskSchedule(transaction, kind.notification, task, recipientId, scheduleKey)
+            await transaction.emailDelivery.createMany({
                 data: [{ deliveryKey: `${kind.notification}:${task.id}:${scheduleKey}:${recipientId}`, kind: kind.notification, recipientId, taskId: task.id }],
                 skipDuplicates: true,
             })
-            return tx.emailDelivery.findUniqueOrThrow({
+            return transaction.emailDelivery.findUniqueOrThrow({
                 where: { deliveryKey: `${kind.notification}:${task.id}:${scheduleKey}:${recipientId}` },
                 include: { recipient: { select: { email: true } } },
             })

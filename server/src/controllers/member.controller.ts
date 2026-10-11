@@ -21,14 +21,14 @@ import { recordActivity, type ActivityAction, type ActivityChanges } from "../se
 // transaction (PRD J6: no inaccessible work left owned by a former member). Completed
 // tasks keep the assignment as history (SRS SR04 proposed default). Each cleared task's
 // version is bumped so a teammate's open edit form can't silently re-save the old assignee.
-const endMembership = async (tx: Prisma.TransactionClient, membershipId: string) => {
-    const { count } = await tx.membership.updateMany({
+const endMembership = async (transaction: Prisma.TransactionClient, membershipId: string) => {
+    const { count } = await transaction.membership.updateMany({
         where: { id: membershipId, status: "active" },
         data: { status: "removed", removedAt: new Date() },
     });
     if (count === 0) throw new AppError("That person is no longer a member", 409);
 
-    await tx.task.updateMany({
+    await transaction.task.updateMany({
         where: { assigneeMembershipId: membershipId, status: { not: "completed" } },
         data: { assigneeMembershipId: null, version: { increment: 1 } },
     });
@@ -67,10 +67,10 @@ export const changeMemberRole = catchAsync(async (req, res) => {
     }
     if (target.role === "owner") throw new AppError("The Owner's role can only change through ownership transfer", 409);
 
-    const updated = await prisma.$transaction(async (tx) => {
-        const updatedMembership = await tx.membership.update({ where: { id: target.id }, data: { role } });
+    const updated = await prisma.$transaction(async (transaction) => {
+        const updatedMembership = await transaction.membership.update({ where: { id: target.id }, data: { role } });
         if (target.role !== role) {
-            await recordActivity(tx, memberActivity(target, target.user.name, callerMembership.userId, "member.role_changed", {
+            await recordActivity(transaction, memberActivity(target, target.user.name, callerMembership.userId, "member.role_changed", {
                 role: { from: target.role, to: role },
             }));
         }
@@ -93,9 +93,9 @@ export const removeMember = catchAsync(async (req, res) => {
         throw new AppError("Only the Owner can remove an Admin", 403);
     }
 
-    await prisma.$transaction(async (tx) => {
-        await endMembership(tx, target.id);
-        await recordActivity(tx, memberActivity(target, target.user.name, callerMembership.userId, "member.removed"));
+    await prisma.$transaction(async (transaction) => {
+        await endMembership(transaction, target.id);
+        await recordActivity(transaction, memberActivity(target, target.user.name, callerMembership.userId, "member.removed"));
     });
 
     logger.info(`Member removed membershipId=${target.id} by userId=${callerMembership.userId}`);
@@ -110,9 +110,9 @@ export const leaveWorkspace = catchAsync(async (req, res) => {
         throw new AppError("Transfer ownership to another member before leaving", 409);
     }
 
-    await prisma.$transaction(async (tx) => {
-        await endMembership(tx, callerMembership.id);
-        await recordActivity(tx, memberActivity(callerMembership, requireUser(req).name, callerMembership.userId, "member.left"));
+    await prisma.$transaction(async (transaction) => {
+        await endMembership(transaction, callerMembership.id);
+        await recordActivity(transaction, memberActivity(callerMembership, requireUser(req).name, callerMembership.userId, "member.left"));
     });
 
     logger.info(`Member left membershipId=${callerMembership.id} workspaceId=${callerMembership.workspaceId}`);
@@ -130,20 +130,20 @@ export const transferOwnership = catchAsync(async (req, res) => {
     // Both steps are conditional updates: if the caller stopped being Owner (a concurrent
     // transfer) or the target left meanwhile, the whole transaction rolls back — leaving
     // exactly one Owner either way (SRS AC08).
-    await prisma.$transaction(async (tx) => {
-        const demoted = await tx.membership.updateMany({
+    await prisma.$transaction(async (transaction) => {
+        const demoted = await transaction.membership.updateMany({
             where: { id: callerMembership.id, role: "owner", status: "active" },
             data: { role: "admin" },
         });
         if (demoted.count === 0) throw new AppError("You're no longer the Owner of this workspace", 409);
 
-        const promoted = await tx.membership.updateMany({
+        const promoted = await transaction.membership.updateMany({
             where: { id: target.id, workspaceId: callerMembership.workspaceId, status: "active" },
             data: { role: "owner" },
         });
         if (promoted.count === 0) throw new AppError("That person is no longer a member", 409);
 
-        await recordActivity(tx, memberActivity(target, target.user.name, callerMembership.userId, "ownership.transferred", {
+        await recordActivity(transaction, memberActivity(target, target.user.name, callerMembership.userId, "ownership.transferred", {
             owner: { from: requireUser(req).name, to: target.user.name },
         }));
     });

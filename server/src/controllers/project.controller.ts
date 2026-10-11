@@ -99,11 +99,11 @@ export const createProject = catchAsync(async (req, res) => {
 
     const name = normalizeWorkspaceName(req.body.name, "Project name");
     const description = parseDescription(req.body.description);
-    const project = await prisma.$transaction(async (tx) => {
-        const createdProject = await tx.project.create({
+    const project = await prisma.$transaction(async (transaction) => {
+        const createdProject = await transaction.project.create({
             data: { workspaceId: membership.workspaceId, name, description, createdById: membership.userId },
         });
-        await recordActivity(tx, projectActivity(createdProject, membership.userId, "project.created"));
+        await recordActivity(transaction, projectActivity(createdProject, membership.userId, "project.created"));
         return createdProject;
     });
 
@@ -138,11 +138,11 @@ export const updateProject = catchAsync(async (req, res) => {
         description: parseDescription(description),
         ...(state !== undefined && { state: state as ProjectState }),
     };
-    const updated = await prisma.$transaction(async (tx) => {
-        const updatedProject = await tx.project.update({ where: { id: project.id }, data });
+    const updated = await prisma.$transaction(async (transaction) => {
+        const updatedProject = await transaction.project.update({ where: { id: project.id }, data });
         const changes = diffFields(project, updatedProject, ["name", "description", "state"]);
         if (Object.keys(changes).length > 0) {
-            await recordActivity(tx, projectActivity(updatedProject, membership.userId, "project.updated", changes));
+            await recordActivity(transaction, projectActivity(updatedProject, membership.userId, "project.updated", changes));
         }
         return updatedProject;
     });
@@ -156,15 +156,15 @@ export const archiveProject = catchAsync(async (req, res) => {
     assertManager(membership);
 
     // Conditional on "not archived yet" so a double click can't overwrite priorState with "archived".
-    await prisma.$transaction(async (tx) => {
-        const { count } = await tx.project.updateMany({
+    await prisma.$transaction(async (transaction) => {
+        const { count } = await transaction.project.updateMany({
             where: { id: project.id, state: { not: ProjectState.archived } },
             data: { priorState: project.state, state: ProjectState.archived },
         });
         if (count === 0) throw new AppError("This project is already archived", 409);
         // Reminders and overdue alerts pause while archived (PRD FR05).
-        await tx.task.updateMany({ where: { projectId: project.id }, data: { remindAt: null, overdueCheckAt: null } });
-        await recordActivity(tx, projectActivity(project, membership.userId, "project.archived", {
+        await transaction.task.updateMany({ where: { projectId: project.id }, data: { remindAt: null, overdueCheckAt: null } });
+        await recordActivity(transaction, projectActivity(project, membership.userId, "project.archived", {
             state: { from: project.state, to: ProjectState.archived },
         }));
     });
@@ -180,21 +180,21 @@ export const restoreProject = catchAsync(async (req, res) => {
 
     // Back to where it was before archiving (SRS SR05). Reminder recalculation on restore
     // lands with per-task reminders; the daily job simply resumes including these tasks.
-    const restored = await prisma.$transaction(async (tx) => {
-        const restoredProject = await tx.project.update({
+    const restored = await prisma.$transaction(async (transaction) => {
+        const restoredProject = await transaction.project.update({
             where: { id: project.id },
             data: { state: project.priorState ?? ProjectState.active, priorState: null },
         });
         // Re-plan the paused schedules — future times only, so restoring never sends a
         // burst of reminders that came due while the project was archived (SRS SR17).
-        const openTasks = await tx.task.findMany({
+        const openTasks = await transaction.task.findMany({
             where: { projectId: project.id, status: { not: "completed" }, OR: [{ dueAt: { not: null } }, { startAt: { not: null } }] },
             select: { id: true, dueAt: true, dueKind: true, dueTimezone: true, reminderOffset: true, status: true, startAt: true, startKind: true, startTimezone: true },
         });
         for (const openTask of openTasks) {
-            await tx.task.update({ where: { id: openTask.id }, data: computeSchedule(openTask, restoredProject.state) });
+            await transaction.task.update({ where: { id: openTask.id }, data: computeSchedule(openTask, restoredProject.state) });
         }
-        await recordActivity(tx, projectActivity(restoredProject, membership.userId, "project.restored", {
+        await recordActivity(transaction, projectActivity(restoredProject, membership.userId, "project.restored", {
             state: { from: ProjectState.archived, to: restoredProject.state },
         }));
         return restoredProject;

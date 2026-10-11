@@ -31,35 +31,35 @@ const handlePrismaKnownError = (error: Prisma.PrismaClientKnownRequestError) => 
 };
 
 const globalErrorHandler: ErrorRequestHandler = (error: HandledError, req, res, next) => {
-  let err: HandledError = { ...error, message: error.message };
-  if (error instanceof Prisma.PrismaClientKnownRequestError) err = handlePrismaKnownError(error) ?? err;
+  let handledError: HandledError = { ...error, message: error.message };
+  if (error instanceof Prisma.PrismaClientKnownRequestError) handledError = handlePrismaKnownError(error) ?? handledError;
   // Upload limits (e.g. file over 5 MB) are the client's mistake, not a server failure.
   if (error instanceof multer.MulterError) {
-    err = new AppError(error.code === "LIMIT_FILE_SIZE" ? "Image must be 5 MB or smaller" : `Upload failed: ${error.message}`, 400);
+    handledError = new AppError(error.code === "LIMIT_FILE_SIZE" ? "Image must be 5 MB or smaller" : `Upload failed: ${error.message}`, 400);
   }
   // A malformed JSON body (express.json) is a 400 too.
-  if ((error as { type?: string }).type === "entity.parse.failed") err = new AppError("Request body is not valid JSON", 400);
+  if ((error as { type?: string }).type === "entity.parse.failed") handledError = new AppError("Request body is not valid JSON", 400);
   // NOTE: body-parser's "too large" used to fall through to a generic 500.
-  if ((error as { type?: string }).type === "entity.too.large") err = new AppError("Request body is too large", 413);
+  if ((error as { type?: string }).type === "entity.too.large") handledError = new AppError("Request body is too large", 413);
 
   // NOTE: only our own AppErrors get to choose the status code. Third-party SDK
   // errors carry their own `statusCode` and the spread above copies it straight
   // through — a Brevo "unauthorised IP" rejection therefore answered
   // POST /signup with 401 Unauthorized, which reads to the client as a broken
   // session rather than a failed email. Anything non-operational is a 500.
-  const isOperational = Boolean(err.isOperational);
-  const statusCode = isOperational ? err.statusCode || 500 : 500;
+  const isOperational = Boolean(handledError.isOperational);
+  const statusCode = isOperational ? handledError.statusCode || 500 : 500;
 
   // Expected refusals (4xx) are one-line warnings; real failures get the stack. Both carry
   // the request id and a redacted URL, so a report can be matched to its log entry.
   const where = `requestId=${req.id ?? "-"} ${req.method} ${redactUrl(req.originalUrl)}`;
   if (statusCode >= 500) logger.error(`${where} ${describeError(error)}`);
-  else logger.warn(`${where} ${statusCode} ${err.message}`);
+  else logger.warn(`${where} ${statusCode} ${handledError.message}`);
 
   res.status(statusCode).json({
-    status: isOperational ? err.status || "error" : "error",
-    message: isOperational ? err.message : "Something went wrong on our side. Please try again in a moment.",
-    ...(isOperational && typeof err.code === "string" && !err.code.startsWith("P") && { code: err.code }),
+    status: isOperational ? handledError.status || "error" : "error",
+    message: isOperational ? handledError.message : "Something went wrong on our side. Please try again in a moment.",
+    ...(isOperational && typeof handledError.code === "string" && !handledError.code.startsWith("P") && { code: handledError.code }),
     // A reference the person can quote; it points at the log line above. No internals.
     ...(statusCode >= 500 && { requestId: req.id }),
   });

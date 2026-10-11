@@ -76,9 +76,9 @@ export const createPost = catchAsync(async (req, res) => {
     const summary = textField(req.body?.summary ?? "", "Summary", { required: false, maxLength: SUMMARY_MAX_LENGTH })!;
     const body = textField(req.body?.body, "Body", { required: true, maxLength: BODY_MAX_LENGTH })!;
 
-    const postId = await prisma.$transaction(async (tx) => {
-        const post = await tx.newsletterPost.create({ data: { title, summary, body, authorId: operator.userId } });
-        await recordAdminAudit(tx, { actorId: operator.userId, action: "newsletter.drafted", targetType: "newsletter_post", targetId: post.id, ipAddress: requestIp(req) });
+    const postId = await prisma.$transaction(async (transaction) => {
+        const post = await transaction.newsletterPost.create({ data: { title, summary, body, authorId: operator.userId } });
+        await recordAdminAudit(transaction, { actorId: operator.userId, action: "newsletter.drafted", targetType: "newsletter_post", targetId: post.id, ipAddress: requestIp(req) });
         return post.id;
     });
     res.status(201).json({ status: "success", data: { post: await loadPost(postId) } });
@@ -97,10 +97,10 @@ export const updatePost = catchAsync(async (req, res) => {
     };
     if (changes.title === "" || changes.body === "") throw new AppError("Title and body can't be empty", 400);
 
-    await prisma.$transaction(async (tx) => {
-        const { count } = await tx.newsletterPost.updateMany({ where: { id: postId }, data: changes });
+    await prisma.$transaction(async (transaction) => {
+        const { count } = await transaction.newsletterPost.updateMany({ where: { id: postId }, data: changes });
         if (count === 0) throw new AppError("Post not found", 404);
-        await recordAdminAudit(tx, { actorId: operator.userId, action: "newsletter.edited", targetType: "newsletter_post", targetId: postId, ipAddress: requestIp(req) });
+        await recordAdminAudit(transaction, { actorId: operator.userId, action: "newsletter.edited", targetType: "newsletter_post", targetId: postId, ipAddress: requestIp(req) });
     });
     res.status(200).json({ status: "success", data: { post: await loadPost(postId) } });
 });
@@ -112,17 +112,17 @@ export const publishPost = catchAsync(async (req, res) => {
     const emailSubscribers = req.body?.emailSubscribers;
     if (typeof emailSubscribers !== "boolean") throw new AppError("emailSubscribers must be true or false", 400);
 
-    await prisma.$transaction(async (tx) => {
+    await prisma.$transaction(async (transaction) => {
         // Conditional on still being a draft: publishing twice can't email twice.
-        const { count } = await tx.newsletterPost.updateMany({
+        const { count } = await transaction.newsletterPost.updateMany({
             where: { id: postId, status: "draft" },
             data: { status: "published", publishedAt: new Date(), emailRequested: emailSubscribers },
         });
         if (count === 0) {
-            const exists = await tx.newsletterPost.count({ where: { id: postId } });
+            const exists = await transaction.newsletterPost.count({ where: { id: postId } });
             throw exists ? new AppError("This post is already published.", 409) : new AppError("Post not found", 404);
         }
-        await recordAdminAudit(tx, {
+        await recordAdminAudit(transaction, {
             actorId: operator.userId,
             action: "newsletter.published",
             targetType: "newsletter_post",
@@ -141,13 +141,13 @@ export const deleteDraft = catchAsync(async (req, res) => {
     const { operator } = requireOperatorContext(req);
     const postId = requirePostId(routeParam(req, "postId"));
 
-    await prisma.$transaction(async (tx) => {
-        const { count } = await tx.newsletterPost.deleteMany({ where: { id: postId, status: "draft" } });
+    await prisma.$transaction(async (transaction) => {
+        const { count } = await transaction.newsletterPost.deleteMany({ where: { id: postId, status: "draft" } });
         if (count === 0) {
-            const exists = await tx.newsletterPost.count({ where: { id: postId } });
+            const exists = await transaction.newsletterPost.count({ where: { id: postId } });
             throw exists ? new AppError("Published posts can't be deleted.", 409) : new AppError("Post not found", 404);
         }
-        await recordAdminAudit(tx, { actorId: operator.userId, action: "newsletter.deleted", targetType: "newsletter_post", targetId: postId, ipAddress: requestIp(req) });
+        await recordAdminAudit(transaction, { actorId: operator.userId, action: "newsletter.deleted", targetType: "newsletter_post", targetId: postId, ipAddress: requestIp(req) });
     });
     res.status(204).send();
 });

@@ -77,18 +77,18 @@ export const operatorMfaVerify = catchAsync(async (req, res) => {
     if (step === null) throw new AppError("That code didn't match. Check your authenticator app and try the current code.", 401);
 
     const firstEnrolment = !grant.mfaEnabledAt;
-    await prisma.$transaction(async (tx) => {
+    await prisma.$transaction(async (transaction) => {
         // NOTE: conditional on the step being NEW — a code that was already used (even in a
         // racing request) is refused, so a shoulder-surfed code can't be replayed.
-        const { count } = await tx.platformGrant.updateMany({
+        const { count } = await transaction.platformGrant.updateMany({
             where: { id: grant.id, OR: [{ mfaLastUsedStep: null }, { mfaLastUsedStep: { lt: step } }] },
             data: { mfaLastUsedStep: step, ...(firstEnrolment && { mfaEnabledAt: new Date() }) },
         });
         if (count === 0) throw new AppError("That code was already used. Wait for the next one.", 401);
-        await tx.session.update({ where: { id: session.id }, data: { mfaVerifiedAt: new Date() } });
+        await transaction.session.update({ where: { id: session.id }, data: { mfaVerifiedAt: new Date() } });
         const ipAddress = requestIp(req);
-        if (firstEnrolment) await recordAdminAudit(tx, { actorId: operator.userId, action: "operator.mfa_enrolled", targetType: "operator", targetId: operator.userId, ipAddress });
-        await recordAdminAudit(tx, { actorId: operator.userId, action: "operator.signed_in", targetType: "operator", targetId: operator.userId, ipAddress });
+        if (firstEnrolment) await recordAdminAudit(transaction, { actorId: operator.userId, action: "operator.mfa_enrolled", targetType: "operator", targetId: operator.userId, ipAddress });
+        await recordAdminAudit(transaction, { actorId: operator.userId, action: "operator.signed_in", targetType: "operator", targetId: operator.userId, ipAddress });
     });
 
     logger.info(`Operator signed in userId=${operator.userId}`);
@@ -111,8 +111,8 @@ export const operatorLogout = catchAsync(async (req, res) => {
     await revokeSession(session.id);
     clearOperatorCookie(res);
     if (session.mfaVerifiedAt) {
-        await prisma.$transaction((tx) =>
-            recordAdminAudit(tx, { actorId: operator.userId, action: "operator.signed_out", targetType: "operator", targetId: operator.userId, ipAddress: requestIp(req) })
+        await prisma.$transaction((transaction) =>
+            recordAdminAudit(transaction, { actorId: operator.userId, action: "operator.signed_out", targetType: "operator", targetId: operator.userId, ipAddress: requestIp(req) })
         );
     }
     res.status(200).json({ status: "success", message: "Signed out" });

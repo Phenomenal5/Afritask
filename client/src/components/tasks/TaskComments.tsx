@@ -43,7 +43,7 @@ const activeMentionQuery = (text: string, caret: number): { start: number; query
 
 // ─── Text with highlighted mentions ─────────────────────
 function CommentText({ body, mentions }: { body: string; mentions: CommentMention[] }) {
-  const names = [...new Set(mentions.map((mention) => mention.name))].sort((a, b) => b.length - a.length);
+  const names = [...new Set(mentions.map((mention) => mention.name))].sort((firstName, secondName) => secondName.length - firstName.length);
   if (names.length === 0) return <>{body}</>;
   const escaped = names.map((name) => `@${name}`.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
   const parts = body.split(new RegExp(`(${escaped.join("|")})`, "g"));
@@ -235,8 +235,8 @@ function CommentItem({ comment, now, members, readOnly, onChanged }: CommentItem
     setBusy("save");
     setError(null);
     try {
-      const res = await editComment(comment.id, { body: draftBody, mentionMembershipIds: mentionsStillInText(draftBody, pickedIds, members) });
-      onChanged(res.data.data.comment);
+      const response = await editComment(comment.id, { body: draftBody, mentionMembershipIds: mentionsStillInText(draftBody, pickedIds, members) });
+      onChanged(response.data.data.comment);
       setEditing(false);
       toast.success("Comment updated");
     } catch (failure) {
@@ -260,8 +260,8 @@ function CommentItem({ comment, now, members, readOnly, onChanged }: CommentItem
     if (!confirmed) return;
     setBusy("delete");
     try {
-      const res = await deleteComment(comment.id);
-      onChanged(res.data.data.comment);
+      const response = await deleteComment(comment.id);
+      onChanged(response.data.data.comment);
       toast.success("Comment deleted");
     } catch (failure) {
       toast.error(failureMessage(failure, "We couldn't delete that comment."));
@@ -381,8 +381,8 @@ export default function TaskComments({ taskId, readOnlyReason, heading }: TaskCo
 
   const loadComments = useCallback(async () => {
     try {
-      const res = await getTaskComments(taskId);
-      setComments(res.data.data.comments);
+      const response = await getTaskComments(taskId);
+      setComments(response.data.data.comments);
       setLoadFailure(null);
     } catch (failure) {
       setLoadFailure(describeFailure(failure, "Couldn't load the comments."));
@@ -421,11 +421,11 @@ export default function TaskComments({ taskId, readOnlyReason, heading }: TaskCo
     setPosting(true);
     setPostError(null);
     try {
-      const res = await createComment(taskId, {
+      const response = await createComment(taskId, {
         body: draft.body,
         mentionMembershipIds: mentionsStillInText(draft.body, draft.pickedMembershipIds, members),
       });
-      setComments((current) => [...(current ?? []), res.data.data.comment]);
+      setComments((current) => [...(current ?? []), response.data.data.comment]);
       updateDraft({ body: "", pickedMembershipIds: [] });
     } catch (failure) {
       // The draft stays exactly as typed (and in this tab's storage) so it can be retried.

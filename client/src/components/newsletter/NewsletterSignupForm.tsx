@@ -21,8 +21,8 @@ export default function NewsletterSignupForm() {
     if (!EMAIL_PATTERN.test(email.trim())) return setError("Enter a full email address, like name@example.com.");
     setSubmitting(true);
     try {
-      const res = await subscribeToNewsletter(email.trim());
-      setConfirmation(res.data.message);
+      const response = await subscribeToNewsletter(email.trim());
+      setConfirmation(response.data.message);
       setEmail("");
     } catch (failure) {
       setError(failureMessage(failure, "That didn't go through. Try again in a moment."));

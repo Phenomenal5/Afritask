@@ -53,8 +53,8 @@ export function MyWorkProvider({ children }: { children: ReactNode }) {
 
   const reloadInvitations = useCallback(async () => {
     try {
-      const res = await getMyInvitations();
-      setInvitations(res.data.data.invitations);
+      const response = await getMyInvitations();
+      setInvitations(response.data.data.invitations);
       setInvitationsStatus("ready");
     } catch {
       setInvitationsStatus("error");
@@ -68,8 +68,8 @@ export function MyWorkProvider({ children }: { children: ReactNode }) {
   const [unreadNotifications, setUnreadNotifications] = useState(0);
   const refreshUnreadNotifications = useCallback(async () => {
     try {
-      const res = await getUnreadNotificationCount();
-      setUnreadNotifications(res.data.data.unreadCount);
+      const response = await getUnreadNotificationCount();
+      setUnreadNotifications(response.data.data.unreadCount);
     } catch {
       // Keep the last known count; the next poll tries again.
     }
@@ -116,7 +116,7 @@ export function MyWorkProvider({ children }: { children: ReactNode }) {
 }
 
 export function useMyWork(): MyWork {
-  const ctx = useContext(MyWorkContext);
-  if (!ctx) throw new Error("useMyWork must be used within a MyWorkProvider");
-  return ctx;
+  const context = useContext(MyWorkContext);
+  if (!context) throw new Error("useMyWork must be used within a MyWorkProvider");
+  return context;
 }

@@ -38,7 +38,7 @@ export default function DeleteWorkspacePanel({ workspaceId, workspaceName }: { w
     if (!open) return;
     setPlan(null);
     getWorkspaceDeletionPreview(workspaceId)
-      .then((res) => setPlan(res.data.data))
+      .then((response) => setPlan(response.data.data))
       .catch((failure) => setPlanFailure(describeFailure(failure, "Couldn't check what deleting would do.")));
   }, [open, workspaceId]);
 
@@ -51,8 +51,8 @@ export default function DeleteWorkspacePanel({ workspaceId, workspaceName }: { w
     setDeleting(true);
     setError(null);
     try {
-      const res = await deleteWorkspace(workspaceId, confirmName.trim());
-      toast.success(res.data.data.mode === "soft" ? `${workspaceName} was closed. Its members' work is kept.` : `${workspaceName} was deleted.`);
+      const response = await deleteWorkspace(workspaceId, confirmName.trim());
+      toast.success(response.data.data.mode === "soft" ? `${workspaceName} was closed. Its members' work is kept.` : `${workspaceName} was deleted.`);
       // Moves the active workspace to another one you belong to, or none (→ onboarding).
       const result = await refreshWorkspaces();
       router.replace(result.success && result.data && result.data.length > 0 ? "/dashboard" : "/onboarding");

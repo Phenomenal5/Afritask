@@ -73,7 +73,7 @@ export default function InvitePage() {
   useEffect(() => {
     if (!token) return;
     previewInvitation(token)
-      .then((res) => setInvitation(res.data.data.invitation))
+      .then((response) => setInvitation(response.data.data.invitation))
       .catch((error) => setLoadError(failureMessage(error, "This invitation link isn't valid.")));
   }, [token]);
 
@@ -88,10 +88,10 @@ export default function InvitePage() {
     setRespondError(null);
     try {
       if (action === "accept") {
-        const res = await acceptInvitation({ token });
+        const response = await acceptInvitation({ token });
         clearPendingInvite();
         await refreshWorkspaces();
-        switchWorkspace(res.data.data.workspaceId);
+        switchWorkspace(response.data.data.workspaceId);
         toast.success(`Welcome to ${invitation.workspaceName}`);
         router.replace("/dashboard");
       } else {

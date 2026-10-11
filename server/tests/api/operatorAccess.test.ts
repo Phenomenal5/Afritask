@@ -24,9 +24,10 @@ const signInOperator = async (email: string) => {
     expect(login.status).toBe(200);
     const setup = await browser.post("/admin/auth/mfa/setup");
     const secret: string = setup.body.data.secret;
-    const verified = await browser.post("/admin/auth/mfa/verify", { code: totpCode(secret) });
+    const usedCode = totpCode(secret);
+    const verified = await browser.post("/admin/auth/mfa/verify", { code: usedCode });
     expect(verified.status).toBe(200);
-    return { browser, secret };
+    return { browser, secret, usedCode };
 };
 
 describe("operator sign-in", () => {
@@ -69,15 +70,17 @@ describe("operator sign-in", () => {
 
     it("a second sign-in skips enrolment, and a used code can't be replayed", async () => {
         const operator = await createOperator();
-        const { secret } = await signInOperator(operator.email);
+        const { secret, usedCode } = await signInOperator(operator.email);
 
         const browser = createClient();
         const login = await browser.post("/admin/auth/login", { email: operator.email, password: DEFAULT_PASSWORD });
         expect(login.body.data.next).toBe("mfa_verify");
         await expect(browser.post("/admin/auth/mfa/setup")).resolves.toMatchObject({ status: 409 });
 
-        // The code from the first sign-in was already used in this step.
-        const replay = await browser.post("/admin/auth/mfa/verify", { code: totpCode(secret) });
+        // NOTE: replay the exact code the first sign-in used. Re-computing "the current code"
+        // made this flaky: when the 30-second step rolled over in between, that was a fresh,
+        // never-used code, and the server rightly accepted it.
+        const replay = await browser.post("/admin/auth/mfa/verify", { code: usedCode });
         expect(replay.status).toBe(401);
         // The next step's code is accepted (±1 step of drift).
         const next = await browser.post("/admin/auth/mfa/verify", { code: totpCode(secret, Date.now() + STEP_MS) });

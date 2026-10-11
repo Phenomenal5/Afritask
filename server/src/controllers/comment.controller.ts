@@ -126,8 +126,8 @@ export const createComment = catchAsync(async (req, res) => {
     const body = parseBody(req.body.body);
     const mentionIds = (await parseMentionIds(req.body.mentionMembershipIds, task.workspaceId)) ?? [];
 
-    const comment = await prisma.$transaction(async (tx) => {
-        const createdComment = await tx.comment.create({
+    const comment = await prisma.$transaction(async (transaction) => {
+        const createdComment = await transaction.comment.create({
             data: {
                 taskId: task.id,
                 workspaceId: task.workspaceId,
@@ -137,7 +137,7 @@ export const createComment = catchAsync(async (req, res) => {
             },
             include: commentInclude,
         });
-        await notifyMentions(tx, createdComment, task.title, mentionIds, membership.userId, "created");
+        await notifyMentions(transaction, createdComment, task.title, mentionIds, membership.userId, "created");
         return createdComment;
     });
 
@@ -159,16 +159,16 @@ export const editComment = catchAsync(async (req, res) => {
     const body = parseBody(req.body.body);
     const mentionIds = await parseMentionIds(req.body.mentionMembershipIds, comment.workspaceId);
 
-    const updated = await prisma.$transaction(async (tx) => {
+    const updated = await prisma.$transaction(async (transaction) => {
         if (mentionIds) {
-            await tx.commentMention.deleteMany({ where: { commentId: comment.id, membershipId: { notIn: mentionIds } } });
-            await tx.commentMention.createMany({
+            await transaction.commentMention.deleteMany({ where: { commentId: comment.id, membershipId: { notIn: mentionIds } } });
+            await transaction.commentMention.createMany({
                 data: mentionIds.map((membershipId) => ({ commentId: comment.id, membershipId })),
                 skipDuplicates: true,
             });
         }
         // Only a real text change counts as an edit (no "edited" marker for a no-op save).
-        const updatedComment = await tx.comment.update({
+        const updatedComment = await transaction.comment.update({
             where: { id: comment.id },
             data: body !== comment.body ? { body, editedAt: new Date() } : {},
             include: commentInclude,
@@ -177,7 +177,7 @@ export const editComment = catchAsync(async (req, res) => {
         if (mentionIds) {
             const previouslyMentioned = new Set(comment.mentions.map((mention) => mention.membershipId));
             const newlyMentioned = mentionIds.filter((membershipId) => !previouslyMentioned.has(membershipId));
-            await notifyMentions(tx, updatedComment, comment.task.title, newlyMentioned, membership.userId, `edit-${updatedComment.updatedAt.getTime()}`);
+            await notifyMentions(transaction, updatedComment, comment.task.title, newlyMentioned, membership.userId, `edit-${updatedComment.updatedAt.getTime()}`);
         }
         return updatedComment;
     });
@@ -199,9 +199,9 @@ export const deleteComment = catchAsync(async (req, res) => {
     }
     await assertTaskOpenForDiscussion(comment.task.projectId);
 
-    const deleted = await prisma.$transaction(async (tx) => {
-        await tx.commentMention.deleteMany({ where: { commentId: comment.id } });
-        return tx.comment.update({
+    const deleted = await prisma.$transaction(async (transaction) => {
+        await transaction.commentMention.deleteMany({ where: { commentId: comment.id } });
+        return transaction.comment.update({
             where: { id: comment.id },
             data: { body: "", deletedAt: new Date(), deletedById: membership.userId },
             include: commentInclude,

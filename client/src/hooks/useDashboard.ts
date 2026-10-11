@@ -19,9 +19,9 @@ export function useDashboard(workspaceId: string | null | undefined) {
     if (!workspaceId) return;
     const requestNumber = ++latestRequestRef.current;
     try {
-      const res = await getWorkspaceDashboard(workspaceId);
+      const response = await getWorkspaceDashboard(workspaceId);
       if (requestNumber !== latestRequestRef.current) return;
-      setCounts(res.data.data);
+      setCounts(response.data.data);
       setFailure(null);
     } catch (error) {
       if (requestNumber !== latestRequestRef.current) return;

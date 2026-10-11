@@ -70,8 +70,8 @@ export default function InvitationsPanel({ workspaceId, myRole, autoFocus = fals
 
   const loadInvitations = useCallback(async () => {
     try {
-      const res = await getWorkspaceInvitations(workspaceId);
-      setInvitations(res.data.data.invitations);
+      const response = await getWorkspaceInvitations(workspaceId);
+      setInvitations(response.data.data.invitations);
       setLoadFailure(null);
     } catch (error) {
       setLoadFailure(describeFailure(error, "Couldn't load invitations."));
@@ -97,8 +97,8 @@ export default function InvitationsPanel({ workspaceId, myRole, autoFocus = fals
     }
     setSending(true);
     try {
-      const res = await inviteToWorkspace(workspaceId, { email: trimmedEmail, role });
-      if (res.data.data.invitation.deliveryStatus === "failed") {
+      const response = await inviteToWorkspace(workspaceId, { email: trimmedEmail, role });
+      if (response.data.data.invitation.deliveryStatus === "failed") {
         toast.error(`Invitation saved, but the email to ${trimmedEmail} couldn't be sent. Use Resend below.`);
       } else {
         toast.success(`Invitation sent to ${trimmedEmail}`);
@@ -116,8 +116,8 @@ export default function InvitationsPanel({ workspaceId, myRole, autoFocus = fals
   const handleResend = async (invitation: Invitation) => {
     setBusyId(invitation.id);
     try {
-      const res = await resendInvitation(invitation.id);
-      if (res.data.data.invitation.deliveryStatus === "failed") toast.error(`The email to ${invitation.email} still couldn't be sent.`);
+      const response = await resendInvitation(invitation.id);
+      if (response.data.data.invitation.deliveryStatus === "failed") toast.error(`The email to ${invitation.email} still couldn't be sent.`);
       else toast.success(`New invitation sent to ${invitation.email}. The old link no longer works.`);
       loadInvitations();
     } catch (error) {

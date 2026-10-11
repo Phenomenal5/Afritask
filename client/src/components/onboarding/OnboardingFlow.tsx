@@ -191,7 +191,7 @@ function NameStep({
   useEffect(() => {
     if (mode !== "first") return;
     getMyInvitations()
-      .then((res) => setInvitations(res.data.data.invitations))
+      .then((response) => setInvitations(response.data.data.invitations))
       .catch(() => setInvitations([]));
   }, [mode]);
 
@@ -300,8 +300,8 @@ function InviteStep({
     setSending(true);
     for (const { row, index } of pending) {
       try {
-        const res = await inviteToWorkspace(workspaceId, { email: row.email.trim().toLowerCase(), role: row.role });
-        const delivered = res.data.data.invitation.deliveryStatus !== "failed";
+        const response = await inviteToWorkspace(workspaceId, { email: row.email.trim().toLowerCase(), role: row.role });
+        const delivered = response.data.data.invitation.deliveryStatus !== "failed";
         setRows((current) => current.map((item, itemIndex) => (itemIndex === index ? { ...item, result: delivered ? "sent" : "failed" } : item)));
       } catch (error) {
         setRows((current) => current.map((item, itemIndex) => (itemIndex === index ? { ...item, error: failureMessage(error, "Couldn't invite this person.") } : item)));
@@ -420,8 +420,8 @@ function FirstTaskStep({
   // PRD J1 default: alone in the workspace → the task is assigned to you.
   useEffect(() => {
     getWorkspace(workspaceId)
-      .then((res) => {
-        const members = res.data.data.workspace.members;
+      .then((response) => {
+        const members = response.data.data.workspace.members;
         setSoloMembershipId(members.length === 1 ? members[0].id : null);
       })
       .catch(() => setSoloMembershipId(null));

@@ -16,7 +16,7 @@ export default function NewsletterToggle() {
 
   useEffect(() => {
     getMySubscription()
-      .then((res) => setSubscribed(res.data.data.subscribed))
+      .then((response) => setSubscribed(response.data.data.subscribed))
       .catch(() => setStatus({ tone: "failed", text: "We couldn't load your newsletter setting. Refresh to try again." }));
   }, []);
 
@@ -24,9 +24,9 @@ export default function NewsletterToggle() {
     setSaving(true);
     setStatus(null);
     try {
-      const res = await updateMySubscription(nextSubscribed);
-      setSubscribed(res.data.data.subscribed);
-      setStatus({ tone: "saved", text: res.data.message });
+      const response = await updateMySubscription(nextSubscribed);
+      setSubscribed(response.data.data.subscribed);
+      setStatus({ tone: "saved", text: response.data.message });
     } catch (error) {
       setStatus({ tone: "failed", text: failureMessage(error, "That didn't save. Try again.") });
     } finally {

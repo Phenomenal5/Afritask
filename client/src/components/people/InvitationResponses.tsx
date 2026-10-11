@@ -29,9 +29,9 @@ export default function InvitationResponses({ invitations, onResolved }: Invitat
     setBusy({ id: invitation.id, action });
     try {
       if (action === "accept") {
-        const res = await acceptInvitation({ invitationId: invitation.id });
+        const response = await acceptInvitation({ invitationId: invitation.id });
         await refreshWorkspaces();
-        switchWorkspace(res.data.data.workspaceId);
+        switchWorkspace(response.data.data.workspaceId);
         toast.success(`You joined ${invitation.workspaceName}. It's now your open workspace.`);
       } else {
         await declineInvitation({ invitationId: invitation.id });

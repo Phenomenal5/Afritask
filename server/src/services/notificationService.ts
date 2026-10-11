@@ -21,18 +21,18 @@ interface NotificationDraft {
     deliveryKey: string;
 }
 
-const createNotifications = async (tx: Prisma.TransactionClient, drafts: NotificationDraft[]) => {
+const createNotifications = async (transaction: Prisma.TransactionClient, drafts: NotificationDraft[]) => {
     const recipients = drafts.filter((draft) => draft.actorId === null || draft.recipientId !== draft.actorId);
     if (recipients.length === 0) return { count: 0 };
     // Suspended accounts receive nothing while suspended (SRS SR17).
-    const suspended = await tx.user.findMany({
+    const suspended = await transaction.user.findMany({
         where: { id: { in: recipients.map((draft) => draft.recipientId) }, suspendedAt: { not: null } },
         select: { id: true },
     });
     const suspendedIds = new Set(suspended.map((user) => user.id));
     const deliverable = recipients.filter((draft) => !suspendedIds.has(draft.recipientId));
     if (deliverable.length === 0) return { count: 0 };
-    return tx.notification.createMany({ data: deliverable, skipDuplicates: true });
+    return transaction.notification.createMany({ data: deliverable, skipDuplicates: true });
 };
 
 // ─── Assignment ─────────────────────
@@ -40,18 +40,18 @@ const createNotifications = async (tx: Prisma.TransactionClient, drafts: Notific
 // only when it actually changed. The key includes the task version, so being assigned,
 // unassigned and assigned again notifies each time — but one write never notifies twice.
 export const notifyTaskAssigned = async (
-    tx: Prisma.TransactionClient,
+    transaction: Prisma.TransactionClient,
     task: { id: string; workspaceId: string; title: string; version: number; assigneeMembershipId: string | null },
     previousAssigneeMembershipId: string | null,
     actorId: string
 ) => {
     if (!task.assigneeMembershipId || task.assigneeMembershipId === previousAssigneeMembershipId) return;
-    const assignee = await tx.membership.findFirst({
+    const assignee = await transaction.membership.findFirst({
         where: { id: task.assigneeMembershipId, status: "active" },
         select: { userId: true },
     });
     if (!assignee) return;
-    await createNotifications(tx, [
+    await createNotifications(transaction, [
         {
             recipientId: assignee.userId,
             workspaceId: task.workspaceId,
@@ -69,7 +69,7 @@ export const notifyTaskAssigned = async (
 // weren't mentioned before (SRS SR08: unchanged mentions don't re-notify). `editEvent`
 // identifies the create/edit so the same edit never notifies twice.
 export const notifyMentions = async (
-    tx: Prisma.TransactionClient,
+    transaction: Prisma.TransactionClient,
     comment: { id: string; taskId: string; workspaceId: string },
     taskTitle: string,
     newlyMentionedMembershipIds: string[],
@@ -77,12 +77,12 @@ export const notifyMentions = async (
     editEvent: string
 ) => {
     if (newlyMentionedMembershipIds.length === 0) return;
-    const mentioned = await tx.membership.findMany({
+    const mentioned = await transaction.membership.findMany({
         where: { id: { in: newlyMentionedMembershipIds }, status: "active" },
         select: { userId: true },
     });
     await createNotifications(
-        tx,
+        transaction,
         mentioned.map(({ userId }) => ({
             recipientId: userId,
             workspaceId: comment.workspaceId,
@@ -100,13 +100,13 @@ export const notifyMentions = async (
 // Sent by the reminder sweep, not by a person. `scheduleKey` identifies the schedule that
 // fired (the reminder/due instant), so re-running the sweep can't notify twice.
 export const notifyTaskSchedule = (
-    tx: Prisma.TransactionClient,
+    transaction: Prisma.TransactionClient,
     kind: "task_reminder" | "task_overdue" | "task_starting",
     task: { id: string; workspaceId: string; title: string },
     recipientId: string,
     scheduleKey: string
 ) =>
-    createNotifications(tx, [
+    createNotifications(transaction, [
         {
             recipientId,
             workspaceId: task.workspaceId,
@@ -122,17 +122,17 @@ export const notifyTaskSchedule = (
 // Only when an account with that email already exists — otherwise the email is the only
 // way to reach them. One notification per invitation; a resend doesn't add another.
 export const notifyInvitation = async (
-    tx: Prisma.TransactionClient,
+    transaction: Prisma.TransactionClient,
     invitation: { id: string; email: string },
     workspaceName: string,
     actorId: string
 ) => {
-    const invitee = await tx.user.findFirst({
+    const invitee = await transaction.user.findFirst({
         where: { email: { equals: invitation.email, mode: "insensitive" } },
         select: { id: true },
     });
     if (!invitee) return;
-    await createNotifications(tx, [
+    await createNotifications(transaction, [
         {
             recipientId: invitee.id,
             workspaceId: null,

@@ -26,8 +26,8 @@ export default function NewsPage() {
     setLoading(true);
     setFailure(null);
     try {
-      const res = await listNewsletterPosts(pageNumber);
-      const { items, pagination } = res.data.data;
+      const response = await listNewsletterPosts(pageNumber);
+      const { items, pagination } = response.data.data;
       setPosts((current) => (pageNumber === 1 ? items : [...current, ...items]));
       setPage(pagination.page);
       setTotalPages(pagination.totalPages);

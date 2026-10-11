@@ -76,7 +76,7 @@ export function TaskPanelProvider({ children }: { children: ReactNode }) {
 }
 
 export function useTaskPanels(): TaskPanels {
-  const ctx = useContext(TaskPanelContext);
-  if (!ctx) throw new Error("useTaskPanels must be used within a TaskPanelProvider");
-  return ctx;
+  const context = useContext(TaskPanelContext);
+  if (!context) throw new Error("useTaskPanels must be used within a TaskPanelProvider");
+  return context;
 }

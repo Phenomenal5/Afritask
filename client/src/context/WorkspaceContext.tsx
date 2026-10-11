@@ -61,8 +61,8 @@ export function WorkspaceProvider({ children, isAuthenticated }: { children: Rea
 
   const refreshWorkspaces = useCallback(async (): Promise<ActionResult<WorkspaceSummary[]>> => {
     try {
-      const res = await getMyWorkspaces();
-      const loadedWorkspaces: WorkspaceSummary[] = res.data.data.workspaces;
+      const response = await getMyWorkspaces();
+      const loadedWorkspaces: WorkspaceSummary[] = response.data.data.workspaces;
       setWorkspaces(loadedWorkspaces);
       setActiveWorkspaceId((currentId) => {
         const preferredId = currentId || readStoredWorkspaceId();
@@ -101,8 +101,8 @@ export function WorkspaceProvider({ children, isAuthenticated }: { children: Rea
   const createWorkspace = useCallback(
     async (name: string): Promise<ActionResult<WorkspaceSummary>> => {
       try {
-        const res = await createWorkspaceRequest(name);
-        const workspace: WorkspaceSummary = res.data.data.workspace;
+        const response = await createWorkspaceRequest(name);
+        const workspace: WorkspaceSummary = response.data.data.workspace;
         setWorkspaces((previous) => [...previous.filter((existing) => existing.id !== workspace.id), workspace]);
         switchWorkspace(workspace.id);
         return { success: true, data: workspace };
@@ -115,8 +115,8 @@ export function WorkspaceProvider({ children, isAuthenticated }: { children: Rea
 
   const renameWorkspace = useCallback(async (workspaceId: string, name: string): Promise<ActionResult> => {
     try {
-      const res = await renameWorkspaceRequest(workspaceId, name);
-      const { name: savedName } = res.data.data.workspace;
+      const response = await renameWorkspaceRequest(workspaceId, name);
+      const { name: savedName } = response.data.data.workspace;
       setWorkspaces((previous) => previous.map((workspace) => (workspace.id === workspaceId ? { ...workspace, name: savedName } : workspace)));
       return { success: true };
     } catch (error) {
@@ -135,7 +135,7 @@ export function WorkspaceProvider({ children, isAuthenticated }: { children: Rea
 }
 
 export function useWorkspaces(): WorkspaceState {
-  const ctx = useContext(WorkspaceContext);
-  if (!ctx) throw new Error("useWorkspaces must be used within a WorkspaceProvider");
-  return ctx;
+  const context = useContext(WorkspaceContext);
+  if (!context) throw new Error("useWorkspaces must be used within a WorkspaceProvider");
+  return context;
 }

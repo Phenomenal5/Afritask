@@ -31,11 +31,11 @@ const main = async () => {
 
     if (hasFlag("revoke")) {
         if (!user.platformGrant || user.platformGrant.revokedAt) throw new Error(`${email} has no active operator access.`);
-        await prisma.$transaction(async (tx) => {
-            await tx.platformGrant.update({ where: { userId: user.id }, data: { revokedAt: new Date(), note } });
+        await prisma.$transaction(async (transaction) => {
+            await transaction.platformGrant.update({ where: { userId: user.id }, data: { revokedAt: new Date(), note } });
             // Signed-in console sessions end now, not at their expiry.
-            await tx.session.updateMany({ where: { userId: user.id, kind: "operator", revokedAt: null }, data: { revokedAt: new Date() } });
-            await recordAdminAudit(tx, { actorId: null, action: "operator.revoked", targetType: "operator", targetId: user.id, reason: note, metadata: { via: "grant script" } });
+            await transaction.session.updateMany({ where: { userId: user.id, kind: "operator", revokedAt: null }, data: { revokedAt: new Date() } });
+            await recordAdminAudit(transaction, { actorId: null, action: "operator.revoked", targetType: "operator", targetId: user.id, reason: note, metadata: { via: "grant script" } });
         });
         console.log(`Operator access revoked for ${email}.`);
         return;
@@ -43,23 +43,23 @@ const main = async () => {
 
     if (hasFlag("reset-mfa")) {
         if (!user.platformGrant || user.platformGrant.revokedAt) throw new Error(`${email} has no active operator access.`);
-        await prisma.$transaction(async (tx) => {
-            await tx.platformGrant.update({ where: { userId: user.id }, data: { mfaSecretEncrypted: null, mfaEnabledAt: null, mfaLastUsedStep: null } });
-            await tx.session.updateMany({ where: { userId: user.id, kind: "operator", revokedAt: null }, data: { revokedAt: new Date() } });
-            await recordAdminAudit(tx, { actorId: null, action: "operator.granted", targetType: "operator", targetId: user.id, reason: note || "MFA reset", metadata: { via: "grant script", mfaReset: true } });
+        await prisma.$transaction(async (transaction) => {
+            await transaction.platformGrant.update({ where: { userId: user.id }, data: { mfaSecretEncrypted: null, mfaEnabledAt: null, mfaLastUsedStep: null } });
+            await transaction.session.updateMany({ where: { userId: user.id, kind: "operator", revokedAt: null }, data: { revokedAt: new Date() } });
+            await recordAdminAudit(transaction, { actorId: null, action: "operator.granted", targetType: "operator", targetId: user.id, reason: note || "MFA reset", metadata: { via: "grant script", mfaReset: true } });
         });
         console.log(`MFA reset for ${email}. They'll set up a new authenticator at their next console sign-in.`);
         return;
     }
 
-    await prisma.$transaction(async (tx) => {
+    await prisma.$transaction(async (transaction) => {
         // Re-granting a revoked operator starts them over with fresh MFA.
-        await tx.platformGrant.upsert({
+        await transaction.platformGrant.upsert({
             where: { userId: user.id },
             create: { userId: user.id, note },
             update: { revokedAt: null, note, mfaSecretEncrypted: null, mfaEnabledAt: null, mfaLastUsedStep: null, grantedAt: new Date() },
         });
-        await recordAdminAudit(tx, { actorId: null, action: "operator.granted", targetType: "operator", targetId: user.id, reason: note, metadata: { via: "grant script" } });
+        await recordAdminAudit(transaction, { actorId: null, action: "operator.granted", targetType: "operator", targetId: user.id, reason: note, metadata: { via: "grant script" } });
     });
     console.log(`${email} can now sign in to the admin console. They'll set up two-step verification on first sign-in.`);
 };

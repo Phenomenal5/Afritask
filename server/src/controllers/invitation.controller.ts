@@ -135,8 +135,8 @@ export const createInvitation = catchAsync(async (req, res) => {
 
     // Placeholder hash: issueAndSendInvitation sets the real one (it also handles resend).
     // An existing account also hears about it in-app (in the same transaction).
-    const created = await prisma.$transaction(async (tx) => {
-        const createdInvitation = await tx.invitation.create({
+    const created = await prisma.$transaction(async (transaction) => {
+        const createdInvitation = await transaction.invitation.create({
             data: {
                 workspaceId: membership.workspaceId,
                 email,
@@ -147,7 +147,7 @@ export const createInvitation = catchAsync(async (req, res) => {
             },
             include: { workspace: { select: { name: true } } },
         });
-        await notifyInvitation(tx, createdInvitation, createdInvitation.workspace.name, membership.userId);
+        await notifyInvitation(transaction, createdInvitation, createdInvitation.workspace.name, membership.userId);
         return createdInvitation;
     });
     const invitation = await issueAndSendInvitation(created.id);
@@ -284,14 +284,14 @@ export const acceptInvitation = catchAsync(async (req, res) => {
     // One transaction: consume the invitation and create/reactivate the membership.
     // The conditional updateMany is the race guard — of two concurrent accepts, only one
     // sees count === 1; the other rolls back with 409 (SRS AC02: exactly one membership).
-    const membership = await prisma.$transaction(async (tx): Promise<Membership> => {
-        const { count } = await tx.invitation.updateMany({
+    const membership = await prisma.$transaction(async (transaction): Promise<Membership> => {
+        const { count } = await transaction.invitation.updateMany({
             where: { id: invitation.id, status: "pending", expiresAt: { gt: new Date() } },
             data: { status: "accepted", respondedAt: new Date() },
         });
         if (count === 0) throw new AppError("This invitation was already used", 409);
 
-        const existingMembership = await tx.membership.findUnique({
+        const existingMembership = await transaction.membership.findUnique({
             where: { workspaceId_userId: { workspaceId: invitation.workspaceId, userId: user.id } },
         });
         if (existingMembership?.status === "active") {
@@ -299,14 +299,14 @@ export const acceptInvitation = catchAsync(async (req, res) => {
         }
         // A former member re-joining keeps their history row; it's reactivated with the new role.
         const joinedMembership = existingMembership
-            ? await tx.membership.update({
+            ? await transaction.membership.update({
                 where: { id: existingMembership.id },
                 data: { status: "active", role: invitation.role, joinedAt: new Date(), removedAt: null },
             })
-            : await tx.membership.create({
+            : await transaction.membership.create({
                 data: { workspaceId: invitation.workspaceId, userId: user.id, role: invitation.role },
             });
-        await recordActivity(tx, {
+        await recordActivity(transaction, {
             workspaceId: invitation.workspaceId,
             actorId: user.id,
             entityType: "membership",

@@ -41,8 +41,8 @@ export default function ProjectPage() {
 
   const loadProject = useCallback(async () => {
     try {
-      const res = await getProject(projectId);
-      setProject(res.data.data.project);
+      const response = await getProject(projectId);
+      setProject(response.data.data.project);
       setFailure(null);
     } catch (error) {
       setFailure(describeFailure(error, "Couldn't open this project."));
@@ -133,8 +133,8 @@ export default function ProjectPage() {
     }
     setBusy(true);
     try {
-      const res = await updateProject(project.id, { state: nextState });
-      setProject((previous) => (previous ? { ...previous, ...res.data.data.project } : previous));
+      const response = await updateProject(project.id, { state: nextState });
+      setProject((previous) => (previous ? { ...previous, ...response.data.data.project } : previous));
       reloadProjects();
       toast.success(`Project is now ${PROJECT_STATE_LABELS[nextState].toLowerCase()}`);
     } catch (error) {
@@ -177,8 +177,8 @@ export default function ProjectPage() {
 
   const handleEdit = async ({ name, description }: { name: string; description: string }) => {
     try {
-      const res = await updateProject(project.id, { name, description });
-      setProject((previous) => (previous ? { ...previous, ...res.data.data.project } : previous));
+      const response = await updateProject(project.id, { name, description });
+      setProject((previous) => (previous ? { ...previous, ...response.data.data.project } : previous));
       reloadProjects();
       setEditOpen(false);
       toast.success("Project saved");

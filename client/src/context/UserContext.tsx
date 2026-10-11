@@ -32,8 +32,8 @@ export function UserProvider({ children, setUser }: { children: ReactNode; setUs
   const updateProfile = useCallback(
     async (changes: ProfileChanges): Promise<ActionResult> => {
       try {
-        const res = await updateProfileRequest(changes);
-        setUser((previous) => (previous ? { ...previous, ...res.data.user } : previous));
+        const response = await updateProfileRequest(changes);
+        setUser((previous) => (previous ? { ...previous, ...response.data.user } : previous));
         return { success: true };
       } catch (error) {
         return { success: false, message: failureMessage(error, "Couldn't save your profile.") };
@@ -44,8 +44,8 @@ export function UserProvider({ children, setUser }: { children: ReactNode; setUs
 
   const updatePassword = useCallback(async (input: { currentPassword: string; newPassword: string }): Promise<ActionResult> => {
     try {
-      const res = await updatePasswordRequest(input);
-      return { success: true, message: res.data.message };
+      const response = await updatePasswordRequest(input);
+      return { success: true, message: response.data.message };
     } catch (error) {
       // NOTE: the server answers a wrong current password with 401 — that's not an expired session.
       if (isAxiosError(error) && error.response?.status === 401) {
@@ -60,8 +60,8 @@ export function UserProvider({ children, setUser }: { children: ReactNode; setUs
       try {
         const formData = new FormData();
         formData.append("photo", file);
-        const res = await updateAvatarRequest(formData);
-        setUser((previous) => (previous ? { ...previous, ...res.data.user } : previous));
+        const response = await updateAvatarRequest(formData);
+        setUser((previous) => (previous ? { ...previous, ...response.data.user } : previous));
         return { success: true };
       } catch (error) {
         return { success: false, message: failureMessage(error, "Couldn't upload that picture.") };
@@ -76,7 +76,7 @@ export function UserProvider({ children, setUser }: { children: ReactNode; setUs
 }
 
 export function useUser(): UserActions {
-  const ctx = useContext(UserContext);
-  if (!ctx) throw new Error("useUser must be used within a UserProvider");
-  return ctx;
+  const context = useContext(UserContext);
+  if (!context) throw new Error("useUser must be used within a UserProvider");
+  return context;
 }

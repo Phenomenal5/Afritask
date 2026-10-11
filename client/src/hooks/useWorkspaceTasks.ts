@@ -42,9 +42,9 @@ export function useWorkspaceTasks(workspaceId: string | null | undefined, query:
       const requestNumber = ++latestRequestRef.current;
       if (!quiet) setStatus("loading");
       try {
-        const res = await getAllTasks(workspaceId, JSON.parse(queryKey));
+        const response = await getAllTasks(workspaceId, JSON.parse(queryKey));
         if (requestNumber !== latestRequestRef.current) return;
-        setTasks(res.data.data.tasks);
+        setTasks(response.data.data.tasks);
         setFailure(null);
         setStatus("ready");
       } catch (error) {

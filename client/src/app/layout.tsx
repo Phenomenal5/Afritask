@@ -50,7 +50,7 @@ const THEME_BOOTSTRAP = `(function () {
     if (theme === "dark") root.setAttribute("data-theme", "dark");
     else root.removeAttribute("data-theme");
     root.style.colorScheme = theme;
-  } catch (e) {}
+  } catch (storageError) {}
 })();`;
 
 export default function RootLayout({ children }: { children: ReactNode }) {

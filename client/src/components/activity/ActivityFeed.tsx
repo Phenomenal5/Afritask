@@ -37,10 +37,10 @@ export default function ActivityFeed({ loadPage, reloadKey, emptyTitle = "Nothin
     const requestNumber = ++requestRef.current;
     setLoading(true);
     try {
-      const res = await loadPage({});
+      const response = await loadPage({});
       if (requestNumber !== requestRef.current) return;
-      setEntries(res.data.data.entries);
-      setNextCursor(res.data.data.nextCursor);
+      setEntries(response.data.data.entries);
+      setNextCursor(response.data.data.nextCursor);
       setFailure(null);
     } catch (error) {
       if (requestNumber === requestRef.current) setFailure(describeFailure(error, "Couldn't load the history."));
@@ -57,9 +57,9 @@ export default function ActivityFeed({ loadPage, reloadKey, emptyTitle = "Nothin
     if (!nextCursor) return;
     setLoading(true);
     try {
-      const res = await loadPage({ before: nextCursor });
-      setEntries((previous) => [...previous, ...res.data.data.entries]);
-      setNextCursor(res.data.data.nextCursor);
+      const response = await loadPage({ before: nextCursor });
+      setEntries((previous) => [...previous, ...response.data.data.entries]);
+      setNextCursor(response.data.data.nextCursor);
     } catch (error) {
       setFailure(describeFailure(error, "Couldn't load older history."));
     } finally {

@@ -43,8 +43,8 @@ export default function ProjectsPage() {
     if (!workspaceId) return;
     setFailure(null);
     try {
-      const res = await getWorkspaceProjects(workspaceId, { includeArchived: showArchived });
-      setProjects(res.data.data.projects);
+      const response = await getWorkspaceProjects(workspaceId, { includeArchived: showArchived });
+      setProjects(response.data.data.projects);
     } catch (error) {
       setFailure(describeFailure(error, "Couldn't load projects."));
     }
@@ -61,12 +61,12 @@ export default function ProjectsPage() {
   const handleCreate = async ({ name, description }: { name: string; description: string }) => {
     if (!workspaceId) return "No workspace is open.";
     try {
-      const res = await createProject(workspaceId, { name, description });
+      const response = await createProject(workspaceId, { name, description });
       toast.success(`Created “${name}”`);
       setCreateOpen(false);
       loadProjects();
       reloadProjects();
-      router.push(`/projects/${res.data.data.project.id}`);
+      router.push(`/projects/${response.data.data.project.id}`);
       return null;
     } catch (error) {
       return failureMessage(error, "Couldn't create the project.");

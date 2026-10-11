@@ -109,8 +109,8 @@ export const retryDelivery = catchAsync(async (req, res) => {
     if (delivery.status !== "failed") throw new AppError(`Only failed deliveries can be retried (this one is ${delivery.status}).`, 409);
 
     const outcome = await redeliver(delivery);
-    await prisma.$transaction((tx) =>
-        recordAdminAudit(tx, { actorId: operator.userId, action: "delivery.retried", targetType: "delivery", targetId: delivery.id, reason, metadata: { outcome }, ipAddress: requestIp(req) })
+    await prisma.$transaction((transaction) =>
+        recordAdminAudit(transaction, { actorId: operator.userId, action: "delivery.retried", targetType: "delivery", targetId: delivery.id, reason, metadata: { outcome }, ipAddress: requestIp(req) })
     );
 
     logger.info(`Delivery retried deliveryId=${delivery.id} outcome=${outcome} by operator=${operator.userId}`);

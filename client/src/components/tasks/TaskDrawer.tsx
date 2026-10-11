@@ -120,8 +120,8 @@ export default function TaskDrawer({ taskId, onClose, onOpenTask }: TaskDrawerPr
 
   const loadTask = useCallback(async () => {
     try {
-      const res = await getOneTask(taskId);
-      const loaded: Task = res.data.data.task;
+      const response = await getOneTask(taskId);
+      const loaded: Task = response.data.data.task;
       setTask(loaded);
       // Keep the person's unsaved edits if a reload lands underneath them.
       setForm((currentForm) => (currentForm && isDirtyRef.current ? currentForm : formOf(loaded)));

@@ -92,10 +92,10 @@ export default function NotificationsPage() {
 
   const loadInbox = useCallback(async () => {
     try {
-      const res = await getNotifications({ unread: filter === "unread" });
-      setNotifications(res.data.data.notifications);
-      setNextCursor(res.data.data.nextCursor);
-      setUnreadNotifications(res.data.data.unreadCount);
+      const response = await getNotifications({ unread: filter === "unread" });
+      setNotifications(response.data.data.notifications);
+      setNextCursor(response.data.data.nextCursor);
+      setUnreadNotifications(response.data.data.unreadCount);
       setInboxFailure(null);
     } catch (error) {
       setInboxFailure(describeFailure(error, "Couldn't load your notifications."));
@@ -111,9 +111,9 @@ export default function NotificationsPage() {
     if (!nextCursor) return;
     setLoadingMore(true);
     try {
-      const res = await getNotifications({ unread: filter === "unread", before: nextCursor });
-      setNotifications((current) => [...(current ?? []), ...res.data.data.notifications]);
-      setNextCursor(res.data.data.nextCursor);
+      const response = await getNotifications({ unread: filter === "unread", before: nextCursor });
+      setNotifications((current) => [...(current ?? []), ...response.data.data.notifications]);
+      setNextCursor(response.data.data.nextCursor);
     } catch (error) {
       toast.error(failureMessage(error, "Couldn't load older notifications."));
     } finally {
@@ -126,8 +126,8 @@ export default function NotificationsPage() {
     // Show it read straight away; restore if the server refuses.
     setNotifications((current) => (current ?? []).map((item) => (item.id === notification.id ? { ...item, readAt: new Date().toISOString() } : item)));
     try {
-      const res = await markNotificationRead(notification.id);
-      setUnreadNotifications(res.data.data.unreadCount);
+      const response = await markNotificationRead(notification.id);
+      setUnreadNotifications(response.data.data.unreadCount);
     } catch (error) {
       setNotifications((current) => (current ?? []).map((item) => (item.id === notification.id ? notification : item)));
       toast.error(failureMessage(error, "Couldn't mark that as read."));
