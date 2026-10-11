@@ -1603,6 +1603,73 @@ const adminNewsletterPaths = {
     },
 };
 
+// ─── Performance summary ─────────────────────
+const monthSummarySchema = {
+    type: "object",
+    description: "Counts for one calendar month in the person's timezone. Never task titles or content.",
+    properties: {
+        month: { type: "string", example: "2026-09" },
+        timezone: { type: "string" },
+        completed: { type: "integer" },
+        completedOnTime: { type: "integer", description: "Completed by the deadline" },
+        completedLate: { type: "integer" },
+        completedWithoutDeadline: { type: "integer" },
+        metWithoutExtending: { type: "integer", description: "On time and the deadline was never pushed later" },
+        onTimeAfterExtending: { type: "integer" },
+        onTimeRate: { type: ["number", "null"], description: "completedOnTime / (completedOnTime + completedLate)" },
+        extensions: { type: "integer", description: "Times a deadline of yours was pushed later this month" },
+        planningDays: { type: "integer", description: "Days you created or updated tasks" },
+        daysInMonth: { type: "integer" },
+        tasksCreated: { type: "integer" },
+        plannedAhead: { type: "integer", description: "Tasks you created this month that were given a due or start date" },
+        plannedAheadRate: { type: ["number", "null"] },
+    },
+};
+const trendSchema = {
+    type: "array",
+    description: "The month and the five before it, oldest first",
+    items: { type: "object", properties: { month: { type: "string" }, completedOnTime: { type: "integer" }, completedLate: { type: "integer" }, extensions: { type: "integer" }, planningDays: { type: "integer" } } },
+};
+const performanceEnvelope = { type: "object", properties: { status: { type: "string" }, data: { type: "object", properties: { summary: monthSummarySchema, trend: trendSchema } } } };
+const shareSchema = { type: "object", properties: { id: { type: "string", format: "uuid" }, month: { type: "string" }, createdAt: { type: "string", format: "date-time" } } };
+
+const performancePaths = {
+    "/performance": {
+        get: {
+            tags: ["Performance"],
+            summary: "Your monthly summary (default: this month) and a six-month trend",
+            security: signedIn,
+            parameters: [{ name: "month", in: "query", schema: { type: "string", pattern: "^\\d{4}-(0[1-9]|1[0-2])$" } }],
+            responses: { 200: jsonResponse("Summary", performanceEnvelope), ...errorResponses(400, 401) },
+        },
+    },
+    "/performance/shares": {
+        get: { tags: ["Performance"], summary: "Your active share links (not their tokens)", security: signedIn, responses: { 200: jsonResponse("Links", dataEnvelope("shares", { type: "array", items: shareSchema })), ...errorResponses(401) } },
+        post: {
+            tags: ["Performance"],
+            summary: "Create a share link for a month. The token is returned once only.",
+            security: signedIn,
+            requestBody: jsonBody({ type: "object", properties: { month: { type: "string", example: "2026-09" } } }),
+            responses: { 201: jsonResponse("Link", dataEnvelope("share", { allOf: [shareSchema, { type: "object", properties: { token: { type: "string" } } }] })), ...errorResponses(400, 401, 409) },
+        },
+    },
+    "/performance/shares/{shareId}": {
+        delete: { tags: ["Performance"], summary: "Revoke a share link", security: signedIn, parameters: [pathParam("shareId", "Share link id")], responses: { 204: jsonResponse("Revoked"), ...errorResponses(401, 404) } },
+    },
+    "/performance/shared/{token}": {
+        get: {
+            tags: ["Performance"],
+            summary: "Public: a shared month — the owner's name and the numbers, nothing else",
+            security: publicRoute,
+            parameters: [pathParam("token", "Token from the share link")],
+            responses: {
+                200: jsonResponse("Shared summary", { type: "object", properties: { status: { type: "string" }, data: { type: "object", properties: { owner: { type: "object", properties: { name: { type: "string" }, photo: { type: ["string", "null"] } } }, summary: monthSummarySchema, trend: trendSchema } } } }),
+                ...errorResponses(404),
+            },
+        },
+    },
+};
+
 const healthPaths = {
     "/health": {
         // Unversioned: probed by infrastructure, not part of the API contract.
@@ -1715,6 +1782,7 @@ const openApiDocument = {
         { name: "Labels", description: "Workspace labels for tagging tasks" },
         { name: "Comments", description: "Discussion on tasks, with @mentions of workspace members" },
         { name: "Notifications", description: "In-app notifications: assignments, mentions and invitations" },
+        { name: "Performance", description: "Your monthly summary (counts only) and share links" },
         { name: "Newsletter", description: "The public News feed, subscribing (double opt-in), opting out, and the account newsletter setting" },
         { name: "Admin", description: "Admin console (Platform Superadmin): its own sign-in with MFA" },
         { name: "Health", description: "Liveness and readiness probes for hosts and load balancers" },
@@ -1728,7 +1796,7 @@ const openApiDocument = {
         },
         schemas,
     },
-    paths: withOperationIds({ ...authPaths, ...userPaths, ...workspacePaths, ...invitationPaths, ...projectPaths, ...labelPaths, ...taskPaths, ...subtaskPaths, ...commentPaths, ...notificationPaths, ...activityPaths, ...dashboardPaths, ...healthPaths, ...adminAuthPaths, ...adminDirectoryPaths, ...adminOperationsPaths, ...newsletterPaths, ...adminNewsletterPaths, ...eventsPaths }),
+    paths: withOperationIds({ ...authPaths, ...userPaths, ...workspacePaths, ...invitationPaths, ...projectPaths, ...labelPaths, ...taskPaths, ...subtaskPaths, ...commentPaths, ...notificationPaths, ...activityPaths, ...dashboardPaths, ...healthPaths, ...adminAuthPaths, ...adminDirectoryPaths, ...adminOperationsPaths, ...newsletterPaths, ...adminNewsletterPaths, ...eventsPaths, ...performancePaths }),
 };
 
 export default openApiDocument;

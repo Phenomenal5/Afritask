@@ -1,4 +1,4 @@
-import { Bell, FolderKanban, LayoutDashboard, ListChecks, Newspaper, Settings, Users, type LucideIcon } from "lucide-react";
+import { Bell, ChartColumn, FolderKanban, LayoutDashboard, ListChecks, Newspaper, Settings, Users, type LucideIcon } from "lucide-react";
 
 export interface NavItem {
   href: string;
@@ -12,6 +12,7 @@ export const WORKSPACE_NAV: NavItem[] = [
   { href: "/dashboard", label: "Overview", icon: LayoutDashboard },
   { href: "/tasks", label: "My Tasks", icon: ListChecks },
   { href: "/projects", label: "Projects", icon: FolderKanban, matches: ["/projects/"] },
+  { href: "/performance", label: "Performance", icon: ChartColumn },
   { href: "/notifications", label: "Notifications", icon: Bell },
   { href: "/news", label: "News", icon: Newspaper },
   { href: "/people", label: "People", icon: Users },

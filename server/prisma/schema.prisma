@@ -148,6 +148,7 @@ model User {
   newsletterSubscription NewsletterSubscriber?
   dueExtensionsMade      DueDateExtension[]      @relation("DueExtensionAuthor")
   dueExtensionsOwned     DueDateExtension[]      @relation("DueExtensionResponsible")
+  performanceShares      PerformanceShare[]
   notificationPreference NotificationPreference?
   pushSubscriptions      PushSubscription[]
   newsletterPosts        NewsletterPost[]        @relation("NewsletterPostAuthor")
@@ -758,4 +759,21 @@ model DueDateExtension {
 
   @@index([taskId, createdAt])
   @@index([responsibleUserId, createdAt])
+}
+
+// A share link for one month of someone's performance summary. Anyone holding the link sees
+// their name and the numbers (never task titles). Only the token's hash is stored; the
+// owner can revoke it any time.
+model PerformanceShare {
+  id        String    @id @default(uuid(7)) @db.Uuid
+  userId    String    @db.Uuid
+  // "YYYY-MM", in the owner's timezone.
+  month     String
+  tokenHash String    @unique
+  revokedAt DateTime? @db.Timestamptz(3)
+  createdAt DateTime  @default(now()) @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
 }

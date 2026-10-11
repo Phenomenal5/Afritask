@@ -207,3 +207,38 @@ export interface Page<Item> {
   items: Item[];
   pagination: { page: number; limit: number; total: number; totalPages: number };
 }
+
+// ─── Monthly performance summary (counts only — see server performanceService) ─────────────────────
+export interface MonthSummary {
+  month: string;
+  timezone: string;
+  completed: number;
+  completedOnTime: number;
+  completedLate: number;
+  completedWithoutDeadline: number;
+  metWithoutExtending: number;
+  onTimeAfterExtending: number;
+  onTimeRate: number | null;
+  extensions: number;
+  planningDays: number;
+  daysInMonth: number;
+  tasksCreated: number;
+  plannedAhead: number;
+  plannedAheadRate: number | null;
+}
+
+export interface TrendPoint {
+  month: string;
+  completedOnTime: number;
+  completedLate: number;
+  extensions: number;
+  planningDays: number;
+}
+
+export interface PerformanceShare {
+  id: string;
+  month: string;
+  createdAt: string;
+  // Only in the response that created it.
+  token?: string;
+}

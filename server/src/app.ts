@@ -16,6 +16,7 @@ import workspaceRoute from "./routes/workspaceRoute.js";
 import invitationRoute from "./routes/invitationRoute.js";
 import newsletterRoute from "./routes/newsletterRoute.js";
 import eventsRoute from "./routes/eventsRoute.js";
+import performanceRoute from "./routes/performanceRoute.js";
 import projectRoute from "./routes/projectRoute.js";
 import labelRoute from "./routes/labelRoute.js";
 import commentRoute from "./routes/commentRoute.js";
@@ -154,6 +155,9 @@ app.use("/api/v1/newsletter", newsletterRoute);
 
 // Live updates (Server-Sent Events): new notifications and comment changes, ids only.
 app.use("/api/v1/events", eventsRoute);
+
+// Monthly performance summary and its share links.
+app.use("/api/v1/performance", performanceRoute);
 
 // Admin console (Platform Superadmin): own sign-in, session and MFA.
 app.use("/api/v1/admin", adminRoute);
