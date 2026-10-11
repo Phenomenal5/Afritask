@@ -5,6 +5,7 @@ import type { Metadata } from "next";
 import type { CSSProperties } from "react";
 import Link from "next/link";
 import LandingMotion from "@/components/landing/LandingMotion";
+import ThemeToggle from "@/components/layout/ThemeToggle";
 import NewsletterSignupForm from "@/components/newsletter/NewsletterSignupForm";
 import {
   ArrowRight,
@@ -90,7 +91,10 @@ export default function LandingPage() {
               </a>
             ))}
           </nav>
-          <LandingNavActions />
+          <div className="flex items-center gap-1 sm:gap-2">
+            <ThemeToggle compact className="h-11 w-11 justify-center rounded-[10px] text-muted transition-colors hover:bg-surface-muted hover:text-ink" />
+            <LandingNavActions />
+          </div>
         </div>
       </header>
 

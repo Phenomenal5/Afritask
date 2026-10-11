@@ -16,7 +16,9 @@ const subscribe = (onChange: () => void) => {
   return () => window.removeEventListener(THEME_EVENT, onChange);
 };
 
-export default function ThemeToggle({ className }: { className?: string }) {
+// `compact`: icon only (navigation bars). The label stays available to screen readers and
+// as a hover tooltip.
+export default function ThemeToggle({ className, compact = false }: { className?: string; compact?: boolean }) {
   const theme = useSyncExternalStore(subscribe, readTheme, () => "light");
   const nextTheme = theme === "dark" ? "light" : "dark";
 
@@ -33,10 +35,17 @@ export default function ThemeToggle({ className }: { className?: string }) {
     window.dispatchEvent(new Event(THEME_EVENT));
   };
 
+  const label = theme === "dark" ? "Use light theme" : "Use dark theme";
   return (
-    <button type="button" onClick={toggleTheme} className={cx("flex cursor-pointer items-center gap-2.5", className)}>
+    <button
+      type="button"
+      onClick={toggleTheme}
+      aria-label={compact ? label : undefined}
+      title={compact ? label : undefined}
+      className={cx("flex cursor-pointer items-center gap-2.5", className)}
+    >
       {theme === "dark" ? <Sun size={17} aria-hidden="true" /> : <Moon size={17} aria-hidden="true" />}
-      {theme === "dark" ? "Use light theme" : "Use dark theme"}
+      {!compact && label}
     </button>
   );
 }
