@@ -50,6 +50,8 @@ export interface TaskInput {
   startDate?: string | null;
   startAt?: string;
   startTimezone?: string;
+  // With status "completed" (or to correct it on a completed task): what was done.
+  completionNote?: string;
   clientRequestId?: string;
 }
 
@@ -57,7 +59,7 @@ interface TaskActions {
   createTask: (workspaceId: string, input: TaskInput) => Promise<ActionResult<Task>>;
   createSubtask: (parent: Task, input: TaskInput) => Promise<ActionResult<Task>>;
   updateTask: (task: Task, changes: TaskInput) => Promise<ActionResult<Task>>;
-  updateTaskStatus: (task: Task, status: TaskStatus) => Promise<ActionResult<Task>>;
+  updateTaskStatus: (task: Task, status: TaskStatus, completionNote?: string) => Promise<ActionResult<Task>>;
   deleteTask: (task: Task) => Promise<ActionResult>;
   subscribe: (listener: TaskListener) => () => void;
 }
@@ -143,11 +145,11 @@ export function TaskProvider({ children }: { children: ReactNode }) {
   // Optimistic: the status moves immediately and moves back if the server refuses
   // (PRD FR12: "failed updates restore the prior state and show an error").
   const updateTaskStatus = useCallback(
-    async (task: Task, status: TaskStatus): Promise<ActionResult<Task>> => {
+    async (task: Task, status: TaskStatus, completionNote?: string): Promise<ActionResult<Task>> => {
       if (task.status === status) return { success: true, data: task };
       emit({ type: "upsert", task: { ...task, status } });
       try {
-        const res = await updateTaskStatusRequest(task.id, status, task.version);
+        const res = await updateTaskStatusRequest(task.id, status, task.version, completionNote);
         const saved: Task = res.data.data.task;
         emit({ type: "upsert", task: saved });
         toast.success(`“${saved.title}” moved to ${STATUS_LABELS[status]}`, { id: `status-${task.id}` });

@@ -14,6 +14,7 @@ import { TaskProvider } from "@/context/TaskContext";
 import { UserProvider } from "@/context/UserContext";
 import { WorkspaceProvider } from "@/context/WorkspaceContext";
 import { ConfirmProvider } from "@/components/ui/ConfirmProvider";
+import { CompletionNoteProvider } from "@/components/tasks/CompletionNoteProvider";
 
 // Bridge auth state into the workspace and profile providers without coupling the contexts directly.
 // The terms themselves stay readable while the accept step is showing.
@@ -29,7 +30,9 @@ function SessionProviders({ children }: { children: ReactNode }) {
     <WorkspaceProvider isAuthenticated={isAuthenticated && !termsRequired}>
       <UserProvider setUser={setUser}>
         <TaskProvider>
-          <ConfirmProvider>{children}</ConfirmProvider>
+          <ConfirmProvider>
+            <CompletionNoteProvider>{children}</CompletionNoteProvider>
+          </ConfirmProvider>
         </TaskProvider>
       </UserProvider>
     </WorkspaceProvider>

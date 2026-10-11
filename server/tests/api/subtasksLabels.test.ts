@@ -81,7 +81,7 @@ describe("subtasks", () => {
         const parent = await createTask(team.workspace.id, team.owner.user.id);
         const child = (await team.owner.client.post(`/tasks/${parent.id}/subtasks`, { title: "child" })).body.data.task;
 
-        const completed = await team.owner.client.patch(`/tasks/${parent.id}/status`, { status: "completed", version: 1 });
+        const completed = await team.owner.client.patch(`/tasks/${parent.id}/status`, { status: "completed", completionNote: "Done", version: 1 });
         expect(completed.body.data.task.subtaskCounts).toEqual({ total: 1, completed: 0 });
         await expect(prisma.task.findUniqueOrThrow({ where: { id: child.id } })).resolves.toMatchObject({ status: "todo" });
 

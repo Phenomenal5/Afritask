@@ -27,8 +27,9 @@ export const updateTask = (id, data) => {
 };
 
 // Update only the status field of a task. `version` is the one we last saw (stale → 409).
-export const updateTaskStatus = (id, status, version) => {
-  return api.patch(`/tasks/${id}/status`, { status, version });
+// Completing a top-level task needs `completionNote` ("what was done").
+export const updateTaskStatus = (id, status, version, completionNote) => {
+  return api.patch(`/tasks/${id}/status`, { status, version, ...(completionNote !== undefined && { completionNote }) });
 };
 
 // Delete a task record by id.

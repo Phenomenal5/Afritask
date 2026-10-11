@@ -22,7 +22,7 @@ describe("task history", () => {
             assigneeMembershipId: team.member.membership.id,
             labelIds: [label.id],
         });
-        await team.member.client.patch(`/tasks/${task.id}/status`, { status: "completed", version: task.version + 1 });
+        await team.member.client.patch(`/tasks/${task.id}/status`, { status: "completed", completionNote: "Done", version: task.version + 1 });
 
         const history = await team.admin.client.get(`/tasks/${task.id}/activity`);
         expect(history.status).toBe(200);
@@ -31,7 +31,7 @@ describe("task history", () => {
 
         // Newest first: the member completed it.
         expect(entries[0].actor.name).toBe("Musa Member");
-        expect(entries[0].changes).toEqual({ status: { from: "todo", to: "completed" } });
+        expect(entries[0].changes).toEqual({ status: { from: "todo", to: "completed" }, completionNote: { from: null, to: "Done" } });
 
         // Names, not ids, so history reads the same after renames/removals.
         expect(entries[1].actor.name).toBe("Olu Owner");

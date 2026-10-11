@@ -23,6 +23,7 @@ import Button from "@/components/ui/Button";
 import { SelectField, TextAreaField, TextField } from "@/components/ui/Field";
 import { Notice } from "@/components/ui/States";
 import LabelPicker from "./LabelPicker";
+import { useCompletionNote } from "./CompletionNoteProvider";
 import type { ComposerDefaults } from "@/context/TaskPanelContext";
 import type { Task, TaskPriority, TaskStatus } from "@/types/models";
 
@@ -76,6 +77,7 @@ export default function TaskComposer({ open, defaults, onClose, onCreated }: Tas
   const { activeWorkspace } = useWorkspaces();
   const { members, projects, labels, myMembership } = useWorkspaceResources();
   const { createTask } = useTaskActions();
+  const askCompletionNote = useCompletionNote();
   const online = useOnlineStatus();
 
   const workspaceId: string | undefined = activeWorkspace?.id;
@@ -163,6 +165,12 @@ export default function TaskComposer({ open, defaults, onClose, onCreated }: Tas
       // Only meaningful with a deadline; without one the server stores no reminder.
       ...(form.dueDate && { reminderOffset: form.reminderOffset }),
     };
+
+    if (form.status === "completed") {
+      const completionNote = await askCompletionNote({ taskTitle: trimmedTitle, openSubtasks: 0, totalSubtasks: 0 });
+      if (completionNote === null) return;
+      payload.completionNote = completionNote;
+    }
 
     setSaving(true);
     const result = await createTask(workspaceId, payload);

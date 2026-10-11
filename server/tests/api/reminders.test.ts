@@ -61,7 +61,7 @@ describe("re-planning", () => {
         const team = await createTeam();
         const created = (await team.owner.client.post(`/workspaces/${team.workspace.id}/tasks`, { title: "Close me", dueAt: inHours(48) })).body.data.task;
 
-        const completed = await team.owner.client.patch(`/tasks/${created.id}/status`, { status: "completed", version: created.version });
+        const completed = await team.owner.client.patch(`/tasks/${created.id}/status`, { status: "completed", completionNote: "Done", version: created.version });
         expect(completed.body.data.task).toMatchObject({ remindAt: null, overdueCheckAt: null });
 
         const reopened = await team.owner.client.patch(`/tasks/${created.id}/status`, { status: "todo", version: completed.body.data.task.version });

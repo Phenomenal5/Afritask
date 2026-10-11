@@ -4,20 +4,30 @@ import { useCallback } from "react";
 import { createElement } from "react";
 import { useTaskActions } from "@/context/TaskContext";
 import { useConfirm } from "@/components/ui/ConfirmProvider";
+import { useCompletionNote } from "@/components/tasks/CompletionNoteProvider";
 import { STATUS_LABELS } from "@/utils/taskMeta";
 import type { Task, TaskStatus } from "@/types/models";
 
 // The one way any view changes a task's status (list select, board drag, drawer).
+// Completing a top-level task first asks "What was done?" (the server requires it); that
+// dialog also warns about open subtasks. Subtasks complete in one click.
 // NOTE: completing a parent never completes its subtasks (PRD FR07) — so when some are
 // still open we say so first, and only an explicit confirm completes the parent alone.
 export function useStatusChange() {
   const { updateTaskStatus } = useTaskActions();
   const confirm = useConfirm();
+  const askCompletionNote = useCompletionNote();
 
   return useCallback(
     async (task: Task, nextStatus: TaskStatus) => {
       if (task.status === nextStatus) return;
       const openSubtasks = (task.subtaskCounts?.total ?? 0) - (task.subtaskCounts?.completed ?? 0);
+      if (nextStatus === "completed" && !task.parentTaskId) {
+        const completionNote = await askCompletionNote({ taskTitle: task.title, openSubtasks, totalSubtasks: task.subtaskCounts?.total ?? 0 });
+        if (completionNote === null) return;
+        await updateTaskStatus(task, nextStatus, completionNote);
+        return;
+      }
       if (nextStatus === "completed" && openSubtasks > 0) {
         const confirmed = await confirm({
           title: `Complete “${task.title}” with open subtasks?`,
@@ -34,6 +44,6 @@ export function useStatusChange() {
       }
       await updateTaskStatus(task, nextStatus);
     },
-    [confirm, updateTaskStatus]
+    [confirm, askCompletionNote, updateTaskStatus]
   );
 }

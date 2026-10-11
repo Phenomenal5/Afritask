@@ -37,7 +37,7 @@ describe("board moves", () => {
         const task = await createTask(team.workspace.id, team.owner.user.id);
         await team.owner.client.patch(`/tasks/${task.id}/status`, { status: "in_progress", version: 1 });
 
-        const staleMove = await team.owner.client.patch(`/tasks/${task.id}/status`, { status: "completed", version: 1 });
+        const staleMove = await team.owner.client.patch(`/tasks/${task.id}/status`, { status: "completed", completionNote: "Done", version: 1 });
         expect(staleMove.status).toBe(409);
         await expect(prisma.task.findUniqueOrThrow({ where: { id: task.id } })).resolves.toMatchObject({ status: "in_progress" });
     });
@@ -47,6 +47,6 @@ describe("board moves", () => {
         const archived = await createProject(team.workspace.id, team.owner.user.id, { state: "archived" });
         const task = await createTask(team.workspace.id, team.owner.user.id, { projectId: archived.id });
 
-        await expect(team.owner.client.patch(`/tasks/${task.id}/status`, { status: "completed", version: 1 })).resolves.toMatchObject({ status: 409 });
+        await expect(team.owner.client.patch(`/tasks/${task.id}/status`, { status: "completed", completionNote: "Done", version: 1 })).resolves.toMatchObject({ status: 409 });
     });
 });

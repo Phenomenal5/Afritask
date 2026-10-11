@@ -88,7 +88,7 @@ describe("project lifecycle", () => {
 
         await expect(team.owner.client.patch(`/projects/${project.id}`, { name: "x" })).resolves.toMatchObject({ status: 409 });
         await expect(team.owner.client.put(`/tasks/${task.id}`, { title: "x", version: 1 })).resolves.toMatchObject({ status: 409 });
-        await expect(team.owner.client.patch(`/tasks/${task.id}/status`, { status: "completed", version: 1 })).resolves.toMatchObject({ status: 409 });
+        await expect(team.owner.client.patch(`/tasks/${task.id}/status`, { status: "completed", completionNote: "Done", version: 1 })).resolves.toMatchObject({ status: 409 });
         await expect(team.owner.client.delete(`/tasks/${task.id}`)).resolves.toMatchObject({ status: 409 });
         await expect(team.owner.client.post(`/workspaces/${team.workspace.id}/tasks`, { title: "new", projectId: project.id })).resolves.toMatchObject({ status: 409 });
         // …but still readable, by project:

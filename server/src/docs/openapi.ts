@@ -158,6 +158,7 @@ const schemas = {
             dueKind: { type: ["string", "null"], enum: ["date", "datetime", null], description: "date = due by 23:59 that day in dueTimezone" },
             dueTimezone: { type: ["string", "null"] },
             completedAt: { type: ["string", "null"], format: "date-time" },
+            completionNote: { type: ["string", "null"], description: "What was done — set when the task was completed; null once reopened" },
             reminderOffset: { type: ["string", "null"], enum: ["at_due", "one_hour", "one_day", "three_days", "one_week", null] },
             remindAt: { type: ["string", "null"], format: "date-time", description: "When the pending reminder fires (null: none pending)" },
             startAt: { type: ["string", "null"], format: "date-time" },
@@ -200,6 +201,7 @@ const schemas = {
         description:
             "Send dueDate (YYYY-MM-DD → due 23:59 that day in dueTimezone, default your profile timezone) OR dueAt (exact ISO instant); null clears. Legacy `deadline` and statuses `pending`/`in progress` are still accepted.",
         properties: {
+            completionNote: { type: "string", maxLength: 2000, description: "With status \"completed\": what was done (required for top-level tasks). On a completed task: corrects the note." },
             title: { type: "string", minLength: 1, maxLength: 200 },
             description: { type: "string", maxLength: 20000 },
             status: ref("TaskStatus"),
@@ -840,7 +842,11 @@ const taskPaths = {
             requestBody: jsonBody({
                 type: "object",
                 required: ["status", "version"],
-                properties: { status: ref("TaskStatus"), version: { type: "integer" } },
+                properties: {
+                    status: ref("TaskStatus"),
+                    version: { type: "integer" },
+                    completionNote: { type: "string", maxLength: 2000, description: "Required when completing a top-level task (400 code completion_note_required); optional for subtasks" },
+                },
             }),
             responses: { 200: jsonResponse("Updated", dataEnvelope("task", ref("Task"))), ...errorResponses(400, 401, 403, 404, 409) },
         },

@@ -70,7 +70,7 @@ describe("PRD core journeys", () => {
 
         // It's in "my tasks", and completing it records the time.
         await expect(browser.get(`/workspaces/${workspaceId}/tasks?assignee=me`)).resolves.toMatchObject({ body: { results: 1 } });
-        const completed = await browser.patch(`/tasks/${task.id}/status`, { status: "completed", version: withDue.body.data.task.version });
+        const completed = await browser.patch(`/tasks/${task.id}/status`, { status: "completed", completionNote: "Done", version: withDue.body.data.task.version });
         expect(completed.body.data.task).toMatchObject({ status: "completed" });
         expect(completed.body.data.task.completedAt).not.toBeNull();
     });
@@ -129,7 +129,8 @@ describe("PRD core journeys", () => {
         await expect(member.browser.get(`/workspaces/${workspaceId}/tasks?assignee=me`)).resolves.toMatchObject({ body: { results: 1 } });
         let version = task.version;
         for (const status of ["in_progress", "in_review", "completed"]) {
-            const moved = await member.browser.patch(`/tasks/${task.id}/status`, { status, version });
+            // Completing needs "what was done".
+            const moved = await member.browser.patch(`/tasks/${task.id}/status`, { status, version, ...(status === "completed" && { completionNote: "Delivered the brief" }) });
             expect(moved.status).toBe(200);
             version = moved.body.data.task.version;
         }
@@ -153,7 +154,7 @@ describe("PRD core journeys", () => {
         expect(reminded.remindAt).not.toBeNull();
 
         // Completing a task cancels its pending reminder.
-        await assignee.browser.patch(`/tasks/${finished.id}/status`, { status: "completed", version: finished.version });
+        await assignee.browser.patch(`/tasks/${finished.id}/status`, { status: "completed", completionNote: "Done", version: finished.version });
 
         clearMailbox();
         await runReminderSweep(inAnHour);

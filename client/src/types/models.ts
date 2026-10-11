@@ -61,6 +61,8 @@ export interface Task {
   dueKind: "date" | "datetime" | null;
   dueTimezone: string | null;
   completedAt: string | null;
+  // "What was done" — set when completed (required for top-level tasks), null once reopened.
+  completionNote: string | null;
   reminderOffset: ReminderOffset | null;
   // When work is planned to begin; a date-only start is 00:00 that day in startTimezone.
   startAt: string | null;

@@ -359,6 +359,9 @@ model Task {
   dueTimezone          String?
   // Set on entering Completed, cleared on reopening. Null for legacy completions (unknown time).
   completedAt          DateTime?       @db.Timestamptz(3)
+  // "What was done" — required to complete a top-level task, optional for subtasks. Cleared
+  // when the task is reopened; the activity history keeps every version.
+  completionNote       String?
   // Optimistic concurrency: every write must name the version it read (SRS SR06).
   version              Int             @default(1)
   reminderOffset       ReminderOffset?

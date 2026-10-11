@@ -50,6 +50,7 @@ import SubtaskList from "./SubtaskList";
 import ReminderSelect from "./ReminderSelect";
 import { DEFAULT_REMINDER, reminderChoiceOf, type ReminderChoice } from "@/utils/reminders";
 import TaskComments from "./TaskComments";
+import CompletionNoteSection from "./CompletionNoteSection";
 import type { Task, TaskPriority } from "@/types/models";
 
 interface DetailForm {
@@ -402,6 +403,8 @@ export default function TaskDrawer({ taskId, onClose, onOpenTask }: TaskDrawerPr
             </span>
           )}
         </section>
+
+        <CompletionNoteSection task={task} canEdit={viewerCanEdit && online} />
 
         <section aria-label="Details" className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <SelectField

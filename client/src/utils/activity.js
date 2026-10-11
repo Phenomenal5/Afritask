@@ -31,6 +31,8 @@ const FIELD_LABELS = {
   status: "Status",
   priority: "Priority",
   dueAt: "Due",
+  startAt: "Start",
+  completionNote: "What was done",
   project: "Project",
   assignee: "Assignee",
   labels: "Labels",
@@ -46,20 +48,20 @@ const formatValue = (field, value) => {
   if (field === "priority") return PRIORITY_STYLES[value]?.label ?? value;
   if (field === "state") return PROJECT_STATE_LABELS[value] ?? value;
   if (field === "role") return ROLE_LABELS[value] ?? value;
-  if (field === "dueAt") {
+  if (field === "dueAt" || field === "startAt") {
     return new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }).format(new Date(value));
   }
   return String(value);
 };
 
 // [{ field: "Status", from: "To do", to: "Completed" }, …]. Descriptions are long, so they
-// only say "changed" rather than printing both versions.
+// only say "changed"; a completion note shows just its new text (or "cleared" on reopen).
 export const describeChanges = (entry) =>
-  Object.entries(entry.changes ?? {}).map(([field, change]) => ({
-    field: FIELD_LABELS[field] ?? field,
-    from: field === "description" ? null : formatValue(field, change.from),
-    to: field === "description" ? "changed" : formatValue(field, change.to),
-  }));
+  Object.entries(entry.changes ?? {}).map(([field, change]) => {
+    if (field === "description") return { field: FIELD_LABELS.description, from: null, to: "changed" };
+    if (field === "completionNote") return { field: FIELD_LABELS.completionNote, from: null, to: change.to ? String(change.to) : "cleared (reopened)" };
+    return { field: FIELD_LABELS[field] ?? field, from: formatValue(field, change.from), to: formatValue(field, change.to) };
+  });
 
 // "just now", "5 min ago", "3 h ago", then a date.
 export const timeAgo = (instant, now = new Date()) => {

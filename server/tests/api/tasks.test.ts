@@ -54,7 +54,7 @@ describe("POST /workspaces/:id/tasks", () => {
 
     it("sets completedAt when created already completed", async () => {
         const team = await createTeam();
-        const response = await team.owner.client.post(`/workspaces/${team.workspace.id}/tasks`, { title: "x", status: "completed" });
+        const response = await team.owner.client.post(`/workspaces/${team.workspace.id}/tasks`, { title: "x", status: "completed", completionNote: "Shipped it" });
         expect(response.body.data.task.completedAt).not.toBeNull();
     });
 
@@ -182,7 +182,7 @@ describe("versioning and completion", () => {
     it("completing records completedAt; reopening clears it", async () => {
         const team = await createTeam();
         const task = await createTask(team.workspace.id, team.owner.user.id);
-        const completed = await team.owner.client.patch(`/tasks/${task.id}/status`, { status: "completed", version: 1 });
+        const completed = await team.owner.client.patch(`/tasks/${task.id}/status`, { status: "completed", completionNote: "Done", version: 1 });
         expect(completed.body.data.task.completedAt).not.toBeNull();
         const reopened = await team.owner.client.patch(`/tasks/${task.id}/status`, { status: "in_review", version: 2 });
         expect(reopened.body.data.task).toMatchObject({ status: "in_review", completedAt: null, version: 3 });
@@ -192,7 +192,7 @@ describe("versioning and completion", () => {
         const team = await createTeam();
         const task = await createTask(team.workspace.id, team.owner.user.id);
         await expect(team.owner.client.patch(`/tasks/${task.id}/status`, { version: 1 })).resolves.toMatchObject({ status: 400 });
-        await expect(team.owner.client.patch(`/tasks/${task.id}/status`, { status: "completed" })).resolves.toMatchObject({ status: 400 });
+        await expect(team.owner.client.patch(`/tasks/${task.id}/status`, { status: "completed", completionNote: "Done" })).resolves.toMatchObject({ status: 400 });
     });
 
     it("an untouched deadline survives an edit; null clears it", async () => {

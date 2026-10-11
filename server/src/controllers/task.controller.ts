@@ -156,17 +156,19 @@ interface TaskHistoryRow extends TaskRelations {
     title: string;
     description: string;
     status: TaskStatus;
+    completionNote: string | null;
     priority: TaskPriority;
     dueAt: Date | null;
     startAt: Date | null;
     project: { name: string } | null;
     assignee: { user: { name: string } } | null;
 }
-const HISTORY_FIELDS = ["title", "description", "status", "priority", "dueAt", "startAt", "project", "assignee", "labels"] as const;
+const HISTORY_FIELDS = ["title", "description", "status", "completionNote", "priority", "dueAt", "startAt", "project", "assignee", "labels"] as const;
 const toHistorySnapshot = (task: TaskHistoryRow) => ({
     title: task.title,
     description: task.description,
     status: task.status,
+    completionNote: task.completionNote,
     priority: task.priority,
     dueAt: task.dueAt,
     startAt: task.startAt,
@@ -231,10 +233,26 @@ const parseAssigneeMembershipId = async (assigneeMembershipId: unknown, workspac
 };
 
 // Entering Completed records the time; leaving it clears it (PRD FR06). Unchanged → no-op.
-const completionChange = (previousStatus: TaskStatus, nextStatus: TaskStatus | undefined) => {
+// ─── Completion note ─────────────────────
+const COMPLETION_NOTE_MAX_LENGTH = 2000;
+export const COMPLETION_NOTE_REQUIRED = "Add a short note on what was done before marking this task completed.";
+
+// The "what was done" note sent with a completion. Required for top-level tasks; subtasks
+// (checklist items) may leave it empty.
+const parseCompletionNote = (rawNote: unknown, isSubtask: boolean): string | null => {
+    if (rawNote !== undefined && rawNote !== null && typeof rawNote !== "string") throw new AppError("completionNote must be text", 400);
+    const note = (rawNote ?? "").trim();
+    if (!note && !isSubtask) throw new AppError(COMPLETION_NOTE_REQUIRED, 400, "completion_note_required");
+    if (note.length > COMPLETION_NOTE_MAX_LENGTH) throw new AppError(`Keep the completion note under ${COMPLETION_NOTE_MAX_LENGTH} characters`, 400);
+    return note || null;
+};
+
+// What a status change does to completedAt and the completion note. Reopening clears both
+// (the history entry keeps the old note).
+const completionChange = (previousStatus: TaskStatus, nextStatus: TaskStatus | undefined, rawNote: unknown, isSubtask: boolean) => {
     if (!nextStatus || nextStatus === previousStatus) return {};
-    if (nextStatus === TaskStatus.completed) return { completedAt: new Date() };
-    if (previousStatus === TaskStatus.completed) return { completedAt: null };
+    if (nextStatus === TaskStatus.completed) return { completedAt: new Date(), completionNote: parseCompletionNote(rawNote, isSubtask) };
+    if (previousStatus === TaskStatus.completed) return { completedAt: null, completionNote: null };
     return {};
 };
 
@@ -512,6 +530,8 @@ export const createWorkspaceTask = catchAsync(async (req, res) => {
                     ...(due ?? {}),
                     ...reminder,
                     completedAt: status === TaskStatus.completed ? new Date() : null,
+                    // Created already done: it needs its note like any other completion.
+                    completionNote: status === TaskStatus.completed ? parseCompletionNote(req.body.completionNote, false) : null,
                 },
                 include: taskInclude,
             });
@@ -607,7 +627,11 @@ export const editTask = catchAsync(async (req, res) => {
             ...(due ?? {}),
             ...(start ?? {}),
             reminderOffset,
-            ...completionChange(existingTask.status, status),
+            ...completionChange(existingTask.status, status, req.body.completionNote, !!existingTask.parentTaskId),
+            // Correcting the note of a task that stays completed.
+            ...(existingTask.status === TaskStatus.completed && (status ?? existingTask.status) === TaskStatus.completed && req.body.completionNote !== undefined
+                ? { completionNote: parseCompletionNote(req.body.completionNote, !!existingTask.parentTaskId) }
+                : {}),
             assigneeMembershipId,
             projectId,
         },
@@ -638,7 +662,7 @@ export const updateTaskStatus = catchAsync(async (req, res) => {
 
     const task = await updateWithVersionCheck(id, expectedVersion, membership.userId, {
         status,
-        ...completionChange(existingTask.status, status),
+        ...completionChange(existingTask.status, status, req.body.completionNote, !!existingTask.parentTaskId),
     });
     // Completing a parent never completes its subtasks (PRD FR07); the response's
     // subtaskCounts lets the client warn about unfinished ones.
@@ -702,6 +726,7 @@ export const createSubtask = catchAsync(async (req, res) => {
                 ...(due ?? {}),
                 ...reminder,
                 completedAt: status === TaskStatus.completed ? new Date() : null,
+                completionNote: status === TaskStatus.completed ? parseCompletionNote(req.body.completionNote, true) : null,
             },
             include: taskInclude,
         });

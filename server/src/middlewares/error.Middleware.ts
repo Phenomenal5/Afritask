@@ -10,6 +10,9 @@ interface HandledError extends Error {
   statusCode?: number;
   status?: string;
   isOperational?: boolean;
+  // AppError's machine-readable reason (Prisma errors also have a `code` — "P2002" etc. —
+  // which is never passed through).
+  code?: string;
 }
 
 // ─── Prisma known request errors (https://pris.ly/d/prisma-errors) ─────────────────────
@@ -56,6 +59,7 @@ const globalErrorHandler: ErrorRequestHandler = (error: HandledError, req, res, 
   res.status(statusCode).json({
     status: isOperational ? err.status || "error" : "error",
     message: isOperational ? err.message : "Something went wrong on our side. Please try again in a moment.",
+    ...(isOperational && typeof err.code === "string" && !err.code.startsWith("P") && { code: err.code }),
     // A reference the person can quote; it points at the log line above. No internals.
     ...(statusCode >= 500 && { requestId: req.id }),
   });
