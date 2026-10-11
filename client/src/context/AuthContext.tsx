@@ -57,8 +57,9 @@ interface AuthState {
 
 const AuthContext = createContext<AuthState | null>(null);
 
-// NOTE: the session lives in an httpOnly cookie that JavaScript can't read. So "am I
-// signed in?" is answered only by asking the server (/auth/me) — never by checking storage.
+// NOTE: the access and refresh tokens live in httpOnly cookies that JavaScript can't read.
+// So "am I signed in?" is answered only by asking the server (/auth/me — lib/api refreshes
+// an expired access token first) — never by checking storage.
 // Older builds kept a JWT under this key; clear any leftover copy on load.
 const LEGACY_TOKEN_KEY = "afritask_token";
 

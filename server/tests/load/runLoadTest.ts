@@ -18,7 +18,8 @@ import { randomUUID } from "node:crypto";
 import type { AddressInfo } from "node:net";
 import app from "../../src/app.js";
 import prisma from "../../src/config/prisma.js";
-import { SESSION_COOKIE_NAME } from "../../src/services/sessionService.js";
+import { ACCESS_TOKEN_COOKIE } from "../../src/services/sessionService.js";
+import { signAccessToken } from "../../src/utils/accessToken.js";
 import { generateSecureToken, hashSecureToken } from "../../src/utils/secureToken.js";
 import { hashPassword } from "../../src/utils/password.js";
 import { resetDatabase } from "../helpers/database.js";
@@ -59,16 +60,18 @@ const seed = async () => {
     }
 
     const sessionSecrets = users.map(() => generateSecureToken());
-    await prisma.session.createMany({
+    const sessions = await prisma.session.createManyAndReturn({
         data: users.map((user, index) => ({ userId: user.id, secretHash: hashSecureToken(sessionSecrets[index]!), expiresAt: new Date(Date.now() + 3600_000) })),
     });
     const sampleTask = await prisma.task.findFirstOrThrow({ where: { workspaceId: workspace.id } });
-    return { workspaceId: workspace.id, sessionSecrets, sampleTaskId: sampleTask.id };
+    // One access token per session, valid for the whole run (the load test doesn't refresh).
+    const accessTokens = sessions.map((session) => signAccessToken({ userId: session.userId, sessionId: session.id }, process.env.ACCESS_TOKEN_SECRET!, 3600_000));
+    return { workspaceId: workspace.id, accessTokens, sampleTaskId: sampleTask.id };
 };
 
 const main = async () => {
     console.log(`Seeding ${TASK_COUNT} tasks and ${CONNECTIONS} users in the TEST database…`);
-    const { workspaceId, sessionSecrets, sampleTaskId } = await seed();
+    const { workspaceId, accessTokens, sampleTaskId } = await seed();
 
     const server = app.listen(0);
     await new Promise((resolve) => server.once("listening", resolve));
@@ -85,10 +88,10 @@ const main = async () => {
             {
                 setupRequest: (request) => {
                     requestCounter += 1;
-                    const sessionSecret = sessionSecrets[requestCounter % sessionSecrets.length]!;
+                    const accessToken = accessTokens[requestCounter % accessTokens.length]!;
                     const scenario = requestCounter % 10;
                     const headers = {
-                        cookie: `${SESSION_COOKIE_NAME}=${sessionSecret}`,
+                        cookie: `${ACCESS_TOKEN_COOKIE}=${accessToken}`,
                         "x-requested-with": "XMLHttpRequest",
                         "content-type": "application/json",
                     };

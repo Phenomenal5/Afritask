@@ -21,10 +21,13 @@ const signupBody = (overrides: Record<string, unknown> = {}) => ({
     ...overrides,
 });
 
-const sessionCookieOf = (response: { headers: Record<string, unknown> }) => {
+const cookieOf = (response: { headers: Record<string, unknown> }, name: "afritask_access" | "afritask_refresh") => {
     const cookies = (response.headers["set-cookie"] ?? []) as string[];
-    return cookies.find((cookie) => cookie.startsWith("afritask_session="));
+    return cookies.find((cookie) => cookie.startsWith(`${name}=`));
 };
+const accessCookieOf = (response: { headers: Record<string, unknown> }) => cookieOf(response, "afritask_access");
+const refreshCookieOf = (response: { headers: Record<string, unknown> }) => cookieOf(response, "afritask_refresh");
+const cookieValue = (cookie: string | undefined) => cookie?.split(";")[0]!.split("=")[1] ?? "";
 
 describe("POST /auth/signup", () => {
     it("creates an unverified account and emails a verification link", async () => {
@@ -124,16 +127,19 @@ describe("GET /auth/verify-email/:token", () => {
 });
 
 describe("POST /auth/login", () => {
-    it("sets an httpOnly SameSite=Lax session cookie and returns the user without secrets", async () => {
+    it("sets httpOnly access (15 min) and refresh (30 days) cookies and returns the user without secrets", async () => {
         const user = await createUser();
         const response = await createClient().post("/auth/login", { email: user.email, password: DEFAULT_PASSWORD });
 
         expect(response.status).toBe(200);
-        const cookie = sessionCookieOf(response);
-        expect(cookie).toBeDefined();
-        expect(cookie).toMatch(/HttpOnly/i);
-        expect(cookie).toMatch(/SameSite=Lax/i);
-        expect(cookie).toMatch(/Path=\//);
+        const accessCookie = accessCookieOf(response);
+        const refreshCookie = refreshCookieOf(response);
+        expect(accessCookie).toMatch(/HttpOnly/i);
+        expect(accessCookie).toMatch(/SameSite=Lax/i);
+        expect(accessCookie).toMatch(/Path=\/;/);
+        expect(accessCookie).toMatch(/Max-Age=900/);
+        expect(refreshCookie).toMatch(/HttpOnly/i);
+        expect(refreshCookie).toMatch(/Path=\/api\/auth/);
         expect(response.body.token).toBeUndefined();
         expect(response.body.user.email).toBe(user.email);
         expect(response.body.user).not.toHaveProperty("password");
@@ -148,7 +154,8 @@ describe("POST /auth/login", () => {
         expect(wrongPassword.status).toBe(401);
         expect(unknownEmail.status).toBe(401);
         expect(wrongPassword.body.message).toBe(unknownEmail.body.message);
-        expect(sessionCookieOf(wrongPassword)).toBeUndefined();
+        expect(accessCookieOf(wrongPassword)).toBeUndefined();
+        expect(refreshCookieOf(wrongPassword)).toBeUndefined();
     });
 
     it("blocks an unverified account and re-sends the verification email", async () => {
@@ -182,16 +189,42 @@ describe("GET /auth/me and POST /auth/logout", () => {
         expect(response.body.user.id).toBe(user.id);
     });
 
-    it("logout revokes only the current session and clears the cookie", async () => {
+    it("logout revokes only the current session in the database and clears both cookies", async () => {
         const user = await createUser();
         const laptop = await signIn(user.email);
         const phone = await signIn(user.email);
+        const laptopLogin = await createClient().post("/auth/login", { email: user.email, password: DEFAULT_PASSWORD });
+        const stolenAccessToken = cookieValue(accessCookieOf(laptopLogin));
 
         const response = await laptop.post("/auth/logout");
         expect(response.status).toBe(200);
-        expect(sessionCookieOf(response)).toMatch(/afritask_session=;/);
+        expect(accessCookieOf(response)).toMatch(/afritask_access=;/);
+        expect(refreshCookieOf(response)).toMatch(/afritask_refresh=;/);
         await expect(laptop.get("/auth/me")).resolves.toMatchObject({ status: 401 });
+        await expect(laptop.post("/auth/refresh")).resolves.toMatchObject({ status: 401 });
         await expect(phone.get("/auth/me")).resolves.toMatchObject({ status: 200 });
+        expect(await prisma.session.count({ where: { userId: user.id, revokedAt: { not: null } } })).toBe(1);
+        // A different login's access token is untouched — only the signed-out session ended.
+        await expect(createClient({ accessToken: stolenAccessToken }).get("/auth/me")).resolves.toMatchObject({ status: 200 });
+    });
+
+    it("an access token stops working the moment its session is signed out", async () => {
+        const user = await createUser();
+        const login = await createClient().post("/auth/login", { email: user.email, password: DEFAULT_PASSWORD });
+        const accessToken = cookieValue(accessCookieOf(login));
+        const refreshToken = cookieValue(refreshCookieOf(login));
+
+        await createClient({ refreshToken }).post("/auth/logout");
+        await expect(createClient({ accessToken }).get("/auth/me")).resolves.toMatchObject({ status: 401, body: { code: "access_token_invalid" } });
+    });
+
+    it("logout works with only the refresh token (access token already expired)", async () => {
+        const user = await createUser();
+        const login = await createClient().post("/auth/login", { email: user.email, password: DEFAULT_PASSWORD });
+        const refreshToken = cookieValue(refreshCookieOf(login));
+
+        await expect(createClient({ refreshToken }).post("/auth/logout")).resolves.toMatchObject({ status: 200 });
+        await expect(createClient({ refreshToken }).post("/auth/refresh")).resolves.toMatchObject({ status: 401 });
     });
 
     it("an expired session is refused", async () => {
@@ -199,6 +232,35 @@ describe("GET /auth/me and POST /auth/logout", () => {
         const client = await signIn(user.email);
         await prisma.session.updateMany({ data: { expiresAt: new Date(Date.now() - 1000) } });
         await expect(client.get("/auth/me")).resolves.toMatchObject({ status: 401 });
+    });
+});
+
+describe("POST /auth/refresh", () => {
+    it("trades the refresh cookie for new access + refresh cookies", async () => {
+        const user = await createUser();
+        const browser = await signIn(user.email);
+
+        const refreshed = await browser.post("/auth/refresh");
+        expect(refreshed.status).toBe(200);
+        expect(accessCookieOf(refreshed)).toBeDefined();
+        expect(refreshCookieOf(refreshed)).toBeDefined();
+        await expect(browser.get("/auth/me")).resolves.toMatchObject({ status: 200 });
+    });
+
+    it("answers 401 (and clears the cookies) without a usable refresh token", async () => {
+        const response = await createClient().post("/auth/refresh");
+        expect(response.status).toBe(401);
+        expect(refreshCookieOf(response)).toMatch(/afritask_refresh=;/);
+        await expect(createClient({ refreshToken: "made-up" }).post("/auth/refresh")).resolves.toMatchObject({ status: 401 });
+    });
+
+    it("a refresh token stops working after a password reset", async () => {
+        const user = await createUser();
+        const login = await createClient().post("/auth/login", { email: user.email, password: DEFAULT_PASSWORD });
+        const refreshToken = cookieValue(refreshCookieOf(login));
+
+        await prisma.session.updateMany({ where: { userId: user.id }, data: { revokedAt: new Date() } });
+        await expect(createClient({ refreshToken }).post("/auth/refresh")).resolves.toMatchObject({ status: 401 });
     });
 });
 
@@ -269,7 +331,8 @@ describe("Google sign-in", () => {
         const client = createClient();
         const exchange = await client.post("/auth/google/exchange", { code });
         expect(exchange.status).toBe(200);
-        expect(sessionCookieOf(exchange)).toBeDefined();
+        expect(accessCookieOf(exchange)).toBeDefined();
+        expect(refreshCookieOf(exchange)).toBeDefined();
         await expect(client.get("/auth/me")).resolves.toMatchObject({ status: 200 });
 
         const reuse = await createClient().post("/auth/google/exchange", { code });

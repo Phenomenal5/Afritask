@@ -156,10 +156,16 @@ enum SessionKind {
 
 // A signed-in browser. The cookie holds a random secret; only its SHA-256 hash is stored,
 // so a database leak can't be replayed as a login. Revoking = setting revokedAt.
+// A customer session is the REFRESH TOKEN (secretHash = its hash); access tokens are
+// short-lived JWTs that name it. Operator sessions use the secret directly (8h, MFA).
 model Session {
   id            String      @id @default(uuid(7)) @db.Uuid
   userId        String      @db.Uuid
   secretHash    String      @unique
+  // The refresh token this one replaced, accepted for a minute after rotation so two
+  // tabs refreshing at once don't sign each other out.
+  previousSecretHash String?   @unique
+  rotatedAt          DateTime? @db.Timestamptz(3)
   expiresAt     DateTime    @db.Timestamptz(3)
   revokedAt     DateTime?   @db.Timestamptz(3)
   userAgent     String?

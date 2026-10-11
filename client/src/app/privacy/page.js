@@ -13,7 +13,7 @@ export const metadata = {
     "How Afritask collects, uses, and protects your information, and the choices you have over it.",
 };
 
-const LAST_UPDATED = "October 9, 2026";
+const LAST_UPDATED = "October 11, 2026";
 
 // Set NEXT_PUBLIC_CONTACT_EMAIL to publish a privacy contact address. It's an
 // env var (not hardcoded) so a personal inbox never gets committed; when it's
@@ -173,15 +173,16 @@ export default function PrivacyPage() {
 
         <Section id="browser-storage" number={2} title="What's stored in your browser">
           <p>
-            Afritask stores two things in your browser. A cookie called{" "}
-            <code>afritask_session</code> keeps you signed in. It&apos;s strictly
-            necessary, can&apos;t be read by scripts on the page, and stops working
-            when you sign out or after 7 days. In local storage,{" "}
+            Afritask stores a few things in your browser. Two cookies keep you
+            signed in: <code>afritask_access</code> (renewed every 15 minutes) and{" "}
+            <code>afritask_refresh</code>. They&apos;re strictly necessary,
+            can&apos;t be read by scripts on the page, and stop working when you
+            sign out or after 30 days. In local storage,{" "}
             <code>afritask_theme</code> remembers whether you prefer light or dark
             mode.
           </p>
           <p>
-            That session cookie is the only cookie we set. We don&apos;t use cookies
+            Those sign-in cookies are the only cookies we set. We don&apos;t use cookies
             to track you, and Afritask has no analytics, advertising, or third-party
             tracking scripts.
           </p>

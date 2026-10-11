@@ -36,10 +36,10 @@ describe("no secrets in responses", () => {
         expect(login.body.token).toBeUndefined();
     });
 
-    it("the session secret in the cookie is never stored as-is", async () => {
+    it("the refresh token in the cookie is never stored as-is", async () => {
         const { client } = await createSignedInUser();
         const sessions = await prisma.session.findMany();
-        expect(JSON.stringify(sessions)).not.toContain(client.sessionSecret!);
+        expect(JSON.stringify(sessions)).not.toContain(client.refreshToken!);
     });
 });
 
@@ -75,13 +75,18 @@ describe("CORS", () => {
 });
 
 describe("cookies", () => {
-    it("the session cookie is HttpOnly + SameSite=Lax (Secure is added in production)", async () => {
+    it("both token cookies are HttpOnly + SameSite=Lax (Secure is added in production)", async () => {
         const { user } = await createSignedInUser();
         const response = await createClient().post("/auth/login", { email: user.email, password: "correct-horse-1" });
-        const cookie = (response.headers["set-cookie"] as unknown as string[]).find((value) => value.startsWith("afritask_session="))!;
-        expect(cookie).toMatch(/HttpOnly/);
-        expect(cookie).toMatch(/SameSite=Lax/);
-        expect(cookie).not.toMatch(/Domain=/i);
+        const setCookies = response.headers["set-cookie"] as unknown as string[];
+        for (const name of ["afritask_access=", "afritask_refresh="]) {
+            const cookie = setCookies.find((value) => value.startsWith(name))!;
+            expect(cookie).toMatch(/HttpOnly/);
+            expect(cookie).toMatch(/SameSite=Lax/);
+            expect(cookie).not.toMatch(/Domain=/i);
+        }
+        // The refresh token only travels to the auth routes.
+        expect(setCookies.find((value) => value.startsWith("afritask_refresh="))).toMatch(/Path=\/api\/auth/);
     });
 });
 

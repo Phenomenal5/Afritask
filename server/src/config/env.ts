@@ -10,6 +10,8 @@ const ALWAYS_REQUIRED = [
   "REDIS_URL",
   "BREVO_API_KEY",
   "EMAIL_FROM_ADDRESS",
+  // Signs access tokens. Changing it signs everyone's access tokens out (they refresh).
+  "ACCESS_TOKEN_SECRET",
 ] as const;
 
 const missingKeys = ALWAYS_REQUIRED.filter((key) => !process.env[key]);
@@ -17,6 +19,11 @@ if (missingKeys.length > 0) {
   throw new Error(
     `Missing required environment variables: ${missingKeys.join(", ")} — see server/.env.example`
   );
+}
+
+// NOTE: a short secret makes HS256 tokens brute-forceable offline — refuse to boot with one.
+if ((process.env.ACCESS_TOKEN_SECRET ?? "").length < 32) {
+  throw new Error("ACCESS_TOKEN_SECRET must be at least 32 characters — see server/.env.example");
 }
 
 // Safe after the check above: every ALWAYS_REQUIRED key is a non-empty string.
@@ -33,8 +40,10 @@ const env = {
   databaseUrl: requiredValue("DATABASE_URL"),
   redisUrl: requiredValue("REDIS_URL"),
 
-  // How long a login lasts before the session cookie expires.
-  sessionTtlDays: Number(process.env.SESSION_TTL_DAYS ?? 7),
+  // Access token: short, sent with every request. Refresh token: how long a login lasts.
+  accessTokenSecret: requiredValue("ACCESS_TOKEN_SECRET"),
+  accessTokenTtlMinutes: Number(process.env.ACCESS_TOKEN_TTL_MINUTES ?? 15),
+  refreshTokenTtlDays: Number(process.env.REFRESH_TOKEN_TTL_DAYS ?? 30),
   // Hops of reverse proxy in front of Express in production (e.g. the client's /api
   // rewrite + the host's load balancer). Needed for correct client IPs in rate limiting.
   trustProxyHops: Number(process.env.TRUST_PROXY_HOPS ?? 1),

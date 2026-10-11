@@ -7,7 +7,7 @@ import openApiDocument from "../../src/docs/openapi.js";
 import { anonymous, createClient } from "../helpers/client.js";
 import { disconnectDatabase, resetDatabase } from "../helpers/database.js";
 import { createProject, createSignedInUser, createTask, createTeam, uniqueEmail } from "../helpers/factories.js";
-import { SESSION_COOKIE_NAME } from "../../src/services/sessionService.js";
+import { ACCESS_TOKEN_COOKIE } from "../../src/services/sessionService.js";
 
 beforeEach(resetDatabase);
 afterAll(disconnectDatabase);
@@ -42,9 +42,11 @@ describe("authentication on every protected route", () => {
     );
 
     it.each([
-        ["a forged cookie", `${SESSION_COOKIE_NAME}=${"a".repeat(64)}`],
-        ["an empty cookie", `${SESSION_COOKIE_NAME}=`],
-        ["an injection attempt", `${SESSION_COOKIE_NAME}=' OR '1'='1`],
+        ["a forged cookie", `${ACCESS_TOKEN_COOKIE}=${"a".repeat(64)}`],
+        ["an empty cookie", `${ACCESS_TOKEN_COOKIE}=`],
+        ["an injection attempt", `${ACCESS_TOKEN_COOKIE}=' OR '1'='1`],
+        // {"alg":"none"} — the classic JWT bypass; the algorithm is never read from the token.
+        ["an unsigned alg:none token", `${ACCESS_TOKEN_COOKIE}=eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0.eyJzdWIiOiJ4Iiwic2lkIjoieCIsInR5cCI6ImFjY2VzcyIsImV4cCI6OTk5OTk5OTk5OX0.`],
     ])("rejects %s", async (_label, cookie) => {
         const response = await anonymous().get("/api/auth/me").set("Cookie", cookie);
         expect(response.status).toBe(401);
@@ -63,7 +65,7 @@ describe("CSRF: every write requires X-Requested-With", () => {
         "%s → 403 without the header, even with a valid session",
         async (_label, operation) => {
             const { client } = await createSignedInUser();
-            const response = await send(anonymous(), operation as Operation, { Cookie: `${SESSION_COOKIE_NAME}=${client.sessionSecret}` });
+            const response = await send(anonymous(), operation as Operation, { Cookie: `${ACCESS_TOKEN_COOKIE}=${client.accessToken}` });
             expect(response.status).toBe(403);
             expect(response.body.message).toBe("Missing X-Requested-With header");
         }
@@ -71,7 +73,7 @@ describe("CSRF: every write requires X-Requested-With", () => {
 
     it("reads (GET) don't need it", async () => {
         const { client } = await createSignedInUser();
-        const response = await anonymous().get("/api/workspaces").set("Cookie", `${SESSION_COOKIE_NAME}=${client.sessionSecret}`);
+        const response = await anonymous().get("/api/workspaces").set("Cookie", `${ACCESS_TOKEN_COOKIE}=${client.accessToken}`);
         expect(response.status).toBe(200);
     });
 });

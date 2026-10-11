@@ -20,7 +20,15 @@ import {
     issueAccountToken,
     revokeAccountTokens
 } from '../services/accountTokenService.js';
-import { clearSessionCookie, revokeAllSessions, revokeSession, startSession } from '../services/sessionService.js';
+import {
+    REFRESH_TOKEN_COOKIE,
+    clearAuthCookies,
+    findSessionIdForRefreshToken,
+    refreshSession,
+    revokeAllSessions,
+    revokeSession,
+    startSession
+} from '../services/sessionService.js';
 import { CURRENT_TERMS_VERSION, hasAcceptedCurrentTerms } from '../config/terms.js';
 
 const TERMS_NOT_ACCEPTED_MESSAGE = "Please accept the Terms of Service and Privacy Policy to create an account.";
@@ -377,12 +385,29 @@ export const acceptTerms = catchAsync(async (req, res, next) => {
     res.status(200).json({ status: "success", user, termsRequired: false });
 });
 
-// Ends the session making the request (other devices stay signed in).
-export const logout = catchAsync(async (req, res, next) => {
-    if (req.sessionId) await revokeSession(req.sessionId);
-    clearSessionCookie(res);
+// New access token (and a rotated refresh token) from the refresh-token cookie.
+export const refresh = catchAsync(async (req, res, next) => {
+    const rawSecret: unknown = req.cookies?.[REFRESH_TOKEN_COOKIE];
+    const session = typeof rawSecret === "string" && rawSecret ? await refreshSession(res, rawSecret) : null;
+    if (!session) {
+        // Expired, revoked or unknown — drop the dead cookies so the browser stops sending them.
+        clearAuthCookies(res);
+        return next(new AppError("Your session has ended. Please sign in again.", 401));
+    }
+    res.status(200).json({ status: "success" });
+});
 
-    logger.info(`User logged out: ${req.user?.id || 'unknown'}`);
+// Ends the session making the request (other devices stay signed in).
+// NOTE: no `protect` — signing out must work with only the refresh token, e.g. after the
+// access token expired. It revokes the session in the database, so the refresh token is
+// dead even if a copy of the cookie survives somewhere.
+export const logout = catchAsync(async (req, res, next) => {
+    const rawSecret: unknown = req.cookies?.[REFRESH_TOKEN_COOKIE];
+    const sessionId = typeof rawSecret === "string" && rawSecret ? await findSessionIdForRefreshToken(rawSecret) : null;
+    if (sessionId) await revokeSession(sessionId);
+    clearAuthCookies(res);
+
+    logger.info(`User logged out: ${sessionId ? `session ${sessionId}` : 'no live session'}`);
     res.status(200).json({
         status: "success",
         message: "Logged out successfully"

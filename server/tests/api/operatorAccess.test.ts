@@ -96,13 +96,13 @@ describe("separation from customer sessions", () => {
         await expect(browser.get("/workspaces")).resolves.toMatchObject({ status: 401 });
     });
 
-    it("replaying an operator secret as the customer cookie doesn't work either", async () => {
+    it("replaying an operator secret as the customer refresh token doesn't work either", async () => {
         const operator = await createOperator();
         const browser = createClient();
         const login = await browser.post("/admin/auth/login", { email: operator.email, password: DEFAULT_PASSWORD });
         const rawSecret = String(login.headers["set-cookie"]).match(/afritask_operator_session=([^;]+)/)![1]!;
 
-        const replayed = await createClient({ sessionSecret: rawSecret }).get("/auth/me");
+        const replayed = await createClient({ refreshToken: rawSecret }).post("/auth/refresh");
         expect(replayed.status).toBe(401);
     });
 });

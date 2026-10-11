@@ -472,7 +472,7 @@ const authPaths = {
     "/auth/login": {
         post: {
             tags: ["Auth"],
-            summary: "Sign in — sets the httpOnly afritask_session cookie",
+            summary: "Sign in — sets the httpOnly access and refresh token cookies",
             security: publicRoute,
             requestBody: jsonBody({
                 type: "object",
@@ -482,12 +482,20 @@ const authPaths = {
             responses: { 200: jsonResponse("Signed in", ref("UserResponse")), ...errorResponses(400, 401, 429) },
         },
     },
+    "/auth/refresh": {
+        post: {
+            tags: ["Auth"],
+            summary: "New access token from the refresh-token cookie (rotates the refresh token)",
+            security: publicRoute,
+            responses: { 200: jsonResponse("Refreshed — new cookies set", messageEnvelope), ...errorResponses(401) },
+        },
+    },
     "/auth/logout": {
         post: {
             tags: ["Auth"],
-            summary: "End the current session",
-            security: signedIn,
-            responses: { 200: jsonResponse("Signed out", messageEnvelope), ...errorResponses(401) },
+            summary: "End the current session — revokes its refresh token in the database",
+            security: publicRoute,
+            responses: { 200: jsonResponse("Signed out", messageEnvelope) },
         },
     },
     "/auth/me": {
@@ -1485,7 +1493,7 @@ const openApiDocument = {
         description: [
             "Workspaces, projects, tasks and invitations for Afritask.",
             "",
-            "**Auth:** sign in with `POST /auth/login` — the response sets an httpOnly `afritask_session` cookie that this page then sends automatically.",
+            "**Auth:** sign in with `POST /auth/login` — the response sets httpOnly `afritask_access` (15 min) and `afritask_refresh` (30 days, auth routes only) cookies that this page then sends automatically. Call `POST /auth/refresh` when the access token expires.",
             "**CSRF:** every POST/PUT/PATCH/DELETE must send `X-Requested-With: XMLHttpRequest`. This page adds it for you.",
             "**Isolation:** anything in a workspace you're not an active member of answers `404`, exactly like something that doesn't exist.",
         ].join("\n"),
@@ -1509,7 +1517,7 @@ const openApiDocument = {
     security: signedIn,
     components: {
         securitySchemes: {
-            sessionCookie: { type: "apiKey", in: "cookie", name: "afritask_session", description: "Set by POST /auth/login" },
+            sessionCookie: { type: "apiKey", in: "cookie", name: "afritask_access", description: "Access token set by POST /auth/login and POST /auth/refresh" },
             operatorCookie: { type: "apiKey", in: "cookie", name: "afritask_operator_session", description: "Set by POST /admin/auth/login; sent only to /api/admin" },
         },
         schemas,

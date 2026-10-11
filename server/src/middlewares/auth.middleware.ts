@@ -2,30 +2,31 @@ import type { NextFunction, Request, Response } from "express";
 import type { PublicUser } from "../config/prisma.js";
 import AppError from "../utils/AppError.js";
 import logger, { describeError } from "../utils/logger.js";
-import { SESSION_COOKIE_NAME, clearSessionCookie, findActiveSession } from "../services/sessionService.js";
+import { ACCESS_TOKEN_COOKIE, findSessionForAccessToken } from "../services/sessionService.js";
 import { TERMS_REQUIRED_MESSAGE, hasAcceptedCurrentTerms } from "../config/terms.js";
 
 // Reachable before accepting the terms: signing out, /auth/me, accepting itself, and the
 // account's own profile and password — refusing the terms mustn't lock anyone out of their account.
 const ROUTES_OPEN_BEFORE_TERMS = new Set(["/api/auth", "/api/users"]);
 
-// Authenticates via the httpOnly session cookie (see services/sessionService.ts).
-// NOTE: the old `Authorization: Bearer <jwt>` header is no longer accepted — every
-// pre-sessions login was effectively signed out by this change.
+// Authenticates via the httpOnly access-token cookie (see services/sessionService.ts).
+// A 401 carries code "access_token_invalid": the client then calls POST /auth/refresh once
+// and retries. If the refresh also fails, the session is really over.
+const unauthorized = (res: Response) =>
+    res.status(401).json({ status: "fail", code: "access_token_invalid", message: "Unauthorized" });
+
 const protect = async (req: Request, res: Response, next: NextFunction) => {
     try {
-        const rawSecret: unknown = req.cookies?.[SESSION_COOKIE_NAME];
-        if (typeof rawSecret !== "string" || !rawSecret) {
-            logger.warn(`Unauthorized access attempt: no session cookie`);
-            return res.status(401).json({ status: "fail", message: "Unauthorized" });
+        const accessToken: unknown = req.cookies?.[ACCESS_TOKEN_COOKIE];
+        if (typeof accessToken !== "string" || !accessToken) {
+            logger.warn(`Unauthorized access attempt: no access token`);
+            return unauthorized(res);
         }
 
-        const session = await findActiveSession(rawSecret);
+        const session = await findSessionForAccessToken(accessToken);
         if (!session) {
-            // Expired or revoked — drop the dead cookie so the browser stops sending it.
-            clearSessionCookie(res);
-            logger.warn(`Unauthorized access attempt: unknown, expired or revoked session`);
-            return res.status(401).json({ status: "fail", message: "Unauthorized" });
+            logger.warn(`Unauthorized access attempt: invalid or expired access token, or its session ended`);
+            return unauthorized(res);
         }
 
         // NOTE: enforced here, not only in the UI — a Google sign-up never sees the signup

@@ -8,6 +8,8 @@ import { hashPassword } from "../../src/utils/password.js";
 import { generateSecureToken, hashSecureToken } from "../../src/utils/secureToken.js";
 import { createClient, type ApiClient } from "./client.js";
 import { CURRENT_TERMS_VERSION } from "../../src/config/terms.js";
+import env from "../../src/config/env.js";
+import { signAccessToken } from "../../src/utils/accessToken.js";
 
 export const DEFAULT_PASSWORD = "correct-horse-1";
 
@@ -52,13 +54,15 @@ export const signIn = async (email: string, password = DEFAULT_PASSWORD): Promis
     return client;
 };
 
-// A signed-in client via a session row created directly (same shape login creates).
+// A signed-in client via a session row created directly (same shape login creates):
+// the row is the refresh token, plus a signed 15-minute access token naming it.
 export const clientWithSession = async (userId: string): Promise<ApiClient> => {
-    const sessionSecret = generateSecureToken();
-    await prisma.session.create({
-        data: { userId, secretHash: hashSecureToken(sessionSecret), expiresAt: new Date(Date.now() + 7 * 24 * 3600 * 1000) },
+    const refreshToken = generateSecureToken();
+    const session = await prisma.session.create({
+        data: { userId, secretHash: hashSecureToken(refreshToken), expiresAt: new Date(Date.now() + 30 * 24 * 3600 * 1000) },
     });
-    return createClient({ sessionSecret });
+    const accessToken = signAccessToken({ userId, sessionId: session.id }, env.accessTokenSecret, 15 * 60 * 1000);
+    return createClient({ accessToken, refreshToken });
 };
 
 // Verified user + signed-in client in one go.

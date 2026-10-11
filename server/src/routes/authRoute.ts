@@ -9,6 +9,7 @@ import {
   login,
   logout,
   me,
+  refresh,
   resetPassword,
   signup,
   verifyEmail,
@@ -37,7 +38,8 @@ const googleCredentialsReady: RequestHandler = (req, res, next) => {
 
 router.post("/signup", emailActionLimiter(), signup);
 router.post("/login", credentialLimiter(), login);
-router.post("/logout", protect, logout);
+router.post("/refresh", refresh);
+router.post("/logout", logout);
 router.get("/verify-email/:token", credentialLimiter(), verifyEmail);
 router.post("/forgot-password", emailActionLimiter(), forgotPassword);
 router.patch("/reset-password/:token", credentialLimiter(), resetPassword);

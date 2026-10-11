@@ -192,7 +192,8 @@ describe("PRD core journeys", () => {
     it("logout ends the browser's session", async () => {
         const { browser } = await registerAndSignIn("Logout");
         await expect(browser.post("/auth/logout")).resolves.toMatchObject({ status: 200 });
-        expect(browser.cookies.has("afritask_session")).toBe(false);
+        expect(browser.cookies.has("afritask_access")).toBe(false);
+        expect(browser.cookies.has("afritask_refresh")).toBe(false);
         await expect(browser.get("/auth/me")).resolves.toMatchObject({ status: 401 });
     });
 });

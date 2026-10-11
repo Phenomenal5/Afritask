@@ -20,5 +20,7 @@ process.env.API_DOCS = "on";
 delete process.env.GOOGLE_CLIENT_ID;
 delete process.env.GOOGLE_CLIENT_SECRET;
 delete process.env.RATE_LIMITS_IN_TESTS;
+// Fixed, test-only signing key for access tokens.
+process.env.ACCESS_TOKEN_SECRET = "test-access-token-secret-0123456789abcdef";
 // A fixed, test-only key for operator MFA secrets (never a real environment's key).
 process.env.OPERATOR_MFA_KEY = "0".repeat(64);

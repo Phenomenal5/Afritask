@@ -23,7 +23,7 @@ describe("query/filter injection", () => {
         const response = await createClient().post(route, body);
         expect(response.status).toBe(status);
         const setCookies = (response.headers["set-cookie"] ?? []) as unknown as string[];
-        expect(setCookies.join("")).not.toContain("afritask_session=");
+        expect(setCookies.join("")).not.toMatch(/afritask_(access|refresh)=/);
     });
 
     it("accepting an invitation with an operator object is refused", async () => {
@@ -64,7 +64,8 @@ describe("query/filter injection", () => {
 describe("mass assignment — fields a client must not be able to set", () => {
     it("signup can't make itself verified, an admin, or a Google account", async () => {
         const email = uniqueEmail();
-        await createClient().post("/auth/signup", { name: "Mallory", email, password: "secret123", role: "admin", isVerified: true, provider: "google", providerId: "x" });
+        // acceptTerms so the signup itself succeeds — what matters is which extra fields stick.
+        await createClient().post("/auth/signup", { name: "Mallory", email, password: "secret123", acceptTerms: true, role: "admin", isVerified: true, provider: "google", providerId: "x" });
         const user = await prisma.user.findUniqueOrThrow({ where: { email } });
         expect(user).toMatchObject({ role: "user", isVerified: false, provider: "local", providerId: null });
     });

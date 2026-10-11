@@ -17,9 +17,18 @@ Default route prefixes:
 /api/tasks
 ```
 
-Protected routes authenticate with the httpOnly `afritask_session` cookie that
-login sets (there is no bearer token). Browsers reach the API same-origin through
-the client's `/api` rewrite, so the cookie is sent automatically.
+Protected routes authenticate with two httpOnly cookies that login sets (there is
+no bearer token, and nothing is kept in localStorage):
+
+- `afritask_access` — a signed access token (JWT), valid **15 minutes**, sent with every request;
+- `afritask_refresh` — the refresh token, valid **30 days**, sent only to `/api/auth/*`.
+  It's stored (hashed) in the database as the session, rotated on each refresh, and
+  revoked by logout, a password reset or an account suspension.
+
+When a protected route answers `401` with `"code": "access_token_invalid"`, call
+`POST /api/auth/refresh` and retry. If the refresh answers `401`, the session is over.
+Browsers reach the API same-origin through the client's `/api` rewrite, so the cookies
+are sent automatically.
 
 Every `POST`/`PUT`/`PATCH`/`DELETE` must also send this header (CSRF guard),
 otherwise the API answers `403`:
@@ -46,7 +55,9 @@ Common error response:
 ```env
 PORT=<backend-port>
 DATABASE_URL=postgresql://user:password@host/db
-SESSION_TTL_DAYS=7
+ACCESS_TOKEN_SECRET=<at-least-32-random-characters>
+ACCESS_TOKEN_TTL_MINUTES=15
+REFRESH_TOKEN_TTL_DAYS=30
 VERIFY_EMAIL_TOKEN_EXPIRES_MS=3600000
 
 BREVO_API_KEY=your_brevo_api_key
@@ -147,8 +158,8 @@ If the verification token has expired, the API will generate and email a new ver
 
 ### Login
 
-Logs in a verified local user, starts a session and sets the
-`afritask_session` cookie (`HttpOnly; SameSite=Lax`, `Secure` in production).
+Logs in a verified local user, starts a session and sets the `afritask_access` and
+`afritask_refresh` cookies (`HttpOnly; SameSite=Lax`, `Secure` in production).
 
 ```http
 POST /api/auth/login
@@ -274,17 +285,29 @@ Request body:
 ```
 
 Success: `200` with `{ "status": "success", "user": { ... } }` and the
-`afritask_session` cookie. Used or expired code: `401` "Google sign-in expired. Please try again."
+`afritask_access` + `afritask_refresh` cookies. Used or expired code: `401` "Google sign-in expired. Please try again."
+
+### Refresh
+
+Trades the `afritask_refresh` cookie for a new access token and a rotated refresh
+token (both set as cookies). The 30-day login doesn't restart. `401` when the refresh
+token is missing, expired, revoked or replaced.
+
+```http
+POST /api/auth/refresh
+```
 
 ### Logout
 
-Ends the current session (other devices stay signed in) and clears the cookie.
+Ends the current session (other devices stay signed in): revokes its refresh token in
+the database and clears both cookies. Works with only the refresh cookie, so signing
+out never fails because the access token happened to expire.
 
 ```http
 POST /api/auth/logout
 ```
 
-Auth required: yes.
+Auth required: the refresh cookie (no access token needed).
 
 ```json
 {
@@ -1096,13 +1119,13 @@ GET /api/auth/verify-email/:token
 POST /api/auth/login
 ```
 
-4. Keep the `afritask_session` cookie the login response set (e.g. `curl -c jar.txt` then `-b jar.txt`).
+4. Keep the cookies the login response set (e.g. `curl -c jar.txt` then `-b jar.txt`). After 15 minutes, `POST /api/auth/refresh` with the same jar.
 
 5. Create task:
 
 ```http
 POST /api/workspaces/:workspaceId/tasks
-Cookie: afritask_session=<from login>
+Cookie: afritask_access=<from login>
 X-Requested-With: XMLHttpRequest
 ```
 
@@ -1110,7 +1133,7 @@ X-Requested-With: XMLHttpRequest
 
 ```http
 GET /api/workspaces/:workspaceId/tasks
-Cookie: afritask_session=<from login>
+Cookie: afritask_access=<from login>
 ```
 
 
@@ -1517,13 +1540,13 @@ GET /api/auth/verify-email/:token
 POST /api/auth/login
 ```
 
-4. Keep the `afritask_session` cookie the login response set (e.g. `curl -c jar.txt` then `-b jar.txt`).
+4. Keep the cookies the login response set (e.g. `curl -c jar.txt` then `-b jar.txt`). After 15 minutes, `POST /api/auth/refresh` with the same jar.
 
 5. Create task:
 
 ```http
 POST /api/workspaces/:workspaceId/tasks
-Cookie: afritask_session=<from login>
+Cookie: afritask_access=<from login>
 X-Requested-With: XMLHttpRequest
 ```
 
@@ -1531,5 +1554,5 @@ X-Requested-With: XMLHttpRequest
 
 ```http
 GET /api/workspaces/:workspaceId/tasks
-Cookie: afritask_session=<from login>
+Cookie: afritask_access=<from login>
 ```
