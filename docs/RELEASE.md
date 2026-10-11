@@ -44,6 +44,10 @@ For each deployed environment also set:
 - Web push (optional): `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` — one pair
   per environment (`npx web-push generate-vapid-keys`). Changing a pair invalidates every
   browser's subscription; people re-allow from the banner or Settings.
+- First admin console account (optional): `SUPERADMIN_EMAIL`, `SUPERADMIN_PASSWORD`,
+  `SUPERADMIN_NAME`. On boot the server creates that account with operator access if the
+  email has never had it (audited), then never touches it again. Set them for the first
+  deploy, sign in once to set up MFA, then remove them from the host.
 - Google sign-in: `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_CALLBACK_URL` — one
   OAuth client per environment, with that environment's callback URL registered
   (`…/api/v1/auth/google/callback`; the old unversioned path still redirects there).

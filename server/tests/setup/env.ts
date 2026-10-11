@@ -20,6 +20,10 @@ process.env.API_DOCS = "on";
 delete process.env.GOOGLE_CLIENT_ID;
 delete process.env.GOOGLE_CLIENT_SECRET;
 delete process.env.RATE_LIMITS_IN_TESTS;
+// The admin bootstrap is tested directly; never let a developer's .env values leak in.
+delete process.env.SUPERADMIN_EMAIL;
+delete process.env.SUPERADMIN_PASSWORD;
+delete process.env.SUPERADMIN_NAME;
 // Fixed, test-only signing key for access tokens.
 process.env.ACCESS_TOKEN_SECRET = "test-access-token-secret-0123456789abcdef";
 // A fixed, test-only VAPID pair (web push). Pushes are captured by testPushOutbox, never sent.

@@ -5,8 +5,9 @@
 //   npm run operator:grant -- --email you@example.com --revoke --note "Left the team"
 //   (production: node dist/scripts/grantOperator.js …)
 //
-// NOTE: this script is the ONLY way operator access is created — there is deliberately no
-// API route for it, so a compromised account or bug in the app can't mint an operator.
+// NOTE: there is deliberately no API route for operator access, so a compromised account or
+// bug in the app can't mint an operator. Access is created by this script, or once on boot
+// from SUPERADMIN_EMAIL (services/bootstrapOperatorService.ts) — both need deployment access.
 // Run it where DATABASE_URL points at the target environment. The account must already
 // exist and be verified. Every change is written to the operator audit trail.
 

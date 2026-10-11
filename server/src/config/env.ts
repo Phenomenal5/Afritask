@@ -60,6 +60,12 @@ const env = {
   // A contact the push services can reach about abuse: "mailto:..." or an https URL.
   vapidSubject: process.env.VAPID_SUBJECT ?? "mailto:support@afritask.app",
 
+  // Optional: the first admin console (Platform Superadmin) account, created on boot if it
+  // doesn't exist yet (services/bootstrapOperatorService.ts). Remove once it exists.
+  superadminEmail: process.env.SUPERADMIN_EMAIL,
+  superadminPassword: process.env.SUPERADMIN_PASSWORD,
+  superadminName: process.env.SUPERADMIN_NAME,
+
   // Google OAuth is optional: routes answer 500 "not configured" when these are missing.
   googleClientId: process.env.GOOGLE_CLIENT_ID,
   googleClientSecret: process.env.GOOGLE_CLIENT_SECRET,

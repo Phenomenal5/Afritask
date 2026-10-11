@@ -6,6 +6,7 @@ import app from "./app.js";
 import logger, { describeError } from "./utils/logger.js";
 import prisma, { connectDatabase } from "./config/prisma.js";
 import startTaskReminderJob from "./jobs/taskReminder.js";
+import { bootstrapOperatorFromEnv } from "./services/bootstrapOperatorService.js";
 import { closeHealthConnections } from "./controllers/health.controller.js";
 import env from "./config/env.js";
 
@@ -22,6 +23,9 @@ const server = app.listen(env.port, () => {
   if (env.apiDocsEnabled) logger.info(`API docs at http://localhost:${env.port}/api/docs`);
 });
 const reminderJob = startTaskReminderJob();
+// First admin console account from SUPERADMIN_EMAIL/PASSWORD, if set. Fire and forget: it
+// acts once per email, logs what it did, and never holds up or crashes the server.
+void bootstrapOperatorFromEnv();
 
 // ─── Graceful shutdown (deploys, restarts, scaling down) ─────────────────────
 // Stop taking new connections, let in-flight requests and a running sweep finish, then
