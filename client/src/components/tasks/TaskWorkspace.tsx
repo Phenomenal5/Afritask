@@ -27,7 +27,7 @@ interface TaskWorkspaceProps {
   showAssigneeFilter?: boolean;
 }
 
-const DUE_FILTERS: DueFilter[] = ["all", "open", "overdue", "today", "upcoming", "none", "completed", "week"];
+const DUE_FILTERS: DueFilter[] = ["all", "open", "overdue", "today", "upcoming", "scheduled", "none", "completed", "week"];
 
 export default function TaskWorkspace({
   tasks,

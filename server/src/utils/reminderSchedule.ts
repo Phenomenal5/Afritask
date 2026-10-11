@@ -29,11 +29,16 @@ export interface SchedulableTask {
     dueTimezone: string | null;
     reminderOffset: ReminderOffset | null;
     status: TaskStatus;
+    // Optional so callers without a start (e.g. the Mongo import) needn't pass them.
+    startAt?: Date | null;
+    startKind?: DueKind | null;
+    startTimezone?: string | null;
 }
 
 export interface Schedule {
     remindAt: Date | null;
     overdueCheckAt: Date | null;
+    startReminderAt: Date | null;
 }
 
 // The calendar date (y, m, d) of `instant` as seen in `timeZone`.
@@ -63,14 +68,30 @@ export const reminderInstant = (task: Pick<SchedulableTask, "dueAt" | "dueKind" 
     return new Date(task.dueAt.getTime() - offsetMs);
 };
 
-export const computeSchedule = (task: SchedulableTask, projectState: ProjectState | null | undefined, now = new Date()): Schedule => {
-    if (!task.dueAt || task.status === TaskStatus.completed || projectState === "archived") {
-        return { remindAt: null, overdueCheckAt: null };
+// "Starts tomorrow" reminder: the day before the start — 09:00 local for a date-only start,
+// 24 hours before an exact start time.
+export const startReminderInstant = (task: Pick<SchedulableTask, "startAt" | "startKind" | "startTimezone">): Date | null => {
+    if (!task.startAt) return null;
+    if (task.startKind === "date") {
+        const timeZone = task.startTimezone || "UTC";
+        const [year, month, day] = calendarDateIn(task.startAt, timeZone);
+        const dayBefore = new Date(Date.UTC(year, month - 1, day - 1));
+        return zonedWallTimeToUtc(dayBefore.getUTCFullYear(), dayBefore.getUTCMonth() + 1, dayBefore.getUTCDate(), DATE_ONLY_ANCHOR_HOUR, 0, timeZone);
     }
-    const remindAt = reminderInstant(task);
+    return new Date(task.startAt.getTime() - 24 * HOUR_MS);
+};
+
+export const computeSchedule = (task: SchedulableTask, projectState: ProjectState | null | undefined, now = new Date()): Schedule => {
+    if (task.status === TaskStatus.completed || projectState === "archived") {
+        return { remindAt: null, overdueCheckAt: null, startReminderAt: null };
+    }
+    const remindAt = task.dueAt ? reminderInstant(task) : null;
+    // Only worth a nudge while the work hasn't begun — starting early cancels it.
+    const startReminderAt = task.status === TaskStatus.todo ? startReminderInstant(task) : null;
     return {
         remindAt: remindAt && remindAt > now ? remindAt : null,
-        overdueCheckAt: task.dueAt > now ? task.dueAt : null,
+        overdueCheckAt: task.dueAt && task.dueAt > now ? task.dueAt : null,
+        startReminderAt: startReminderAt && startReminderAt > now ? startReminderAt : null,
     };
 };
 
@@ -82,6 +103,8 @@ export const scheduleInputsChanged = (
 ) =>
     before.dueAt?.getTime() !== after.dueAt?.getTime()
     || before.reminderOffset !== after.reminderOffset
+    || before.startAt?.getTime() !== after.startAt?.getTime()
+    || (before.status === TaskStatus.todo) !== (after.status === TaskStatus.todo)
     || (before.status === TaskStatus.completed) !== (after.status === TaskStatus.completed)
     || (before.projectState === "archived") !== (after.projectState === "archived");
 

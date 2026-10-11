@@ -12,7 +12,7 @@ import { useOnlineStatus } from "@/hooks/useOnlineStatus";
 import { canEditTask, editBlockedReason } from "@/utils/permissions";
 import { STATUS_LABELS, TASK_STATUSES } from "@/utils/taskMeta";
 import { cx } from "@/lib/cx";
-import { DueLabel, PriorityBadge, STATUS_META } from "@/components/ui/Badges";
+import { DueLabel, StartLabel, PriorityBadge, STATUS_META } from "@/components/ui/Badges";
 import StatusSelect from "./StatusSelect";
 import { AssigneeChip, LabelChips, ParentContext, ProjectTag, SubtaskProgress } from "./TaskMeta";
 import type { Task, TaskStatus } from "@/types/models";
@@ -132,7 +132,8 @@ function BoardCard({ task, now, showProject }: { task: Task; now: Date | null; s
         <LabelChips task={task} max={2} />
       </div>
       <div className="mt-2.5 flex flex-wrap items-center justify-between gap-2">
-        <DueLabel task={task} now={now} />
+        <StartLabel task={task} now={now} />
+          <DueLabel task={task} now={now} />
         <AssigneeChip task={task} />
       </div>
       <div className="mt-3 border-t border-line-soft pt-2.5">

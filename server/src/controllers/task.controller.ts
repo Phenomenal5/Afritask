@@ -8,6 +8,7 @@ import { requireUser } from "../middlewares/auth.middleware.js";
 import { notFoundUnlessSuspended, requireActiveMembership, requireMembership } from "../middlewares/workspaceAccess.middleware.js";
 import { canAssignTask, canDeleteTask, canEditTask } from "../utils/taskPermissions.js";
 import { parseDue } from "../utils/dueDate.js";
+import { assertStartNotAfterDue, parseStart } from "../utils/startDate.js";
 import routeParam from "../utils/routeParam.js";
 import { DUE_VIEWS, dueViewWhere, isDueView } from "../utils/taskViews.js";
 import { diffFields, recordActivity } from "../services/activityService.js";
@@ -156,16 +157,18 @@ interface TaskHistoryRow extends TaskRelations {
     status: TaskStatus;
     priority: TaskPriority;
     dueAt: Date | null;
+    startAt: Date | null;
     project: { name: string } | null;
     assignee: { user: { name: string } } | null;
 }
-const HISTORY_FIELDS = ["title", "description", "status", "priority", "dueAt", "project", "assignee", "labels"] as const;
+const HISTORY_FIELDS = ["title", "description", "status", "priority", "dueAt", "startAt", "project", "assignee", "labels"] as const;
 const toHistorySnapshot = (task: TaskHistoryRow) => ({
     title: task.title,
     description: task.description,
     status: task.status,
     priority: task.priority,
     dueAt: task.dueAt,
+    startAt: task.startAt,
     project: task.project?.name ?? null,
     assignee: task.assignee?.user.name ?? null,
     labels: task.labels.map((taskLabel) => taskLabel.label.name),
@@ -236,14 +239,29 @@ const completionChange = (previousStatus: TaskStatus, nextStatus: TaskStatus | u
 
 // Reminder choice + first schedule for a new task or subtask. No explicit choice and a
 // deadline → the default reminder. (New tasks can't be in archived projects.)
-const reminderFieldsForNewTask = (rawOffset: unknown, due: ReturnType<typeof parseDue>, status: TaskStatus) => {
+const reminderFieldsForNewTask = (
+    rawOffset: unknown,
+    due: ReturnType<typeof parseDue>,
+    start: ReturnType<typeof parseStart>,
+    status: TaskStatus
+) => {
     const parsedOffset = parseReminderOffset(rawOffset);
     const reminderOffset = parsedOffset !== undefined ? parsedOffset : due?.dueAt ? DEFAULT_REMINDER_OFFSET : null;
+    assertStartNotAfterDue(start?.startAt, due?.dueAt);
     const schedule = computeSchedule(
-        { dueAt: due?.dueAt ?? null, dueKind: due?.dueKind ?? null, dueTimezone: due?.dueTimezone ?? null, reminderOffset, status },
+        {
+            dueAt: due?.dueAt ?? null,
+            dueKind: due?.dueKind ?? null,
+            dueTimezone: due?.dueTimezone ?? null,
+            reminderOffset,
+            status,
+            startAt: start?.startAt ?? null,
+            startKind: start?.startKind ?? null,
+            startTimezone: start?.startTimezone ?? null,
+        },
         null
     );
-    return { reminderOffset, ...schedule };
+    return { reminderOffset, ...(start ?? {}), ...schedule };
 };
 
 // Apply a versioned update: succeeds only if nobody changed the task since `expectedVersion`.
@@ -468,7 +486,7 @@ export const createWorkspaceTask = catchAsync(async (req, res) => {
 
     const status = parseStatus(req.body.status) ?? TaskStatus.todo;
     const due = parseDue(req.body, user.timezone);
-    const reminder = reminderFieldsForNewTask(req.body.reminderOffset, due, status);
+    const reminder = reminderFieldsForNewTask(req.body.reminderOffset, due, parseStart(req.body, user.timezone), status);
     const labelIds = await parseLabelIds(req.body.labelIds, membership.workspaceId);
     const projectId = await parseProjectId(req.body.projectId, membership.workspaceId);
     // Anyone may set an assignee on a task they create (they're its creator).
@@ -555,6 +573,9 @@ export const editTask = catchAsync(async (req, res) => {
 
     const status = parseStatus(req.body.status);
     const due = parseDue(req.body, user.timezone);
+    const start = parseStart(req.body, user.timezone);
+    // Compare what the task WILL have after this edit, changed or not.
+    assertStartNotAfterDue(start !== undefined ? start.startAt : existingTask.startAt, due !== undefined ? due.dueAt : existingTask.dueAt);
     let reminderOffset = parseReminderOffset(req.body.reminderOffset);
     // A deadline added to a task that never had one gets the default reminder, like a new task.
     if (reminderOffset === undefined && due?.dueAt && !existingTask.dueAt && !existingTask.reminderOffset) {
@@ -580,6 +601,7 @@ export const editTask = catchAsync(async (req, res) => {
             status,
             priority: parsePriority(req.body.priority),
             ...(due ?? {}),
+            ...(start ?? {}),
             reminderOffset,
             ...completionChange(existingTask.status, status),
             assigneeMembershipId,
@@ -659,7 +681,7 @@ export const createSubtask = catchAsync(async (req, res) => {
 
     const status = parseStatus(req.body.status) ?? TaskStatus.todo;
     const due = parseDue(req.body, user.timezone);
-    const reminder = reminderFieldsForNewTask(req.body.reminderOffset, due, status);
+    const reminder = reminderFieldsForNewTask(req.body.reminderOffset, due, parseStart(req.body, user.timezone), status);
     const assigneeMembershipId = await parseAssigneeMembershipId(req.body.assigneeMembershipId, parent.workspaceId);
     const subtask = await prisma.$transaction(async (tx) => {
         const createdSubtask = await tx.task.create({

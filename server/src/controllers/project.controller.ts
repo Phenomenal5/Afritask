@@ -188,8 +188,8 @@ export const restoreProject = catchAsync(async (req, res) => {
         // Re-plan the paused schedules — future times only, so restoring never sends a
         // burst of reminders that came due while the project was archived (SRS SR17).
         const openTasks = await tx.task.findMany({
-            where: { projectId: project.id, status: { not: "completed" }, dueAt: { not: null } },
-            select: { id: true, dueAt: true, dueKind: true, dueTimezone: true, reminderOffset: true, status: true },
+            where: { projectId: project.id, status: { not: "completed" }, OR: [{ dueAt: { not: null } }, { startAt: { not: null } }] },
+            select: { id: true, dueAt: true, dueKind: true, dueTimezone: true, reminderOffset: true, status: true, startAt: true, startKind: true, startTimezone: true },
         });
         for (const openTask of openTasks) {
             await tx.task.update({ where: { id: openTask.id }, data: computeSchedule(openTask, restoredProject.state) });

@@ -160,6 +160,10 @@ const schemas = {
             completedAt: { type: ["string", "null"], format: "date-time" },
             reminderOffset: { type: ["string", "null"], enum: ["at_due", "one_hour", "one_day", "three_days", "one_week", null] },
             remindAt: { type: ["string", "null"], format: "date-time", description: "When the pending reminder fires (null: none pending)" },
+            startAt: { type: ["string", "null"], format: "date-time" },
+            startKind: { type: ["string", "null"], enum: ["date", "datetime", null] },
+            startTimezone: { type: ["string", "null"] },
+            startReminderAt: { type: ["string", "null"], format: "date-time", description: "When the 'starts tomorrow' reminder fires (To do tasks only)" },
             overdueCheckAt: { type: ["string", "null"], format: "date-time", description: "When the pending overdue alert fires (null: none pending)" },
             version: { type: "integer", description: "Send it back on every update (optimistic concurrency)" },
             clientRequestId: { type: ["string", "null"] },
@@ -206,6 +210,9 @@ const schemas = {
             dueAt: { type: ["string", "null"], format: "date-time" },
             dueTimezone: { type: "string", example: "Africa/Lagos" },
             labelIds: { type: "array", items: { type: "string", format: "uuid" }, description: "Replaces the task's labels (same workspace). [] removes all." },
+            startDate: { type: ["string", "null"], format: "date", description: "Planned start (YYYY-MM-DD → 00:00 that day in startTimezone). Can't be after the due date. null clears." },
+            startAt: { type: ["string", "null"], format: "date-time", description: "Planned start as an exact instant (instead of startDate)" },
+            startTimezone: { type: "string", example: "Africa/Lagos" },
             reminderOffset: {
                 type: ["string", "null"],
                 enum: ["none", "at_due", "one_hour", "one_day", "three_days", "one_week", null],
@@ -309,7 +316,7 @@ const schemas = {
         description: "One in-app notification. `available` is re-checked on every read: deleted tasks, lost access or closed invitations make it false and withhold `summary`/links.",
         properties: {
             id: { type: "string", format: "uuid" },
-            type: { type: "string", enum: ["task_assigned", "comment_mention", "invitation_received", "task_reminder", "task_overdue"] },
+            type: { type: "string", enum: ["task_assigned", "comment_mention", "invitation_received", "task_reminder", "task_overdue", "task_starting"] },
             createdAt: { type: "string", format: "date-time" },
             readAt: { type: ["string", "null"], format: "date-time" },
             actor: { type: ["object", "null"], properties: { id: { type: "string" }, name: { type: "string" }, photo: { type: ["string", "null"] } } },
@@ -703,9 +710,9 @@ const taskPaths = {
                 {
                     name: "due",
                     in: "query",
-                    schema: { type: "string", enum: ["open", "today", "upcoming", "overdue", "none", "completed", "week"] },
+                    schema: { type: "string", enum: ["open", "today", "upcoming", "overdue", "none", "completed", "week", "scheduled"] },
                     description:
-                        "My Tasks views, in your profile timezone. `today` = your local date (an item due earlier today is also `overdue`); `overdue` = open and past its due instant; `none` = open without a due date; `week` = completed since Monday.",
+                        "My Tasks views, in your profile timezone. `today` = your local date (an item due earlier today is also `overdue`); `overdue` = open and past its due instant; `none` = open without a due date; `week` = completed since Monday; `scheduled` = open with a start date still ahead.",
                 },
                 { name: "counts", in: "query", schema: { type: "boolean" }, description: "Also return `data.counts`: the size of every `due` view under the same other filters" },
             ],

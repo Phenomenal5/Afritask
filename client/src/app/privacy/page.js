@@ -222,7 +222,8 @@ export default function PrivacyPage() {
             <li>
               <strong>Task reminders.</strong> When a task&apos;s reminder time arrives
               (one day before its deadline unless you chose another time, or none), and
-              once if it becomes overdue while still open, we email the person it&apos;s
+              once if it becomes overdue while still open, and the day before a task you
+              planned to start, we email the person it&apos;s
               assigned to (or its creator if nobody is). The email includes the
               task&apos;s title, deadline, and description.
             </li>

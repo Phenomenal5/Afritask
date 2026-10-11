@@ -270,8 +270,8 @@ export const restoreWorkspace = catchAsync(async (req, res) => {
             throw exists ? new AppError("This workspace isn't suspended.", 409) : new AppError("Workspace not found", 404);
         }
         const openTasks = await tx.task.findMany({
-            where: { workspaceId, status: { not: "completed" }, dueAt: { not: null } },
-            select: { id: true, dueAt: true, dueKind: true, dueTimezone: true, reminderOffset: true, status: true, project: { select: { state: true } } },
+            where: { workspaceId, status: { not: "completed" }, OR: [{ dueAt: { not: null } }, { startAt: { not: null } }] },
+            select: { id: true, dueAt: true, dueKind: true, dueTimezone: true, reminderOffset: true, status: true, startAt: true, startKind: true, startTimezone: true, project: { select: { state: true } } },
         });
         for (const task of openTasks) {
             await tx.task.update({ where: { id: task.id }, data: computeSchedule(task, task.project?.state ?? null) });

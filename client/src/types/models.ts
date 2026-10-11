@@ -62,6 +62,11 @@ export interface Task {
   dueTimezone: string | null;
   completedAt: string | null;
   reminderOffset: ReminderOffset | null;
+  // When work is planned to begin; a date-only start is 00:00 that day in startTimezone.
+  startAt: string | null;
+  startKind: "date" | "datetime" | null;
+  startTimezone: string | null;
+  startReminderAt: string | null;
   // When the pending reminder / overdue alert fires; null when nothing is pending.
   remindAt: string | null;
   overdueCheckAt: string | null;
@@ -120,7 +125,7 @@ export interface Comment {
   canDelete: boolean;
 }
 
-export type NotificationType = "task_assigned" | "comment_mention" | "invitation_received" | "task_reminder" | "task_overdue";
+export type NotificationType = "task_assigned" | "comment_mention" | "invitation_received" | "task_reminder" | "task_overdue" | "task_starting";
 
 export interface AppNotification {
   id: string;

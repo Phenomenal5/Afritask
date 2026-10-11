@@ -658,6 +658,18 @@ are scheduled; completing a task or archiving its project clears them, and reope
 restoring re-plans future ones. When they fire, the assignee (or the creator, while still a
 member) gets a `task_reminder` / `task_overdue` notification and email, once per schedule.
 
+## Start dates
+
+Plan when work begins with `startDate` (`YYYY-MM-DD` = 00:00 that day in `startTimezone`,
+default your profile timezone) or `startAt` (an exact instant) on task create/edit; `null`
+clears it. A start can't be after the due date (`400`). Tasks return `startAt`, `startKind`,
+`startTimezone` and `startReminderAt`.
+
+While a task is still **To do**, its assignee (or creator) gets a **"starts tomorrow"**
+reminder the day before (09:00 local for a date-only start, 24 hours before an exact start),
+by email and as a `task_starting` notification. Starting early, completing, or archiving
+the project cancels it. `?due=scheduled` lists open tasks whose start is still ahead.
+
 ## Notifications
 
 In-app notifications belong to the signed-in account, across all its workspaces.
@@ -669,7 +681,7 @@ In-app notifications belong to the signed-in account, across all its workspaces.
 | POST | `/api/notifications/:id/read` | mark one read (keeps the first read time) |
 | POST | `/api/notifications/read-all` | mark all read |
 
-Types: `task_reminder` / `task_overdue` (see Reminders), `task_assigned` (someone else made you the assignee of a task or subtask),
+Types: `task_reminder` / `task_overdue` (see Reminders), `task_starting` (see Start dates), `task_assigned` (someone else made you the assignee of a task or subtask),
 `comment_mention` (you were newly mentioned — unchanged mentions on edit don't re-notify),
 `invitation_received` (a workspace invited your email and you already have an account; a
 resend doesn't add another). You're never notified of your own actions. Each notification

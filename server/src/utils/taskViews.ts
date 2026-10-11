@@ -8,7 +8,9 @@ import { zonedWallTimeToUtc } from "./dueDate.js";
 // - Every view except "completed"/"week" covers open work only.
 // - "week" = completed Monday 00:00 → now, in the viewer's timezone (SRS SR14).
 
-export const DUE_VIEWS = ["open", "today", "upcoming", "overdue", "none", "completed", "week"] as const;
+// "scheduled" = open work planned to START later (a future startAt) — the "I'll begin it
+// tomorrow" list.
+export const DUE_VIEWS = ["open", "today", "upcoming", "overdue", "none", "completed", "week", "scheduled"] as const;
 export type DueView = (typeof DUE_VIEWS)[number];
 
 export const isDueView = (value: unknown): value is DueView => typeof value === "string" && (DUE_VIEWS as readonly string[]).includes(value);
@@ -54,5 +56,7 @@ export const dueViewWhere = (view: DueView, now: Date, timeZone: string): Prisma
             return { status: TaskStatus.completed };
         case "week":
             return { status: TaskStatus.completed, completedAt: { gte: startOfWeek } };
+        case "scheduled":
+            return { ...OPEN, startAt: { gt: now } };
     }
 };

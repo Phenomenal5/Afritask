@@ -17,6 +17,7 @@ const DUE_CHIPS: { value: DueFilter; label: string }[] = [
   { value: "overdue", label: "Overdue" },
   { value: "today", label: "Due today" },
   { value: "upcoming", label: "Upcoming" },
+  { value: "scheduled", label: "Scheduled" },
   { value: "none", label: "No due date" },
   { value: "completed", label: "Completed" },
   { value: "week", label: "Done this week" },

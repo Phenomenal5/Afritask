@@ -13,6 +13,7 @@ import { useWorkspaceResources } from "@/context/WorkspaceResourcesContext";
 import { useOnlineStatus } from "@/hooks/useOnlineStatus";
 import { PRIORITY_STYLES, STATUS_LABELS, TASK_PRIORITIES, TASK_STATUSES } from "@/utils/taskMeta";
 import { duePayload, dueFieldError } from "@/utils/dueFields";
+import { startFieldError, startPayload } from "@/utils/startFields";
 import { DEFAULT_REMINDER, type ReminderChoice } from "@/utils/reminders";
 import ReminderSelect from "./ReminderSelect";
 import { clearDraft, readDraft, writeDraft } from "@/utils/draftStorage";
@@ -36,6 +37,8 @@ interface ComposerForm {
   assigneeMembershipId: string;
   dueDate: string;
   dueTime: string;
+  startDate: string;
+  startTime: string;
   reminderOffset: ReminderChoice;
   labelIds: string[];
 }
@@ -49,6 +52,8 @@ const EMPTY_FORM: ComposerForm = {
   assigneeMembershipId: "",
   dueDate: "",
   dueTime: "",
+  startDate: "",
+  startTime: "",
   reminderOffset: DEFAULT_REMINDER,
   labelIds: [],
 };
@@ -127,6 +132,7 @@ export default function TaskComposer({ open, defaults, onClose, onCreated }: Tas
   };
 
   const dueError = dueFieldError(form);
+  const startError = startFieldError(form);
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
@@ -141,7 +147,7 @@ export default function TaskComposer({ open, defaults, onClose, onCreated }: Tas
       titleRef.current?.focus();
       return;
     }
-    if (dueError || !workspaceId) return;
+    if (dueError || startError || !workspaceId) return;
 
     const payload: TaskInput = {
       title: trimmedTitle,
@@ -153,6 +159,7 @@ export default function TaskComposer({ open, defaults, onClose, onCreated }: Tas
       labelIds: form.labelIds,
       clientRequestId: requestId,
       ...duePayload(form, profileTimezone, null),
+      ...startPayload(form, profileTimezone, null),
       // Only meaningful with a deadline; without one the server stores no reminder.
       ...(form.dueDate && { reminderOffset: form.reminderOffset }),
     };
@@ -240,6 +247,15 @@ export default function TaskComposer({ open, defaults, onClose, onCreated }: Tas
             ))}
           </SelectField>
           <TextField
+            label="Start date"
+            optional
+            type="date"
+            value={form.startDate}
+            onChange={(event) => update("startDate", event.target.value)}
+            hint={form.startDate ? "You'll get a reminder the day before, so you can prepare." : "When you plan to begin — leave empty to start any time."}
+            error={startError}
+          />
+          <TextField
             label="Due date"
             optional
             type="date"
@@ -265,7 +281,7 @@ export default function TaskComposer({ open, defaults, onClose, onCreated }: Tas
             className="inline-flex min-h-11 cursor-pointer items-center gap-1.5 rounded-[8px] text-[15px] font-medium text-forest hover:underline"
           >
             <ChevronDown size={17} aria-hidden="true" className={showDetails ? "rotate-180 transition-transform" : "transition-transform"} />
-            {showDetails ? "Fewer details" : "More details: description, time, reminder, status, labels"}
+            {showDetails ? "Fewer details" : "More details: description, times, reminder, status, labels"}
           </button>
         </div>
 
@@ -289,6 +305,15 @@ export default function TaskComposer({ open, defaults, onClose, onCreated }: Tas
                 value={form.dueTime}
                 onChange={(event) => update("dueTime", event.target.value)}
                 hint="Adds an exact time to the due date, on this device's clock."
+              />
+              <TextField
+                label="Start time"
+                optional
+                type="time"
+                value={form.startTime}
+                onChange={(event) => update("startTime", event.target.value)}
+                disabled={!form.startDate}
+                hint={form.startDate ? "Adds an exact time to the start date." : "Set a start date first."}
               />
               <ReminderSelect
                 value={form.reminderOffset}

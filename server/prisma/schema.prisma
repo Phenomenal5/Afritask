@@ -348,6 +348,14 @@ model Task {
   // Optimistic concurrency: every write must name the version it read (SRS SR06).
   version              Int             @default(1)
   reminderOffset       ReminderOffset?
+  // When work is planned to BEGIN ("I'll start this tomorrow"). Optional; never after dueAt.
+  // A date-only start means 00:00 that day in startTimezone. Same intent fields as due.
+  startAt              DateTime?       @db.Timestamptz(3)
+  startKind            DueKind?
+  startTimezone        String?
+  // Pending "starts tomorrow" reminder (a day before the start, 09:00 for date-only starts),
+  // only while the task is still To do. Cleared when the sweep claims it, like remindAt.
+  startReminderAt      DateTime?       @db.Timestamptz(3)
   // The schedule (SRS SR10 "schedule versions"): the next instant the reminder sweep should
   // act on, or null when nothing is pending. Recomputed from the due date, reminder choice,
   // status and project state whenever one of those changes — only ever to a FUTURE time —
@@ -384,6 +392,7 @@ model Task {
   // The reminder sweep: what's due to fire.
   @@index([remindAt])
   @@index([overdueCheckAt])
+  @@index([startReminderAt])
 }
 
 // Append-only history of who changed what (SRS SR09). Written in the SAME transaction as
@@ -467,6 +476,8 @@ enum NotificationType {
   task_reminder
   // Your task passed its due time while still open (once per deadline).
   task_overdue
+  // A task you planned to start begins tomorrow — time to prepare.
+  task_starting
 }
 
 enum EmailDeliveryStatus {

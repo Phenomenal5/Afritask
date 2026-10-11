@@ -8,7 +8,8 @@ import type { Task, TaskPriority, TaskStatus } from "@/types/models";
 // Filters live in the URL: links from the Overview ("3 overdue") land pre-filtered, the
 // back button works, and List/Board read the very same values.
 // "week" = completed this week (Mon–Sun, viewer's zone) — the Overview count's drill-down.
-export type DueFilter = "all" | "open" | Exclude<DueBucket, "completed"> | "completed" | "week";
+// "scheduled" = To-do work planned to start later (same rule as the server's ?due=scheduled).
+export type DueFilter = "all" | "open" | Exclude<DueBucket, "completed"> | "completed" | "week" | "scheduled";
 export type TaskView = "list" | "board";
 
 export interface TaskFilters {
@@ -103,6 +104,7 @@ export function matchesDueFilter(task: Task, due: DueFilter, now: Date | null, t
   if (due === "overdue") return isOverdue(task, now);
   if (due === "today") return isDueToday(task, now, timezone);
   if (due === "upcoming") return isUpcoming(task, now, timezone);
+  if (due === "scheduled") return task.status !== "completed" && !!task.startAt && new Date(task.startAt).getTime() > now.getTime();
   return hasNoDueDate(task);
 }
 

@@ -11,7 +11,7 @@ import { useViewer } from "@/hooks/useViewer";
 import { useOnlineStatus } from "@/hooks/useOnlineStatus";
 import { canEditTask, editBlockedReason } from "@/utils/permissions";
 import { cx } from "@/lib/cx";
-import { DueLabel, PriorityBadge, StatusBadge } from "@/components/ui/Badges";
+import { DueLabel, StartLabel, PriorityBadge, StatusBadge } from "@/components/ui/Badges";
 import StatusSelect from "./StatusSelect";
 import { AssigneeChip, LabelChips, ParentContext, ProjectTag, SubtaskProgress } from "./TaskMeta";
 import type { Task } from "@/types/models";
@@ -98,6 +98,7 @@ function TaskRow({ task, now, showProject }: { task: Task; now: Date | null; sho
           <span>
             <PriorityBadge priority={task.priority} subtle />
           </span>
+          <StartLabel task={task} now={now} />
           <DueLabel task={task} now={now} />
           <AssigneeChip task={task} />
         </div>

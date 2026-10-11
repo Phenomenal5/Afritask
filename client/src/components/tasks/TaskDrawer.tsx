@@ -35,6 +35,7 @@ import { useOnlineStatus } from "@/hooks/useOnlineStatus";
 import { canDeleteTask, canEditTask, editBlockedReason } from "@/utils/permissions";
 import { PRIORITY_STYLES, TASK_PRIORITIES } from "@/utils/taskMeta";
 import { dueFieldError, dueFieldsOf, duePayload } from "@/utils/dueFields";
+import { startFieldError, startFieldsOf, startPayload } from "@/utils/startFields";
 import { detectTimezone, formatTimezoneLabel } from "@/utils/timezones";
 import { describeFailure, type Failure } from "@/lib/errors";
 import Dialog from "@/components/ui/Dialog";
@@ -59,6 +60,8 @@ interface DetailForm {
   projectId: string;
   dueDate: string;
   dueTime: string;
+  startDate: string;
+  startTime: string;
   reminderOffset: ReminderChoice;
   labelIds: string[];
 }
@@ -70,6 +73,7 @@ const formOf = (task: Task): DetailForm => ({
   assigneeMembershipId: task.assigneeMembershipId || "",
   projectId: task.projectId || "",
   ...dueFieldsOf(task),
+  ...startFieldsOf(task),
   reminderOffset: reminderChoiceOf(task.reminderOffset),
   labelIds: (task.labels || []).map((label) => label.id).sort(),
 });
@@ -204,6 +208,7 @@ export default function TaskDrawer({ taskId, onClose, onOpenTask }: TaskDrawerPr
 
   const activeProjects = useMemo(() => projects.filter((project) => project.state !== "archived"), [projects]);
   const dueError = form ? dueFieldError(form) : null;
+  const startError = form ? startFieldError(form) : null;
   const titleError = form && !form.title.trim() ? "A task needs a title." : form && form.title.trim().length > 200 ? "Keep the title under 200 characters." : null;
 
   const handleSave = async (event?: FormEvent) => {
@@ -213,7 +218,7 @@ export default function TaskDrawer({ taskId, onClose, onOpenTask }: TaskDrawerPr
       titleRef.current?.focus();
       return;
     }
-    if (dueError) return;
+    if (dueError || startError) return;
 
     const original = formOf(task);
     const changes: TaskInput = {};
@@ -225,6 +230,7 @@ export default function TaskDrawer({ taskId, onClose, onOpenTask }: TaskDrawerPr
     if (!isSubtask && form.projectId !== original.projectId) changes.projectId = form.projectId || null;
     if (JSON.stringify(form.labelIds) !== JSON.stringify(original.labelIds)) changes.labelIds = form.labelIds;
     Object.assign(changes, duePayload(form, profileTimezone, task));
+    Object.assign(changes, startPayload(form, profileTimezone, task));
     // Sent whenever it differs, and always when a deadline is first added, so the server
     // never substitutes its default for what the picker showed.
     if (form.dueDate && (form.reminderOffset !== original.reminderOffset || !original.dueDate)) changes.reminderOffset = form.reminderOffset;
@@ -427,6 +433,24 @@ export default function TaskDrawer({ taskId, onClose, onOpenTask }: TaskDrawerPr
           </SelectField>
 
           <TextField
+            label="Start date"
+            optional
+            type="date"
+            value={form.startDate}
+            onChange={(event) => updateField("startDate", event.target.value)}
+            disabled={!viewerCanEdit}
+            error={startError}
+            hint={form.startDate ? "You'll get a reminder the day before, so you can prepare." : "When work is planned to begin."}
+          />
+          <TextField
+            label="Start time"
+            optional
+            type="time"
+            value={form.startTime}
+            onChange={(event) => updateField("startTime", event.target.value)}
+            disabled={!viewerCanEdit || !form.startDate}
+          />
+          <TextField
             label="Due date"
             type="date"
             value={form.dueDate}
@@ -573,7 +597,7 @@ export default function TaskDrawer({ taskId, onClose, onOpenTask }: TaskDrawerPr
                 >
                   Discard
                 </Button>
-                <Button type="submit" form="task-detail-form" loading={saveState === "saving"} disabled={!online || !!titleError || !!dueError}>
+                <Button type="submit" form="task-detail-form" loading={saveState === "saving"} disabled={!online || !!titleError || !!dueError || !!startError}>
                   {saveState === "failed" ? "Try again" : "Save changes"}
                 </Button>
               </div>

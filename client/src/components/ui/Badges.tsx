@@ -13,6 +13,7 @@ import {
   TriangleAlert,
   type LucideIcon,
 } from "lucide-react";
+import { describeStart } from "@/utils/startFields";
 import { cx } from "@/lib/cx";
 import { PRIORITY_STYLES, STATUS_LABELS, describeDue } from "@/utils/taskMeta";
 import { PROJECT_STATE_LABELS } from "@/utils/projects";
@@ -65,6 +66,19 @@ export function PriorityBadge({ priority, subtle = false }: { priority: TaskPrio
 
 // "No due date" is shown explicitly rather than leaving a blank (the spec asks for it).
 // `now` is null during the server render; the label then waits for hydration.
+// "Starts tomorrow" for To do work with a future start — nothing once it's begun.
+export function StartLabel({ task, now }: { task: Task; now: Date | null }) {
+  if (!now) return null;
+  const text = describeStart(task, now);
+  if (!text) return null;
+  return (
+    <span className="inline-flex items-center gap-1.5 text-[13px] whitespace-nowrap text-forest">
+      <CalendarClock size={14} aria-hidden="true" />
+      {text}
+    </span>
+  );
+}
+
 export function DueLabel({ task, now, quietWhenEmpty = false }: { task: Task; now: Date | null; quietWhenEmpty?: boolean }) {
   if (!task.dueAt) {
     if (quietWhenEmpty) return null;

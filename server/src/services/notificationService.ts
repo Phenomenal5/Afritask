@@ -101,7 +101,7 @@ export const notifyMentions = async (
 // fired (the reminder/due instant), so re-running the sweep can't notify twice.
 export const notifyTaskSchedule = (
     tx: Prisma.TransactionClient,
-    kind: "task_reminder" | "task_overdue",
+    kind: "task_reminder" | "task_overdue" | "task_starting",
     task: { id: string; workspaceId: string; title: string },
     recipientId: string,
     scheduleKey: string

@@ -47,6 +47,7 @@ const TYPE_META: Record<AppNotification["type"], { icon: LucideIcon; label: stri
   invitation_received: { icon: Mail, label: "Invitation" },
   task_reminder: { icon: AlarmClock, label: "Reminder" },
   task_overdue: { icon: TriangleAlert, label: "Overdue" },
+  task_starting: { icon: CalendarClock, label: "Starting soon" },
 };
 
 // One sentence that says what happened and why it matters to you.
@@ -60,6 +61,8 @@ function describeNotification(notification: AppNotification): ReactNode {
       return <>{actor} mentioned you in a comment on {subject}.</>;
     case "task_reminder":
       return <>Reminder: {subject} is due soon.</>;
+    case "task_starting":
+      return <>{subject} is planned to start tomorrow. A good moment to get ready.</>;
     case "task_overdue":
       return <>{subject} has passed its due time and is still open. Finish it, move the date, or hand it to someone else.</>;
     case "invitation_received":

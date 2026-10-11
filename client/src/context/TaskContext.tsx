@@ -47,6 +47,9 @@ export interface TaskInput {
   dueAt?: string;
   // "none" clears it. Omitted on create with a due date → the server's default (1 day before).
   reminderOffset?: string;
+  startDate?: string | null;
+  startAt?: string;
+  startTimezone?: string;
   clientRequestId?: string;
 }
 

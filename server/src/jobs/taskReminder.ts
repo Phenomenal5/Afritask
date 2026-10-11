@@ -1,5 +1,6 @@
 import { Queue, Worker } from "bullmq"
 import prisma from "../config/prisma.js"
+import type { Prisma } from "../generated/prisma/client.js"
 import { sendTaskReminderEmail, type TaskEmailKind } from "../utils/email.js"
 import logger, { errorMessage } from "../utils/logger.js"
 import redisConnection from "../config/redis.js"
@@ -23,12 +24,19 @@ const MISSED_GRACE_MS = 2 * 60 * 60 * 1000
 export const MAX_EMAIL_ATTEMPTS = 3
 const RETRY_AFTER_MS = 5 * 60 * 1000
 
-type ScheduleField = "remindAt" | "overdueCheckAt"
+type ScheduleField = "remindAt" | "overdueCheckAt" | "startReminderAt"
 
-const KIND_OF: Record<ScheduleField, { notification: "task_reminder" | "task_overdue"; email: TaskEmailKind }> = {
+const KIND_OF: Record<ScheduleField, { notification: "task_reminder" | "task_overdue" | "task_starting"; email: TaskEmailKind }> = {
     remindAt: { notification: "task_reminder", email: "reminder" },
     overdueCheckAt: { notification: "task_overdue", email: "overdue" },
+    startReminderAt: { notification: "task_starting", email: "starting" },
 }
+
+// The tasks whose `field` has come due.
+const dueWhere = (field: ScheduleField, now: Date): Prisma.TaskWhereInput =>
+    field === "remindAt" ? { remindAt: { lte: now } } : field === "overdueCheckAt" ? { overdueCheckAt: { lte: now } } : { startReminderAt: { lte: now } }
+const dueOrder = (field: ScheduleField): Prisma.TaskOrderByWithRelationInput =>
+    field === "remindAt" ? { remindAt: "asc" } : field === "overdueCheckAt" ? { overdueCheckAt: "asc" } : { startReminderAt: "asc" }
 
 // Everything the re-check and the email need, read fresh at delivery time.
 const loadDeliverableTask = (taskId: string) =>
@@ -72,6 +80,8 @@ const suppressionReason = (task: DeliverableTask | null, field: ScheduleField, d
     if (now.getTime() - dueInstant.getTime() > MISSED_GRACE_MS) return "missed while the worker was down"
     // The overdue alert belongs to the deadline it was armed for.
     if (field === "overdueCheckAt" && task.dueAt?.getTime() !== dueInstant.getTime()) return "deadline changed"
+    // Already under way (or moved on): no point telling them it starts tomorrow.
+    if (field === "startReminderAt" && task.status !== "todo") return "already started"
     return null
 }
 
@@ -97,9 +107,9 @@ const attemptEmail = async (deliveryId: string, recipientEmail: string, task: De
 // ─── One schedule field: claim → re-check → deliver ─────────────────────
 const processDueSchedules = async (field: ScheduleField, now: Date) => {
     const due = await prisma.task.findMany({
-        where: field === "remindAt" ? { remindAt: { lte: now } } : { overdueCheckAt: { lte: now } },
-        select: { id: true, remindAt: true, overdueCheckAt: true },
-        orderBy: field === "remindAt" ? { remindAt: "asc" } : { overdueCheckAt: "asc" },
+        where: dueWhere(field, now),
+        select: { id: true, remindAt: true, overdueCheckAt: true, startReminderAt: true },
+        orderBy: dueOrder(field),
         take: BATCH_SIZE,
     })
 
@@ -171,7 +181,7 @@ export const redeliver = async (delivery: { id: string; kind: string; taskId: st
         await prisma.emailDelivery.update({ where: { id: delivery.id }, data: { status: "suppressed" } })
         return "suppressed" as const
     }
-    const kind: TaskEmailKind = delivery.kind === "task_overdue" ? "overdue" : "reminder"
+    const kind: TaskEmailKind = delivery.kind === "task_overdue" ? "overdue" : delivery.kind === "task_starting" ? "starting" : "reminder"
     return (await attemptEmail(delivery.id, delivery.recipient.email, task, kind)) ? ("sent" as const) : ("failed" as const)
 }
 
@@ -179,11 +189,12 @@ export const redeliver = async (delivery: { id: string; kind: string; taskId: st
 export const runReminderSweep = async (now = new Date()) => {
     const reminders = await processDueSchedules("remindAt", now)
     const overdueAlerts = await processDueSchedules("overdueCheckAt", now)
+    const startReminders = await processDueSchedules("startReminderAt", now)
     const retried = await retryFailedEmails(now)
-    if (reminders || overdueAlerts || retried) {
-        logger.info(`Reminder sweep: reminders=${reminders} overdue=${overdueAlerts} retried=${retried}`)
+    if (reminders || overdueAlerts || startReminders || retried) {
+        logger.info(`Reminder sweep: reminders=${reminders} overdue=${overdueAlerts} starting=${startReminders} retried=${retried}`)
     }
-    return { reminders, overdueAlerts, retried }
+    return { reminders, overdueAlerts, startReminders, retried }
 }
 
 

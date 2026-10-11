@@ -53,6 +53,7 @@ describe("My Tasks views", () => {
             none: 1,
             completed: 1,
             week: 1,
+            scheduled: 0,
         });
     });
 

@@ -2,7 +2,7 @@
 // calls it directly any more. NEXT_PUBLIC_API_URL is the old name, kept as a fallback
 // so existing deployments keep working without an env change.
 const API_ORIGIN =
-  process.env.API_URL || process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
+  process.env.API_URL || process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000" || "http://192.168.100.175:3001";
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
