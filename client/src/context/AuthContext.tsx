@@ -27,6 +27,7 @@ import { clearPendingInvite, postSignInPath, saveReturnPath } from "@/utils/pend
 import { clearAllDrafts } from "@/utils/draftStorage";
 import { unsubscribeThisBrowser } from "@/utils/browserPush";
 import { SESSION_EXPIRED_EVENT, TERMS_REQUIRED_EVENT } from "@/lib/api";
+import { TERMS_ACCEPTED_BEFORE_GOOGLE_KEY } from "@/components/auth/GoogleButton";
 import { failureMessage } from "@/lib/errors";
 import type { ActionResult, CurrentUser } from "@/types/models";
 
@@ -163,7 +164,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       try {
         const response = await exchangeGoogleCode(code);
         setUser(response.data.user);
-        setTermsRequired(!!response.data.termsRequired);
+        // They ticked the terms box on the signup page before choosing Google: record it
+        // now rather than showing the accept-terms step a second time.
+        let acceptedBeforeGoogle = false;
+        try {
+          acceptedBeforeGoogle = sessionStorage.getItem(TERMS_ACCEPTED_BEFORE_GOOGLE_KEY) === "1";
+          sessionStorage.removeItem(TERMS_ACCEPTED_BEFORE_GOOGLE_KEY);
+        } catch {
+          // Storage blocked: the accept-terms step will ask instead.
+        }
+        if (response.data.termsRequired && acceptedBeforeGoogle) {
+          const accepted = await acceptTermsRequest().then(() => true).catch(() => false);
+          setTermsRequired(!accepted);
+        } else {
+          setTermsRequired(!!response.data.termsRequired);
+        }
         toast.success(`Welcome, ${firstNameOf(response.data.user.name)}`);
         router.push(postSignInPath());
         return { success: true };

@@ -2,6 +2,12 @@
 // the whole OAuth exchange and returns to /auth/callback.
 import { googleLoginUrl } from "@/lib/services/authService";
 import { buttonClasses } from "@/components/ui/Button";
+import { cx } from "@/lib/cx";
+
+// Set when someone ticks the terms box on the signup page and then picks Google. The
+// Google round trip leaves the page, so AuthContext reads this on return and records
+// their acceptance instead of asking a second time.
+export const TERMS_ACCEPTED_BEFORE_GOOGLE_KEY = "afritask:terms-accepted-before-google";
 
 // Google's "G" mark in its brand colours (required by Google's sign-in branding rules).
 function GoogleMark() {
@@ -15,9 +21,34 @@ function GoogleMark() {
   );
 }
 
-export default function GoogleButton({ label = "Continue with Google" }: { label?: string }) {
+interface GoogleButtonProps {
+  label?: string;
+  // Signup: unavailable until the terms are accepted.
+  disabled?: boolean;
+  // Signup: the person ticked the terms box before choosing Google.
+  termsAccepted?: boolean;
+}
+
+export default function GoogleButton({ label = "Continue with Google", disabled = false, termsAccepted = false }: GoogleButtonProps) {
+  if (disabled) {
+    // NOTE: not a link while disabled. An <a> with "disabled" styling still navigates.
+    return (
+      <span role="link" aria-disabled="true" className={cx(buttonClasses("secondary", "lg", true), "pointer-events-none opacity-55")}>
+        <GoogleMark />
+        {label}
+      </span>
+    );
+  }
+  const rememberTerms = () => {
+    if (!termsAccepted) return;
+    try {
+      sessionStorage.setItem(TERMS_ACCEPTED_BEFORE_GOOGLE_KEY, "1");
+    } catch {
+      // Storage blocked: they'll simply be asked to accept once more after Google.
+    }
+  };
   return (
-    <a href={googleLoginUrl()} className={buttonClasses("secondary", "lg", true)}>
+    <a href={googleLoginUrl()} onClick={rememberTerms} className={buttonClasses("secondary", "lg", true)}>
       <GoogleMark />
       {label}
     </a>

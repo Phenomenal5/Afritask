@@ -162,15 +162,20 @@ export default function SignupPage() {
               Send me the Afritask newsletter <span className="text-muted">(optional, unsubscribe any time)</span>
             </span>
           </label>
-          <Button type="submit" size="lg" full loading={submitting}>
+          <Button type="submit" size="lg" full loading={submitting} disabled={!acceptedTerms} aria-describedby={acceptedTerms ? undefined : "terms-required-hint"}>
             Create account
           </Button>
+          {!acceptedTerms && (
+            <p id="terms-required-hint" className="-mt-2 text-center text-[13.5px] text-muted">
+              Accept the Terms of Service and Privacy Policy to create your account.
+            </p>
+          )}
         </form>
       </div>
       {!invitedEmail && (
         <>
           <OrDivider />
-          <GoogleButton label="Sign up with Google" />
+          <GoogleButton label="Sign up with Google" disabled={!acceptedTerms} termsAccepted={acceptedTerms} />
         </>
       )}
     </AuthLayout>
