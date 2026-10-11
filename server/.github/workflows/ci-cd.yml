@@ -3,19 +3,28 @@
 #
 # CI  (every push and pull request): type-check, then every test suite against a throwaway
 #     Postgres container. Nothing touches a real database.
-# CD  (pushes to the default branch, after CI passes):
-#     1. apply pending migrations to production (`prisma migrate deploy`) — schema first,
+# CD  (pushes to a deploy branch, after CI passes) — each branch deploys to its own
+#     GitHub Environment:
+#       development → development     testing → testing     staging → staging
+#       default branch (master/main) → production
+#     Promote by merging upward: development → testing → staging → default branch.
+#     1. apply pending migrations to that environment (`prisma migrate deploy`) — schema first,
 #        always compatible with the code still running (docs/RELEASE.md §2);
 #     2. trigger the host's deploy hook;
 #     3. wait for GET /api/health/ready to report this commit.
 #     Each step is skipped (with a notice) if its secret isn't set, so CI works before CD is
 #     configured.
 #
-# Repository secrets used by CD (Settings → Secrets and variables → Actions):
-#   PRODUCTION_DIRECT_DATABASE_URL  direct (non-"-pooler") Postgres URL, for migrations
-#   DEPLOY_HOOK_URL                 the host's deploy hook (Render, Railway, …). Set
-#                                   RELEASE_VERSION=${{ github.sha }} on the host if it supports it.
-#   PRODUCTION_API_URL              e.g. https://api.example.com — for the readiness check
+# Environment secrets used by CD — set the same three names in EACH environment
+# (Settings → Environments → <name> → Environment secrets), with that environment's values:
+#   DIRECT_DATABASE_URL  direct (non-"-pooler") Postgres URL, for migrations. Each environment
+#                        needs its OWN database — never point testing/staging at production's.
+#   DEPLOY_HOOK_URL      that environment's deploy hook (Render, Railway, …). Set
+#                        RELEASE_VERSION=${{ github.sha }} on the host if it supports it.
+#   API_URL              e.g. https://staging-api.example.com — for the readiness check
+#
+# NOTE: if the host also deploys on every push through its own Git integration, turn that
+# off for these branches — otherwise a commit that fails CI here still goes live.
 name: Server CI/CD
 
 on:
@@ -72,15 +81,19 @@ jobs:
         run: npm run build
 
   deploy:
-    name: Deploy to production
+    name: Deploy
     needs: ci
-    if: github.event_name == 'push' && github.ref_name == github.event.repository.default_branch
+    if: >-
+      github.event_name == 'push' && (
+        github.ref_name == github.event.repository.default_branch ||
+        contains(fromJSON('["development", "testing", "staging"]'), github.ref_name)
+      )
     runs-on: ubuntu-latest
-    # One deploy at a time; never cancel one halfway through a migration.
+    environment: ${{ github.ref_name == github.event.repository.default_branch && 'production' || github.ref_name }}
+    # One deploy per environment at a time; never cancel one halfway through a migration.
     concurrency:
-      group: server-production
+      group: server-deploy-${{ github.ref_name }}
       cancel-in-progress: false
-    environment: production
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -91,10 +104,10 @@ jobs:
 
       - name: Apply database migrations
         env:
-          DIRECT_DATABASE_URL: ${{ secrets.PRODUCTION_DIRECT_DATABASE_URL }}
+          DIRECT_DATABASE_URL: ${{ secrets.DIRECT_DATABASE_URL }}
         run: |
           if [ -z "$DIRECT_DATABASE_URL" ]; then
-            echo "::notice::PRODUCTION_DIRECT_DATABASE_URL not set — skipping migrations."
+            echo "::notice::DIRECT_DATABASE_URL not set for this environment — skipping migrations."
             exit 0
           fi
           # prisma.config.ts reads DATABASE_URL too; both point at the direct connection here.
@@ -105,23 +118,23 @@ jobs:
           DEPLOY_HOOK_URL: ${{ secrets.DEPLOY_HOOK_URL }}
         run: |
           if [ -z "$DEPLOY_HOOK_URL" ]; then
-            echo "::notice::DEPLOY_HOOK_URL not set — skipping deploy."
+            echo "::notice::DEPLOY_HOOK_URL not set for this environment — skipping deploy."
             exit 0
           fi
           curl --fail --silent --show-error --request POST "$DEPLOY_HOOK_URL" > /dev/null
-          echo "Deploy triggered for ${GITHUB_SHA}"
+          echo "Deploy triggered for ${GITHUB_SHA} (${GITHUB_REF_NAME})"
 
       - name: Wait until the new release is ready
         env:
-          PRODUCTION_API_URL: ${{ secrets.PRODUCTION_API_URL }}
+          API_URL: ${{ secrets.API_URL }}
         run: |
-          if [ -z "$PRODUCTION_API_URL" ]; then
-            echo "::notice::PRODUCTION_API_URL not set — skipping the readiness check."
+          if [ -z "$API_URL" ]; then
+            echo "::notice::API_URL not set for this environment — skipping the readiness check."
             exit 0
           fi
           # Up to 10 minutes: ready AND reporting this commit (if the host passes RELEASE_VERSION).
           for attempt in $(seq 1 40); do
-            body=$(curl --silent --max-time 10 "$PRODUCTION_API_URL/api/health/ready" || true)
+            body=$(curl --silent --max-time 10 "$API_URL/api/health/ready" || true)
             if echo "$body" | grep -q '"status":"ok"'; then
               if echo "$body" | grep -q "\"version\":\"${GITHUB_SHA}\"" || ! echo "$body" | grep -q '"version":"[0-9a-f]\{40\}"'; then
                 echo "Ready: $body"

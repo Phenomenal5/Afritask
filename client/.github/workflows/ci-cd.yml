@@ -2,13 +2,19 @@
 # GitHub only reads workflows from the root of the repository being pushed.
 #
 # CI  (every push and pull request): type-check and a production build.
-# CD  (pushes to the default branch, after CI passes): trigger the host's build hook, then
-#     wait for the site to answer. Skipped with a notice until its secret is set.
+# CD  (pushes to a deploy branch, after CI passes): trigger that environment's build hook,
+#     then wait for the site to answer. Skipped with a notice until its secret is set.
+#     Each branch deploys to its own GitHub Environment:
+#       development → development     testing → testing     staging → staging
+#       default branch (main) → production
+#     Promote by merging upward: development → testing → staging → main.
 #
-# Repository secrets used by CD (Settings → Secrets and variables → Actions):
-#   DEPLOY_HOOK_URL      the host's build hook (e.g. Netlify: Site configuration → Build hooks).
-#                        The host builds with its own env — API_URL must point at the API there.
-#   PRODUCTION_SITE_URL  e.g. https://afritask.netlify.app — for the post-deploy check
+# Environment secrets used by CD — set the same names in EACH environment
+# (Settings → Environments → <name> → Environment secrets), with that environment's values:
+#   DEPLOY_HOOK_URL  that site's build hook (e.g. Netlify: Site configuration → Build hooks).
+#                    The host builds with its own env — its API_URL must point at the API of
+#                    the SAME environment (staging site → staging API).
+#   SITE_URL         e.g. https://staging--afritask.netlify.app — for the post-deploy check
 #
 # NOTE: if the host already builds on every push through its own Git integration, leave
 # DEPLOY_HOOK_URL unset (or turn that integration's auto-publish off) so each commit isn't
@@ -40,39 +46,43 @@ jobs:
         run: npm run build
 
   deploy:
-    name: Deploy to production
+    name: Deploy
     needs: ci
-    if: github.event_name == 'push' && github.ref_name == github.event.repository.default_branch
+    if: >-
+      github.event_name == 'push' && (
+        github.ref_name == github.event.repository.default_branch ||
+        contains(fromJSON('["development", "testing", "staging"]'), github.ref_name)
+      )
     runs-on: ubuntu-latest
+    environment: ${{ github.ref_name == github.event.repository.default_branch && 'production' || github.ref_name }}
     concurrency:
-      group: client-production
+      group: client-deploy-${{ github.ref_name }}
       cancel-in-progress: false
-    environment: production
     steps:
       - name: Trigger the host's build
         env:
           DEPLOY_HOOK_URL: ${{ secrets.DEPLOY_HOOK_URL }}
         run: |
           if [ -z "$DEPLOY_HOOK_URL" ]; then
-            echo "::notice::DEPLOY_HOOK_URL not set — skipping deploy."
+            echo "::notice::DEPLOY_HOOK_URL not set for this environment — skipping deploy."
             exit 0
           fi
           curl --fail --silent --show-error --request POST "$DEPLOY_HOOK_URL" > /dev/null
-          echo "Build triggered for ${GITHUB_SHA}"
+          echo "Build triggered for ${GITHUB_SHA} (${GITHUB_REF_NAME})"
 
       - name: Check the site answers
         env:
-          PRODUCTION_SITE_URL: ${{ secrets.PRODUCTION_SITE_URL }}
+          SITE_URL: ${{ secrets.SITE_URL }}
         run: |
-          if [ -z "$PRODUCTION_SITE_URL" ]; then
-            echo "::notice::PRODUCTION_SITE_URL not set — skipping the site check."
+          if [ -z "$SITE_URL" ]; then
+            echo "::notice::SITE_URL not set for this environment — skipping the site check."
             exit 0
           fi
           # The host builds after the hook fires; give it time, then expect the sign-in page and
           # the web app manifest to load.
           for attempt in $(seq 1 40); do
-            login=$(curl --silent --output /dev/null --write-out '%{http_code}' --max-time 10 "$PRODUCTION_SITE_URL/login" || true)
-            manifest=$(curl --silent --output /dev/null --write-out '%{http_code}' --max-time 10 "$PRODUCTION_SITE_URL/manifest.webmanifest" || true)
+            login=$(curl --silent --output /dev/null --write-out '%{http_code}' --max-time 10 "$SITE_URL/login" || true)
+            manifest=$(curl --silent --output /dev/null --write-out '%{http_code}' --max-time 10 "$SITE_URL/manifest.webmanifest" || true)
             if [ "$login" = "200" ] && [ "$manifest" = "200" ]; then
               echo "Site is up."
               exit 0
