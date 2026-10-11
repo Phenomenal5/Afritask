@@ -17,7 +17,7 @@ contains `test`.
 | | Development | Staging | Production |
 |---|---|---|---|
 | Purpose | your machine | rehearse every release | real users |
-| Database | local Postgres (`docker compose up -d postgres`) or a Neon dev branch | its own Neon project/branch | its own Neon project |
+| Database | a Neon development branch | its own Neon project/branch | its own Neon project |
 | Redis | local (`docker compose up -d redis`) | its own instance | its own instance |
 | Email (Brevo) | real key, but only send to yourself | separate sender/key if possible | production key |
 | `NODE_ENV` | `development` | `production` | `production` |

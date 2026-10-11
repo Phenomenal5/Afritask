@@ -1,5 +1,9 @@
-# Local dev: `docker compose up -d postgres redis` then `npm run dev` on the host.
-# Full stack:  `docker compose up -d --build`
+# The database is on Neon (DATABASE_URL / DIRECT_DATABASE_URL in .env), so there's no
+# Postgres container here.
+# Local dev:   `docker compose up -d redis` then `npm run dev` on the host.
+# Full stack:  `docker compose up -d --build` (server + Redis, database on Neon).
+# Migrations:  `npm run db:deploy` from the host. The server image doesn't include the
+#              Prisma CLI, so it can't run them itself (docs/RELEASE.md).
 services:
   server:
     build: .
@@ -7,38 +11,13 @@ services:
       - "3000:3000"
     env_file: .env
     environment:
-      # Inside compose, reach the other containers by service name, not localhost.
-      DATABASE_URL: postgresql://afritask:afritask@postgres:5432/afritask
-      DIRECT_DATABASE_URL: postgresql://afritask:afritask@postgres:5432/afritask
+      # Inside compose, reach the Redis container by service name, not localhost.
       REDIS_URL: redis://redis:6379
       # Overrides a PORT from .env so it matches the 3000:3000 mapping above.
       PORT: 3000
-    # Locally it's convenient to apply pending migrations on start; in production they're a
-    # separate release step (docs/RELEASE.md).
-    command: sh -c "npx prisma migrate deploy && node ./dist/server.js"
     depends_on:
-      postgres:
-        condition: service_healthy
       redis:
         condition: service_healthy
-    restart: unless-stopped
-
-  postgres:
-    image: postgres:17-alpine
-    environment:
-      POSTGRES_USER: afritask
-      POSTGRES_PASSWORD: afritask
-      POSTGRES_DB: afritask
-    ports:
-      - "5432:5432"
-    volumes:
-      # Named volume so data survives `docker compose down` (only `down -v` wipes it).
-      - postgres-data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U afritask -d afritask"]
-      interval: 5s
-      timeout: 3s
-      retries: 10
     restart: unless-stopped
 
   redis:
@@ -51,6 +30,3 @@ services:
       timeout: 3s
       retries: 10
     restart: unless-stopped
-
-volumes:
-  postgres-data:

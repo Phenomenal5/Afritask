@@ -23,7 +23,7 @@ Afritask is an Express + PostgreSQL (Prisma) API for authentication, user settin
 
 ```bash
 cp .env.example .env              # then fill in the (required) values
-docker compose up -d postgres redis  # or use Neon / a hosted Redis instead
+docker compose up -d redis        # or a hosted Redis; the database is on Neon
 npm install
 npm run db:deploy                 # create the tables (applies prisma/migrations)
 npm run dev                       # tsx watch — runs src/*.ts directly, restarts on change
