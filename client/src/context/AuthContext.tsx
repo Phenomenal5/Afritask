@@ -11,6 +11,7 @@ import { createContext, useCallback, useContext, useEffect, useRef, useState, ty
 import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
 import {
+  acceptTerms as acceptTermsRequest,
   exchangeGoogleCode,
   forgotPassword as forgotPasswordRequest,
   getMe,
@@ -24,7 +25,7 @@ import {
 import { detectTimezone } from "@/utils/timezones";
 import { clearPendingInvite, postSignInPath, saveReturnPath } from "@/utils/pendingInvite";
 import { clearAllDrafts } from "@/utils/draftStorage";
-import { SESSION_EXPIRED_EVENT } from "@/lib/api";
+import { SESSION_EXPIRED_EVENT, TERMS_REQUIRED_EVENT } from "@/lib/api";
 import { failureMessage } from "@/lib/errors";
 import type { ActionResult, CurrentUser } from "@/types/models";
 
@@ -33,6 +34,7 @@ interface SignupInput {
   email: string;
   password: string;
   age?: number;
+  acceptTerms: boolean;
 }
 
 interface AuthState {
@@ -40,6 +42,9 @@ interface AuthState {
   setUser: Dispatch<SetStateAction<CurrentUser | null>>;
   isAuthenticated: boolean;
   authLoading: boolean;
+  // Signed in but hasn't accepted the current terms — the app shows TermsGate instead.
+  termsRequired: boolean;
+  acceptTerms: () => Promise<ActionResult>;
   logoutVersion: number;
   signup: (input: SignupInput) => Promise<ActionResult>;
   verifyEmail: (token: string) => Promise<ActionResult>;
@@ -63,6 +68,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const router = useRouter();
   const [user, setUser] = useState<CurrentUser | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
+  const [termsRequired, setTermsRequired] = useState(false);
   const [logoutVersion, setLogoutVersion] = useState(0);
 
   // Restore the current session once on mount — the cookie (if any) rides along to /auth/me.
@@ -73,7 +79,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Storage blocked — nothing to clean up.
     }
     getMe()
-      .then((res) => setUser(res.data.user))
+      .then((res) => {
+        setUser(res.data.user);
+        setTermsRequired(!!res.data.termsRequired);
+      })
       .catch(() => setUser(null))
       .finally(() => setAuthLoading(false));
   }, []);
@@ -102,9 +111,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => window.removeEventListener(SESSION_EXPIRED_EVENT, handleSessionExpired);
   }, [router]);
 
-  const signup = useCallback(async ({ name, email, password, age }: SignupInput): Promise<ActionResult> => {
+  useEffect(() => {
+    const handleTermsRequired = () => setTermsRequired(true);
+    window.addEventListener(TERMS_REQUIRED_EVENT, handleTermsRequired);
+    return () => window.removeEventListener(TERMS_REQUIRED_EVENT, handleTermsRequired);
+  }, []);
+
+  const signup = useCallback(async ({ name, email, password, age, acceptTerms }: SignupInput): Promise<ActionResult> => {
     try {
-      const res = await signupRequest({ name, email, password, age, timezone: detectTimezone() });
+      const res = await signupRequest({ name, email, password, age, acceptTerms, timezone: detectTimezone() });
       return { success: true, message: res.data.message };
     } catch (error) {
       return { success: false, message: failureMessage(error, "We couldn't create your account. Check the details and try again.") };
@@ -125,6 +140,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       try {
         const res = await loginRequest({ email, password });
         setUser(res.data.user);
+        setTermsRequired(!!res.data.termsRequired);
         toast.success(`Welcome back, ${firstNameOf(res.data.user.name)}`);
         // Back to a pending invitation (or the page a session expired on) first.
         router.push(postSignInPath());
@@ -143,6 +159,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       try {
         const res = await exchangeGoogleCode(code);
         setUser(res.data.user);
+        setTermsRequired(!!res.data.termsRequired);
         toast.success(`Welcome, ${firstNameOf(res.data.user.name)}`);
         router.push(postSignInPath());
         return { success: true };
@@ -155,6 +172,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     },
     [router]
   );
+
+  const acceptTerms = useCallback(async (): Promise<ActionResult> => {
+    try {
+      const res = await acceptTermsRequest();
+      setUser(res.data.user);
+      setTermsRequired(false);
+      return { success: true };
+    } catch (error) {
+      return { success: false, message: failureMessage(error, "We couldn't save your acceptance. Try again.") };
+    }
+  }, []);
 
   const forgotPassword = useCallback(async (email: string): Promise<ActionResult> => {
     try {
@@ -182,6 +210,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     userRef.current = null;
     setUser(null);
+    setTermsRequired(false);
     // An invitation link opened in this browser belongs to whoever opened it — don't
     // carry it into the next account that signs in here.
     clearPendingInvite();
@@ -196,6 +225,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser,
     isAuthenticated: !!user,
     authLoading,
+    termsRequired: !!user && termsRequired,
+    acceptTerms,
     logoutVersion,
     signup,
     verifyEmail,

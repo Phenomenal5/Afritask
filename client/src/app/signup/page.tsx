@@ -13,18 +13,20 @@ import AuthLayout from "@/components/auth/AuthLayout";
 import FormAlert from "@/components/auth/FormAlert";
 import PasswordField from "@/components/auth/PasswordField";
 import GoogleButton, { OrDivider } from "@/components/auth/GoogleButton";
+import TermsCheckbox from "@/components/auth/TermsCheckbox";
 import Button, { ButtonLink } from "@/components/ui/Button";
 import { TextField } from "@/components/ui/Field";
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const PASSWORD_MIN_LENGTH = 6;
 
-type FieldName = "name" | "email" | "password" | "age";
+type FieldName = "name" | "email" | "password" | "age" | "terms";
 
 export default function SignupPage() {
   const router = useRouter();
   const { signup, isAuthenticated, authLoading } = useAuth();
   const [form, setForm] = useState({ name: "", email: "", password: "", age: "" });
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<Partial<Record<FieldName, string>>>({});
   const [formError, setFormError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -44,7 +46,7 @@ export default function SignupPage() {
     }
   }, []);
 
-  const updateField = (field: FieldName, value: string) => {
+  const updateField = (field: Exclude<FieldName, "terms">, value: string) => {
     setForm((current) => ({ ...current, [field]: value }));
     setFieldErrors((current) => ({ ...current, [field]: undefined }));
     setFormError(null);
@@ -57,6 +59,7 @@ export default function SignupPage() {
     if (!EMAIL_PATTERN.test(form.email.trim())) errors.email = "Enter a full email address, like name@example.com.";
     if (form.password.length < PASSWORD_MIN_LENGTH) errors.password = `Use at least ${PASSWORD_MIN_LENGTH} characters.`;
     if (form.age && (!/^\d+$/.test(form.age) || Number(form.age) < 1 || Number(form.age) > 120)) errors.age = "Enter a whole number, or leave it empty.";
+    if (!acceptedTerms) errors.terms = "You need to accept the Terms of Service and Privacy Policy to create an account.";
     setFieldErrors(errors);
     if (Object.keys(errors).length) {
       nameRef.current?.focus();
@@ -68,6 +71,7 @@ export default function SignupPage() {
       email: form.email.trim(),
       password: form.password,
       ...(form.age ? { age: Number(form.age) } : {}),
+      acceptTerms: acceptedTerms,
     });
     setSubmitting(false);
     if (result.success) setSentTo(form.email.trim());
@@ -136,16 +140,17 @@ export default function SignupPage() {
             error={fieldErrors.password}
           />
           <TextField label="Age" optional inputMode="numeric" value={form.age} onChange={(event) => updateField("age", event.target.value)} error={fieldErrors.age} wrapperClassName="max-w-[10rem]" />
+          <TermsCheckbox
+            checked={acceptedTerms}
+            onChange={(checked) => {
+              setAcceptedTerms(checked);
+              setFieldErrors((current) => ({ ...current, terms: undefined }));
+            }}
+            error={fieldErrors.terms}
+          />
           <Button type="submit" size="lg" full loading={submitting}>
             Create account
           </Button>
-          <p className="text-center text-[13.5px] text-muted">
-            By creating an account you agree to how we handle your data in our{" "}
-            <Link href="/privacy" className="font-medium text-forest underline-offset-4 hover:underline">
-              privacy policy
-            </Link>
-            .
-          </p>
         </form>
       </div>
       {!invitedEmail && (

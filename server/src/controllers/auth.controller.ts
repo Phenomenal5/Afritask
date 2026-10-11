@@ -21,6 +21,9 @@ import {
     revokeAccountTokens
 } from '../services/accountTokenService.js';
 import { clearSessionCookie, revokeAllSessions, revokeSession, startSession } from '../services/sessionService.js';
+import { CURRENT_TERMS_VERSION, hasAcceptedCurrentTerms } from '../config/terms.js';
+
+const TERMS_NOT_ACCEPTED_MESSAGE = "Please accept the Terms of Service and Privacy Policy to create an account.";
 
 const VERIFY_EMAIL_TOKEN_EXPIRES = process.env.VERIFY_EMAIL_TOKEN_EXPIRES_MS
     ? Number(process.env.VERIFY_EMAIL_TOKEN_EXPIRES_MS)
@@ -48,20 +51,28 @@ const createAndSendVerificationToken = async (user: PublicUser) => {
 
 // Start a session (sets the httpOnly cookie) and return the user. No token in the body —
 // the browser never gets to see the session secret.
+// termsRequired: true → the client must show the accept-terms step before anything else
+// (Google sign-ups, accounts from before terms existed, or after the terms change).
 const sendAuthResponse = async (req: Request, res: Response, user: PublicUser, statusCode: number) => {
     await startSession(req, res, user.id);
 
     res.status(statusCode).json({
         status: "success",
-        user
+        user,
+        termsRequired: !hasAcceptedCurrentTerms(user)
     });
 };
 
 export const signup = catchAsync(async (req, res, next) => {
-    const { name, email, password, age, timezone } = req.body;
+    const { name, email, password, age, timezone, acceptTerms } = req.body;
     try {
         if (!name || !email || !password) {
             return next(new AppError("Please provide all required fields", 400));
+        }
+
+        // NOTE: strictly `true` — a string "false" or "on" must not count as agreement.
+        if (acceptTerms !== true) {
+            return next(new AppError(TERMS_NOT_ACCEPTED_MESSAGE, 400));
         }
 
         // NOTE: body values go straight into Prisma `where` clauses below. A non-string
@@ -80,6 +91,8 @@ export const signup = catchAsync(async (req, res, next) => {
                 password: await hashPassword(assertValidPassword(password)),
                 age: parseAge(age),
                 timezone: parseTimezone(timezone),
+                termsAcceptedAt: new Date(),
+                termsVersion: CURRENT_TERMS_VERSION,
             },
         });
 
@@ -302,7 +315,8 @@ export const me = catchAsync(async (req, res, next) => {
         logger.info(`Authenticated user accessed profile: ${user.email}`);
         res.status(200).json({
             status: "success",
-            user
+            user,
+            termsRequired: !hasAcceptedCurrentTerms(user)
         });
     } catch (error) {
         next(error);
@@ -346,6 +360,22 @@ export const forgotPassword = catchAsync(async (req, res, next) => {
     }
 });
 
+
+// Accept the current Terms of Service + Privacy Policy — for accounts that didn't tick the
+// box at signup (Google sign-ups, older accounts) or when the terms have changed since.
+export const acceptTerms = catchAsync(async (req, res, next) => {
+    if (req.body?.acceptTerms !== true) {
+        return next(new AppError("Tick the box to accept the Terms of Service and Privacy Policy.", 400));
+    }
+
+    const user = await prisma.user.update({
+        where: { id: requireUser(req).id },
+        data: { termsAcceptedAt: new Date(), termsVersion: CURRENT_TERMS_VERSION },
+    });
+
+    logger.info(`Terms ${CURRENT_TERMS_VERSION} accepted by user ${user.id}`);
+    res.status(200).json({ status: "success", user, termsRequired: false });
+});
 
 // Ends the session making the request (other devices stay signed in).
 export const logout = catchAsync(async (req, res, next) => {

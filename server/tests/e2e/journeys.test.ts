@@ -27,7 +27,7 @@ const PASSWORD = "journey-pass-1";
 // Sign up → verify via the emailed link → sign in. Returns a signed-in browser.
 const registerAndSignIn = async (name: string, email = uniqueEmail(name.toLowerCase())) => {
     const browser = createBrowser(server.baseUrl);
-    await expect(browser.post("/auth/signup", { name, email, password: PASSWORD, timezone: "Africa/Lagos" })).resolves.toMatchObject({ status: 201 });
+    await expect(browser.post("/auth/signup", { name, email, password: PASSWORD, timezone: "Africa/Lagos", acceptTerms: true })).resolves.toMatchObject({ status: 201 });
     const verifyToken = tokenFromEmail(email, VERIFY_LINK);
     await expect(browser.get(`/auth/verify-email/${verifyToken}`)).resolves.toMatchObject({ status: 200 });
     await expect(browser.post("/auth/login", { email, password: PASSWORD })).resolves.toMatchObject({ status: 200 });
@@ -108,7 +108,7 @@ describe("PRD core journeys", () => {
         await expect(wrongAccount.browser.post("/invitations/accept", { token: inviteToken })).resolves.toMatchObject({ status: 403 });
 
         // The newcomer registers with the invited email, verifies, signs in, then accepts.
-        await visitor.post("/auth/signup", { name: "Newcomer", email: newcomerEmail, password: PASSWORD });
+        await visitor.post("/auth/signup", { name: "Newcomer", email: newcomerEmail, password: PASSWORD, acceptTerms: true });
         await visitor.get(`/auth/verify-email/${tokenFromEmail(newcomerEmail, VERIFY_LINK)}`);
         await expect(visitor.post("/auth/login", { email: newcomerEmail, password: PASSWORD })).resolves.toMatchObject({ status: 200 });
         await expect(visitor.post("/invitations/accept", { token: inviteToken })).resolves.toMatchObject({ status: 200 });

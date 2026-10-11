@@ -17,6 +17,7 @@ const signupBody = (overrides: Record<string, unknown> = {}) => ({
     email: uniqueEmail("signup"),
     password: "analytical-engine",
     timezone: "Africa/Lagos",
+    acceptTerms: true,
     ...overrides,
 });
 

@@ -2,6 +2,7 @@ import express from "express";
 import type { RequestHandler } from "express";
 import passport from "passport";
 import {
+  acceptTerms,
   forgotPassword,
   googleCallback,
   googleExchange,
@@ -41,6 +42,7 @@ router.get("/verify-email/:token", credentialLimiter(), verifyEmail);
 router.post("/forgot-password", emailActionLimiter(), forgotPassword);
 router.patch("/reset-password/:token", credentialLimiter(), resetPassword);
 router.get("/me", protect, me);
+router.post("/accept-terms", protect, acceptTerms);
 // Second half of Google sign-in — see googleCallback in auth.controller.ts.
 router.post("/google/exchange", credentialLimiter(), googleExchange);
 

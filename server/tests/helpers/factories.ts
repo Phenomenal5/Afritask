@@ -7,6 +7,7 @@ import type { WorkspaceRole } from "../../src/generated/prisma/client.js";
 import { hashPassword } from "../../src/utils/password.js";
 import { generateSecureToken, hashSecureToken } from "../../src/utils/secureToken.js";
 import { createClient, type ApiClient } from "./client.js";
+import { CURRENT_TERMS_VERSION } from "../../src/config/terms.js";
 
 export const DEFAULT_PASSWORD = "correct-horse-1";
 
@@ -27,12 +28,20 @@ interface UserOptions {
     password?: string;
     verified?: boolean;
     timezone?: string;
+    acceptedTerms?: boolean;
 }
 
-// A user straight in the database (verified by default).
-export const createUser = async ({ name = "Test User", email = uniqueEmail(), password = DEFAULT_PASSWORD, verified = true, timezone = "UTC" }: UserOptions = {}) =>
+// A user straight in the database (verified and with the current terms accepted by default).
+export const createUser = async ({ name = "Test User", email = uniqueEmail(), password = DEFAULT_PASSWORD, verified = true, timezone = "UTC", acceptedTerms = true }: UserOptions = {}) =>
     prisma.user.create({
-        data: { name, email, password: await passwordHashFor(password), isVerified: verified, timezone },
+        data: {
+            name,
+            email,
+            password: await passwordHashFor(password),
+            isVerified: verified,
+            timezone,
+            ...(acceptedTerms && { termsAcceptedAt: new Date(), termsVersion: CURRENT_TERMS_VERSION }),
+        },
     });
 
 // A client that's signed in through the REAL login endpoint (use when login is the point).

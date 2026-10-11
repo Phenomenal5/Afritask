@@ -447,11 +447,12 @@ const authPaths = {
             security: publicRoute,
             requestBody: jsonBody({
                 type: "object",
-                required: ["name", "email", "password"],
+                required: ["name", "email", "password", "acceptTerms"],
                 properties: {
                     name: { type: "string" },
                     email: { type: "string", format: "email" },
                     password: { type: "string", minLength: 6 },
+                    acceptTerms: { type: "boolean", enum: [true], description: "Must be true — agrees to the Terms of Service and Privacy Policy" },
                     age: { type: "integer", minimum: 0 },
                     timezone: { type: "string", example: "Africa/Lagos" },
                 },
@@ -495,6 +496,16 @@ const authPaths = {
             summary: "The signed-in user",
             security: signedIn,
             responses: { 200: jsonResponse("Current user", ref("UserResponse")), ...errorResponses(401) },
+        },
+    },
+    "/auth/accept-terms": {
+        post: {
+            tags: ["Auth"],
+            summary: "Accept the current Terms of Service and Privacy Policy",
+            description: "Until accepted, every signed-in route outside /auth and /users answers 403 with code \"terms_required\".",
+            security: signedIn,
+            requestBody: jsonBody({ type: "object", required: ["acceptTerms"], properties: { acceptTerms: { type: "boolean", enum: [true] } } }),
+            responses: { 200: jsonResponse("Accepted", ref("UserResponse")), ...errorResponses(400, 401) },
         },
     },
     "/auth/forgot-password": {

@@ -121,6 +121,10 @@ model User {
   // blocks sign-in and silences notifications; ownership and assignments are untouched.
   suspendedAt   DateTime?    @db.Timestamptz(3)
   suspendReason String?
+  // Terms of Service + Privacy Policy acceptance. termsVersion is the version they agreed to
+  // (config/terms.ts); when it's older than the current one they're asked again.
+  termsAcceptedAt DateTime?  @db.Timestamptz(3)
+  termsVersion    String?
   // Source Mongo _id, so the import script can be re-run without duplicating rows.
   legacyMongoId String?      @unique
   createdAt     DateTime     @default(now()) @db.Timestamptz(3)

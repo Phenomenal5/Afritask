@@ -32,6 +32,12 @@ export const exchangeGoogleCode = (code) => {
   return api.post("/auth/google/exchange", { code });
 };
 
+// Accept the current Terms of Service + Privacy Policy (Google sign-ups, older accounts,
+// or after the terms change).
+export const acceptTerms = () => {
+  return api.post("/auth/accept-terms", { acceptTerms: true });
+};
+
 // Request a password reset email for the provided account email.
 export const forgotPassword = (email) => {
   // POST /auth/forgot-password expects an email object and returns the request status.

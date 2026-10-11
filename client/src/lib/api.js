@@ -23,6 +23,10 @@ const api = axios.create({
 //  - /users/password — "Current password is incorrect" is answered with 401.
 export const SESSION_EXPIRED_EVENT = "afritask:session-expired";
 
+// The terms changed (or were never accepted) while signed in — AuthContext shows the
+// accept-terms step. The server answers every app request with 403 terms_required until then.
+export const TERMS_REQUIRED_EVENT = "afritask:terms-required";
+
 const isCredentialCheck = (requestUrl) => requestUrl.startsWith("/auth/") || requestUrl === "/users/password";
 
 api.interceptors.response.use(
@@ -31,6 +35,9 @@ api.interceptors.response.use(
     const requestUrl = error.config?.url || "";
     if (error.response?.status === 401 && !isCredentialCheck(requestUrl) && typeof window !== "undefined") {
       window.dispatchEvent(new Event(SESSION_EXPIRED_EVENT));
+    }
+    if (error.response?.status === 403 && error.response.data?.code === "terms_required" && typeof window !== "undefined") {
+      window.dispatchEvent(new Event(TERMS_REQUIRED_EVENT));
     }
     return Promise.reject(error);
   }
