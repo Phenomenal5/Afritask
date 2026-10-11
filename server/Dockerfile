@@ -30,9 +30,9 @@ COPY package*.json ./
 RUN npm ci --omit=dev
 
 COPY --from=build /app/dist ./dist
-# Schema + migrations so the container can run `npm run db:deploy` before starting.
-COPY prisma.config.ts ./
-COPY prisma ./prisma
+# NOTE: no Prisma CLI or schema in this image — the generated client is compiled into dist.
+# Migrations are applied by the CI deploy job (or `npm run db:deploy` from a checkout),
+# never from the running container. See docs/RELEASE.md.
 # Served by express.static — holds uploaded avatars.
 COPY public ./public
 
