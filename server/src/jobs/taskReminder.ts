@@ -205,6 +205,10 @@ const startTaskReminderJob = () => {
     logger.info("Starting task reminder queue registration");
 
     const reminderQueue = new Queue(REMINDER_QUEUE_NAME, { connection: redisConnection });
+    // NOTE: BullMQ emits "error" when its Redis connection drops (hosted Redis closes idle
+    // connections). With no listener, Node treats an "error" event as fatal and the whole
+    // API crashed and restarted. Log it instead — BullMQ reconnects by itself.
+    reminderQueue.on("error", (error) => logger.error(`Reminder queue Redis error: ${error.message}`));
 
     // The old once-a-day "due tomorrow" scan is replaced by the per-task sweep; remove its
     // stored schedule so an upgraded Redis doesn't keep firing it.
@@ -232,6 +236,7 @@ const startTaskReminderJob = () => {
         { connection: redisConnection, concurrency: 1 },
     );
 
+    reminderWorker.on("error", (error) => logger.error(`Reminder worker Redis error: ${error.message}`));
     reminderWorker.on("failed", (job, error) => {
         logger.error(`Reminder sweep ${job?.id} failed: ${error.stack || error.message}`);
     });

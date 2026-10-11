@@ -47,7 +47,7 @@ const shutdown = async (signal: string) => {
     await closeHealthConnections();
     await prisma.$disconnect();
     logger.info("Shutdown complete");
-    process.exit(0);
+    process.exit(process.exitCode ?? 0);
   } catch (error) {
     logger.error(`Shutdown failed: ${describeError(error)}`);
     process.exit(1);
@@ -56,3 +56,18 @@ const shutdown = async (signal: string) => {
 
 process.on("SIGTERM", () => void shutdown("SIGTERM"));
 process.on("SIGINT", () => void shutdown("SIGINT"));
+
+// ─── Last-resort error handlers ─────────────────────
+// NOTE: Node 22 exits on an unhandled promise rejection, so one stray background promise
+// (an email, a push, a sweep) took the whole API down with almost nothing in the logs.
+// Log it and keep serving: a rejected promise doesn't corrupt the process.
+process.on("unhandledRejection", (reason) => {
+  logger.error(`Unhandled promise rejection: ${describeError(reason)}`);
+});
+// A synchronous throw nobody caught can leave the process in an unknown state, so this
+// still exits — but says why, and shuts down cleanly first.
+process.on("uncaughtException", (error) => {
+  logger.error(`Uncaught exception: ${describeError(error)}`);
+  process.exitCode = 1;
+  void shutdown("uncaughtException");
+});

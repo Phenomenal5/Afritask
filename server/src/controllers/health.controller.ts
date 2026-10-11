@@ -22,7 +22,12 @@ let redisClient: Redis | null = null;
 const pingRedis = async () => {
     // NOTE: retryStrategy null = no background reconnect loop; each readiness check simply
     // tries again. (A retrying client kept the process — and test runs — from exiting.)
-    redisClient ??= new Redis(env.redisUrl, { lazyConnect: true, maxRetriesPerRequest: 1, enableOfflineQueue: false, retryStrategy: () => null });
+    if (!redisClient) {
+        redisClient = new Redis(env.redisUrl, { lazyConnect: true, maxRetriesPerRequest: 1, enableOfflineQueue: false, retryStrategy: () => null });
+        // A failed ping is reported by the readiness check itself; this only keeps the error
+        // event from going unhandled.
+        redisClient.on("error", () => {});
+    }
     if (redisClient.status === "wait" || redisClient.status === "end") await redisClient.connect();
     return redisClient.ping();
 };

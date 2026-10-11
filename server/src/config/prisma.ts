@@ -48,14 +48,28 @@ const prisma = new PrismaClient({
 });
 
 // Fail fast at boot: an unreachable database should stop the server, not 500 every request.
+// NOTE: Neon suspends idle databases, and the first connection after that can time out.
+// Exiting on the first failure made the host restart the API in a loop until the database
+// woke up. Retry with backoff (about 30s in total) before giving up.
+const CONNECT_ATTEMPTS = 6;
+const firstRetryDelayMs = 1_000;
+
 export const connectDatabase = async () => {
-  try {
-    await prisma.$connect();
-    await prisma.$queryRaw`SELECT 1`;
-    logger.info("PostgreSQL connected successfully");
-  } catch (error) {
-    logger.error(describeError(error));
-    process.exit(1);
+  for (let attempt = 1; attempt <= CONNECT_ATTEMPTS; attempt += 1) {
+    try {
+      await prisma.$connect();
+      await prisma.$queryRaw`SELECT 1`;
+      logger.info("PostgreSQL connected successfully");
+      return;
+    } catch (error) {
+      if (attempt === CONNECT_ATTEMPTS) {
+        logger.error(`PostgreSQL unreachable after ${CONNECT_ATTEMPTS} attempts: ${describeError(error)}`);
+        process.exit(1);
+      }
+      const delayMs = firstRetryDelayMs * 2 ** (attempt - 1);
+      logger.warn(`PostgreSQL connection attempt ${attempt} failed (${describeError(error)}); retrying in ${delayMs / 1000}s`);
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+    }
   }
 };
 
