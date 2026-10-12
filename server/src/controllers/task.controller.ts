@@ -7,6 +7,7 @@ import logger from "../utils/logger.js";
 import { requireUser } from "../middlewares/auth.middleware.js";
 import { notFoundUnlessSuspended, requireActiveMembership, requireMembership } from "../middlewares/workspaceAccess.middleware.js";
 import { canAssignTask, canDeleteTask, canEditTask } from "../utils/taskPermissions.js";
+import { assertSubtaskInsideTask, assertSubtasksFitDuration, assertTaskWindowHoldsSubtasks, type ScheduleWindow } from "../utils/subtaskSchedule.js";
 import { parseDue } from "../utils/dueDate.js";
 import { assertStartNotAfterDue, parseStart } from "../utils/startDate.js";
 import routeParam from "../utils/routeParam.js";
@@ -116,7 +117,27 @@ export const loadTaskForMember = async (taskId: string, userId: string) => {
     const task = await prisma.task.findUnique({ where: { id: taskId } });
     if (!task) throw new AppError("Task not found", 404);
     const membership = await requireActiveMembership(task.workspaceId, userId).catch(notFoundUnlessSuspended("Task not found"));
-    return { task, membership };
+    // For a subtask: who is assigned its parent (they control the parent's subtasks too).
+    const parentAssigneeMembershipId = task.parentTaskId
+        ? (await prisma.task.findUnique({ where: { id: task.parentTaskId }, select: { assigneeMembershipId: true } }))?.assigneeMembershipId ?? null
+        : null;
+    return { task, membership, parentAssigneeMembershipId };
+};
+
+// ─── Subtasks fit inside their task (utils/subtaskSchedule.ts) ─────────────────────
+// Checked whenever a start or due time changes, in both directions: a subtask moving
+// inside its task, and a task's own window changing around its subtasks.
+const assertScheduleFits = async (task: { id: string; parentTaskId: string | null }, nextWindow: ScheduleWindow) => {
+    if (task.parentTaskId) {
+        const parent = await prisma.task.findUnique({ where: { id: task.parentTaskId }, select: { startAt: true, dueAt: true } });
+        if (!parent) return;
+        assertSubtaskInsideTask(parent, nextWindow);
+        const siblings = await prisma.task.findMany({ where: { parentTaskId: task.parentTaskId, id: { not: task.id } }, select: { startAt: true, dueAt: true } });
+        assertSubtasksFitDuration(parent, [...siblings, nextWindow]);
+        return;
+    }
+    const subtasks = await prisma.task.findMany({ where: { parentTaskId: task.id }, select: { startAt: true, dueAt: true, title: true } });
+    if (subtasks.length) assertTaskWindowHoldsSubtasks(nextWindow, subtasks);
 };
 
 // Returned with every task: its project (to show it and know it's read-only), the
@@ -126,7 +147,7 @@ const taskInclude = {
     project: { select: { id: true, name: true, state: true } },
     assignee: assigneeSelect,
     labels: { select: { label: { select: { id: true, name: true, color: true } } }, orderBy: { label: { name: "asc" } } },
-    parent: { select: { id: true, title: true } },
+    parent: { select: { id: true, title: true, startAt: true, dueAt: true, assigneeMembershipId: true } },
     subtasks: { select: { status: true } },
 } as const satisfies Prisma.TaskInclude;
 
@@ -597,9 +618,9 @@ export const getTaskById = catchAsync(async (req, res) => {
 export const editTask = catchAsync(async (req, res) => {
     const id = assertValidTaskId(routeParam(req, "id"));
     const user = requireUser(req);
-    const { task: existingTask, membership } = await loadTaskForMember(id, user.id);
+    const { task: existingTask, membership, parentAssigneeMembershipId } = await loadTaskForMember(id, user.id);
 
-    if (!canEditTask(membership, existingTask)) {
+    if (!canEditTask(membership, existingTask, parentAssigneeMembershipId)) {
         throw new AppError("You can only edit tasks you created or are assigned to", 403);
     }
     await assertTaskWritable(existingTask);
@@ -607,7 +628,7 @@ export const editTask = catchAsync(async (req, res) => {
 
     const assigneeMembershipId = await parseAssigneeMembershipId(req.body.assigneeMembershipId, existingTask.workspaceId);
     if (assigneeMembershipId !== undefined && assigneeMembershipId !== existingTask.assigneeMembershipId
-        && !canAssignTask(membership, existingTask)) {
+        && !canAssignTask(membership, existingTask, parentAssigneeMembershipId)) {
         throw new AppError("You can't reassign this task", 403);
     }
 
@@ -615,7 +636,9 @@ export const editTask = catchAsync(async (req, res) => {
     const due = parseDue(req.body, user.timezone);
     const start = parseStart(req.body, user.timezone);
     // Compare what the task WILL have after this edit, changed or not.
-    assertStartNotAfterDue(start !== undefined ? start.startAt : existingTask.startAt, due !== undefined ? due.dueAt : existingTask.dueAt);
+    const nextWindow = { startAt: start !== undefined ? start.startAt : existingTask.startAt, dueAt: due !== undefined ? due.dueAt : existingTask.dueAt };
+    assertStartNotAfterDue(nextWindow.startAt, nextWindow.dueAt);
+    if (start !== undefined || due !== undefined) await assertScheduleFits(existingTask, nextWindow);
     let reminderOffset = parseReminderOffset(req.body.reminderOffset);
     // A deadline added to a task that never had one gets the default reminder, like a new task.
     if (reminderOffset === undefined && due?.dueAt && !existingTask.dueAt && !existingTask.reminderOffset) {
@@ -689,9 +712,9 @@ export const editTask = catchAsync(async (req, res) => {
 
 export const updateTaskStatus = catchAsync(async (req, res) => {
     const id = assertValidTaskId(routeParam(req, "id"));
-    const { task: existingTask, membership } = await loadTaskForMember(id, requireUser(req).id);
+    const { task: existingTask, membership, parentAssigneeMembershipId } = await loadTaskForMember(id, requireUser(req).id);
 
-    if (!canEditTask(membership, existingTask)) {
+    if (!canEditTask(membership, existingTask, parentAssigneeMembershipId)) {
         throw new AppError("You can only update tasks you created or are assigned to", 403);
     }
     await assertTaskWritable(existingTask);
@@ -712,9 +735,9 @@ export const updateTaskStatus = catchAsync(async (req, res) => {
 
 export const deleteTask = catchAsync(async (req, res) => {
     const id = assertValidTaskId(routeParam(req, "id"));
-    const { task, membership } = await loadTaskForMember(id, requireUser(req).id);
+    const { task, membership, parentAssigneeMembershipId } = await loadTaskForMember(id, requireUser(req).id);
 
-    if (!canDeleteTask(membership, task)) {
+    if (!canDeleteTask(membership, task, parentAssigneeMembershipId)) {
         throw new AppError("You can only delete tasks you created", 403);
     }
     await assertTaskWritable(task);
@@ -748,7 +771,13 @@ export const createSubtask = catchAsync(async (req, res) => {
 
     const status = parseStatus(req.body.status) ?? TaskStatus.todo;
     const due = parseDue(req.body, user.timezone);
-    const reminder = reminderFieldsForNewTask(req.body.reminderOffset, due, parseStart(req.body, user.timezone), status);
+    const start = parseStart(req.body, user.timezone);
+    const window = { startAt: start?.startAt ?? null, dueAt: due?.dueAt ?? null };
+    assertStartNotAfterDue(window.startAt, window.dueAt);
+    assertSubtaskInsideTask(parent, window);
+    const siblings = await prisma.task.findMany({ where: { parentTaskId: parent.id }, select: { startAt: true, dueAt: true } });
+    assertSubtasksFitDuration(parent, [...siblings, window]);
+    const reminder = reminderFieldsForNewTask(req.body.reminderOffset, due, start, status);
     const assigneeMembershipId = await parseAssigneeMembershipId(req.body.assigneeMembershipId, parent.workspaceId);
     const subtask = await prisma.$transaction(async (transaction) => {
         const createdSubtask = await transaction.task.create({
@@ -763,6 +792,9 @@ export const createSubtask = catchAsync(async (req, res) => {
                 status,
                 priority: parsePriority(req.body.priority),
                 ...(due ?? {}),
+                // NOTE: the start date used to be parsed here only for the reminder and never
+                // saved, so a subtask's start silently disappeared.
+                ...(start ?? {}),
                 originalDueAt: due?.dueAt ?? null,
                 ...reminder,
                 completedAt: status === TaskStatus.completed ? new Date() : null,

@@ -78,7 +78,8 @@ export interface Task {
   project: { id: string; name: string; state: ProjectState } | null;
   assignee: { id: string; user: PublicUser } | null;
   labels: Label[];
-  parent: { id: string; title: string } | null;
+  // For a subtask: its task's title, time window and assignee (who also controls this subtask).
+  parent: { id: string; title: string; startAt: string | null; dueAt: string | null; assigneeMembershipId: string | null } | null;
   subtaskCounts: { total: number; completed: number };
   subtasks?: Task[];
 }

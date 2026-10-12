@@ -19,7 +19,7 @@ describe("subtasks", () => {
             workspaceId: team.workspace.id,
             projectId: project.id,
             creatorId: team.member.user.id,
-            parent: { id: parent.id, title: "Production release" },
+            parent: expect.objectContaining({ id: parent.id, title: "Production release" }),
             assignee: { id: team.admin.membership.id },
         });
     });
@@ -60,7 +60,7 @@ describe("subtasks", () => {
 
         await expect(team.member.client.get(`/workspaces/${team.workspace.id}/tasks`)).resolves.toMatchObject({ body: { results: 1 } });
         const mine = await team.member.client.get(`/workspaces/${team.workspace.id}/tasks?assignee=me`);
-        expect(mine.body.data.tasks).toEqual([expect.objectContaining({ title: "Mine", parent: { id: parent.id, title: "Parent" } })]);
+        expect(mine.body.data.tasks).toEqual([expect.objectContaining({ title: "Mine", parent: expect.objectContaining({ id: parent.id, title: "Parent" }) })]);
         await expect(team.member.client.get(`/workspaces/${team.workspace.id}/tasks?includeSubtasks=true`)).resolves.toMatchObject({ body: { results: 2 } });
     });
 
@@ -89,15 +89,16 @@ describe("subtasks", () => {
         await expect(prisma.task.findUnique({ where: { id: child.id } })).resolves.toBeNull();
     });
 
-    it("subtask permissions are their own: the parent's assignee can't edit a child assigned to someone else", async () => {
+    // The parent's assignee controls its subtasks (owner's rule, 2026-10-12), whoever each is assigned to.
+    it("the parent's assignee can edit a child assigned to someone else, and so can the child's assignee", async () => {
         const team = await createTeam();
         const parentAssignee = await createSignedInUser();
         const parentAssigneeMembership = await addMember(team.workspace.id, parentAssignee.user.id);
         const parent = await createTask(team.workspace.id, team.owner.user.id, { assigneeMembershipId: parentAssigneeMembership.id });
         const child = (await team.owner.client.post(`/tasks/${parent.id}/subtasks`, { title: "child", assigneeMembershipId: team.member.membership.id })).body.data.task;
 
-        await expect(parentAssignee.client.put(`/tasks/${child.id}`, { title: "x", version: child.version })).resolves.toMatchObject({ status: 403 });
-        await expect(team.member.client.put(`/tasks/${child.id}`, { title: "x", version: child.version })).resolves.toMatchObject({ status: 200 });
+        await expect(parentAssignee.client.put(`/tasks/${child.id}`, { title: "x", version: child.version })).resolves.toMatchObject({ status: 200 });
+        await expect(team.member.client.put(`/tasks/${child.id}`, { title: "y", version: child.version + 1 })).resolves.toMatchObject({ status: 200 });
     });
 
     it("project task counts ignore subtasks", async () => {

@@ -69,6 +69,10 @@ interface DetailForm {
   dueChangeReason: string;
 }
 
+// "Tue 10 Mar, 09:00" in the viewer's own clock.
+const formatInstant = (instant: string) =>
+  new Intl.DateTimeFormat(undefined, { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }).format(new Date(instant));
+
 const formOf = (task: Task): DetailForm => ({
   dueChangeReason: "",
   title: task.title,
@@ -439,6 +443,13 @@ export default function TaskDrawer({ taskId, onClose, onOpenTask }: TaskDrawerPr
             ))}
           </SelectField>
 
+          {isSubtask && task.parent && (task.parent.startAt || task.parent.dueAt) && (
+            <p className="text-[13.5px] leading-relaxed text-muted sm:col-span-2">
+              Must fit within its task{task.parent.startAt ? `, which starts ${formatInstant(task.parent.startAt)}` : ""}
+              {task.parent.dueAt ? ` and is due ${formatInstant(task.parent.dueAt)}` : ""}. Timed subtasks can&apos;t add up to more than the task&apos;s own time.
+            </p>
+          )}
+
           <TextField
             label="Start date"
             optional
@@ -538,12 +549,16 @@ export default function TaskDrawer({ taskId, onClose, onOpenTask }: TaskDrawerPr
         </section>
         </form>
 
-        {!isSubtask &&<SubtaskList parent={task} onOpenSubtask={openOther} />}
+        {!isSubtask && <SubtaskList parent={task} onOpenSubtask={openOther} />}
 
-        <TaskComments
-          taskId={task.id}
-          readOnlyReason={isArchived ? "This task's project is archived, so its discussion is read-only. Restore the project to comment." : null}
-        />
+        {/* Comments are hidden on subtasks for now (owner's call, 2026-10-12); the discussion
+            happens on the parent task. Existing subtask comments stay in the database. */}
+        {!isSubtask && (
+          <TaskComments
+            taskId={task.id}
+            readOnlyReason={isArchived ? "This task's project is archived, so its discussion is read-only. Restore the project to comment." : null}
+          />
+        )}
 
         <section aria-labelledby="task-activity-heading">
           <h3 id="task-activity-heading" className="mb-3 text-[16px] font-semibold text-ink">
