@@ -52,3 +52,31 @@ export const isStandalone = () =>
   (window.matchMedia("(display-mode: standalone)").matches || (navigator as Navigator & { standalone?: boolean }).standalone === true);
 
 export const isIos = () => typeof navigator !== "undefined" && /iphone|ipad|ipod/i.test(navigator.userAgent);
+
+// The overview's install popup, once closed, stays closed until the next sign-in.
+export const INSTALL_PROMPT_DISMISSED_KEY = "afritask:install-prompt-dismissed";
+
+export const wasInstallPromptDismissed = () => {
+  try {
+    return sessionStorage.getItem(INSTALL_PROMPT_DISMISSED_KEY) === "1";
+  } catch {
+    return false;
+  }
+};
+
+export const rememberInstallPromptDismissed = () => {
+  try {
+    sessionStorage.setItem(INSTALL_PROMPT_DISMISSED_KEY, "1");
+  } catch {
+    // Storage blocked: it closes now and may show again on the next visit to the overview.
+  }
+};
+
+// Called on sign-out, so the next sign-in offers installation again.
+export const clearInstallPromptDismissed = () => {
+  try {
+    sessionStorage.removeItem(INSTALL_PROMPT_DISMISSED_KEY);
+  } catch {
+    // Nothing to clear.
+  }
+};

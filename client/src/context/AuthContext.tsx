@@ -25,6 +25,7 @@ import {
 import { detectTimezone } from "@/utils/timezones";
 import { clearPendingInvite, postSignInPath, saveReturnPath } from "@/utils/pendingInvite";
 import { clearAllDrafts } from "@/utils/draftStorage";
+import { clearInstallPromptDismissed } from "@/components/pwa/installPrompt";
 import { unsubscribeThisBrowser } from "@/utils/browserPush";
 import { SESSION_EXPIRED_EVENT, TERMS_REQUIRED_EVENT } from "@/lib/api";
 import { TERMS_ACCEPTED_BEFORE_GOOGLE_KEY } from "@/components/auth/GoogleButton";
@@ -237,6 +238,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // carry it into the next account that signs in here.
     clearPendingInvite();
     clearAllDrafts();
+    // The next sign-in offers installing the app again.
+    clearInstallPromptDismissed();
     setLogoutVersion((count) => count + 1);
     toast.success("Signed out");
     router.push("/login");

@@ -26,6 +26,7 @@ import WeekAhead from "@/components/overview/WeekAhead";
 import TeamPulse from "@/components/overview/TeamPulse";
 import SupportQuickCard from "@/components/support/SupportQuickCard";
 import FeedbackCard from "@/components/support/FeedbackCard";
+import InstallAppPrompt from "@/components/pwa/InstallAppPrompt";
 import InvitationResponses from "@/components/people/InvitationResponses";
 import ActivityFeed from "@/components/activity/ActivityFeed";
 import { FailurePanel } from "@/components/ui/States";
@@ -66,6 +67,7 @@ export default function OverviewPage() {
   return (
     <>
       <title>{`Overview · ${activeWorkspace?.name ?? "Afritask"}`}</title>
+      <InstallAppPrompt />
       <PageHeader
         eyebrow={activeWorkspace ? `${activeWorkspace.name} · ${ROLE_SENTENCES[activeWorkspace.role]}` : undefined}
         title={`${greetingFor(now)}${firstName ? `, ${firstName}` : ""}`}

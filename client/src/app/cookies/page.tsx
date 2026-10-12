@@ -3,7 +3,8 @@
 // NOTE: when you add a cookie, a localStorage/sessionStorage key or a cache, list it here
 // and update LAST_UPDATED. Today it's: the two sign-in cookies (server/src/services/
 // sessionService.ts), the keys in ThemeToggle, WorkspaceContext, pendingInvite,
-// PushPermissionBanner, GoogleButton and draftStorage, and the service worker cache (public/sw.js).
+// PushPermissionBanner, GoogleButton, draftStorage and installPrompt, and the service worker
+// cache (public/sw.js).
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { PublicFooter, PublicHeader } from "@/components/legal/PublicFrame";
@@ -43,6 +44,7 @@ const SESSION_STORAGE: StoredItem[] = [
   { name: "afritask_return_path", purpose: "Takes you back to the page you were on after signing in.", lasts: "This tab only" },
   { name: "afritask_task_draft, afritask:comment-draft", purpose: "Keeps a task or comment you were writing if a save fails or you close it by accident.", lasts: "This tab only" },
   { name: "afritask:push-banner-dismissed", purpose: "Hides the notification prompt after you close it.", lasts: "This tab only" },
+  { name: "afritask:install-prompt-dismissed", purpose: "Hides the install-the-app popup after you close it, until you sign in again.", lasts: "This tab only" },
   { name: "afritask:terms-accepted-before-google", purpose: "Remembers that you accepted the terms before continuing with Google.", lasts: "This tab only" },
 ];
 
