@@ -22,7 +22,8 @@ if (googleClientId && googleClientSecret) {
       {
         clientID: googleClientId,
         clientSecret: googleClientSecret,
-        callbackURL: env.googleCallbackUrl,
+        // Set whenever the id and secret are (config/env.ts refuses half a Google setup).
+        callbackURL: env.googleCallbackUrl!,
       },
 
       async (accessToken: string, refreshToken: string, profile: Profile, done: VerifyCallback) => {

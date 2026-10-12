@@ -1,20 +1,38 @@
 // ─── Environment config, validated once at boot ─────────────────────
-// Required values (and anything other modules need typed) are read from here,
-// so a missing value crashes the boot loudly rather than 500-ing a request later.
-// Optional values with a local default (token lifetimes, email logo, CLIENT_URL)
-// still live next to the code that uses them.
+// Every setting comes from the environment (.env locally, the host's settings in
+// production), and a missing or malformed one stops the boot with a message naming it.
+// NOTE: addresses, ports and lifetimes have NO built-in fallback on purpose. A default
+// quietly used in the wrong place (e.g. a relative Google callback built from a proxied
+// request) caused "redirect_uri_mismatch" and similar surprises that were hard to trace.
 // Keep .env.example in sync with this file.
 
 const ALWAYS_REQUIRED = [
+  "PORT",
   "DATABASE_URL",
   "REDIS_URL",
   "BREVO_API_KEY",
   "EMAIL_FROM_ADDRESS",
+  // The customer app's address: CORS, OAuth redirects and every link in emails.
+  "CLIENT_URL",
   // Signs access tokens. Changing it signs everyone's access tokens out (they refresh).
   "ACCESS_TOKEN_SECRET",
+  "ACCESS_TOKEN_TTL_MINUTES",
+  "REFRESH_TOKEN_TTL_DAYS",
 ] as const;
 
-const missingKeys = ALWAYS_REQUIRED.filter((key) => !process.env[key]);
+const isSet = (key: string) => Boolean(process.env[key]?.trim());
+
+// Optional features need ALL their settings once ANY of them is set: half a Google setup
+// fails at sign-in time, far from the cause.
+const FEATURE_SETTINGS = {
+  "Google sign-in": ["GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET", "GOOGLE_CALLBACK_URL"],
+  "Web push": ["VAPID_PUBLIC_KEY", "VAPID_PRIVATE_KEY", "VAPID_SUBJECT"],
+} as const;
+
+const missingKeys: string[] = ALWAYS_REQUIRED.filter((key) => !isSet(key));
+for (const keys of Object.values(FEATURE_SETTINGS)) {
+  if (keys.some(isSet)) missingKeys.push(...keys.filter((key) => !isSet(key)));
+}
 if (missingKeys.length > 0) {
   throw new Error(
     `Missing required environment variables: ${missingKeys.join(", ")} — see server/.env.example`
@@ -29,22 +47,49 @@ if ((process.env.ACCESS_TOKEN_SECRET ?? "").length < 32) {
 // Safe after the check above: every ALWAYS_REQUIRED key is a non-empty string.
 const requiredValue = (key: (typeof ALWAYS_REQUIRED)[number]): string => process.env[key] as string;
 
-// NOTE: a typo here ("7d", "0") would quietly give sessions a broken lifetime, so a set
-// value that isn't a positive number stops the boot instead.
-const positiveNumber = (key: string, fallback: number): number => {
-  const raw = process.env[key];
-  if (raw === undefined || raw.trim() === "") return fallback;
+// NOTE: a typo here ("7d", "0") would quietly give sessions a broken lifetime, so a value
+// that isn't a positive number stops the boot instead.
+const positiveNumber = (key: (typeof ALWAYS_REQUIRED)[number]): number => {
+  const raw = requiredValue(key);
   const value = Number(raw);
   if (!Number.isFinite(value) || value <= 0) throw new Error(`${key} must be a positive number (got "${raw}") — see server/.env.example`);
   return value;
+};
+
+// A full http(s) address, without a trailing slash ("https://afritask.example.com").
+const absoluteUrl = (key: string): string => {
+  const raw = (process.env[key] ?? "").trim().replace(/\/$/, "");
+  try {
+    const url = new URL(raw);
+    if (url.protocol === "http:" || url.protocol === "https:") return raw;
+  } catch {
+    // Reported below.
+  }
+  throw new Error(`${key} must be a full address starting with http:// or https:// (got "${raw}") — see server/.env.example`);
+};
+
+// The Google callback must be the exact address registered in Google Cloud Console AND
+// a path this server answers. Checked here so a mismatch shows at boot, not at sign-in.
+const GOOGLE_CALLBACK_PATH = "/api/v1/auth/google/callback";
+const googleCallbackUrl = (): string | undefined => {
+  if (!isSet("GOOGLE_CALLBACK_URL")) return undefined;
+  const callbackUrl = absoluteUrl("GOOGLE_CALLBACK_URL");
+  const { pathname, protocol } = new URL(callbackUrl);
+  if (pathname !== GOOGLE_CALLBACK_PATH) {
+    throw new Error(`GOOGLE_CALLBACK_URL must end with ${GOOGLE_CALLBACK_PATH} (got "${callbackUrl}")`);
+  }
+  if (process.env.NODE_ENV === "production" && protocol !== "https:") {
+    throw new Error(`GOOGLE_CALLBACK_URL must use https in production (got "${callbackUrl}")`);
+  }
+  return callbackUrl;
 };
 
 const env = {
   nodeEnv: process.env.NODE_ENV ?? "development",
   isProduction: process.env.NODE_ENV === "production",
   isTest: process.env.NODE_ENV === "test",
-  // 5000 matches the client's NEXT_PUBLIC_API_URL fallback.
-  port: Number(process.env.PORT ?? 5000),
+  port: positiveNumber("PORT"),
+  clientUrl: absoluteUrl("CLIENT_URL"),
 
   // Pooled URL for the app. Migrations use DIRECT_DATABASE_URL (prisma.config.ts).
   databaseUrl: requiredValue("DATABASE_URL"),
@@ -52,8 +97,8 @@ const env = {
 
   // Access token: short, sent with every request. Refresh token: how long a login lasts.
   accessTokenSecret: requiredValue("ACCESS_TOKEN_SECRET"),
-  accessTokenTtlMinutes: positiveNumber("ACCESS_TOKEN_TTL_MINUTES", 15),
-  refreshTokenTtlDays: positiveNumber("REFRESH_TOKEN_TTL_DAYS", 7),
+  accessTokenTtlMinutes: positiveNumber("ACCESS_TOKEN_TTL_MINUTES"),
+  refreshTokenTtlDays: positiveNumber("REFRESH_TOKEN_TTL_DAYS"),
   // Hops of reverse proxy in front of Express in production (e.g. the client's /api
   // rewrite + the host's load balancer). Needed for correct client IPs in rate limiting.
   trustProxyHops: Number(process.env.TRUST_PROXY_HOPS ?? 1),
@@ -68,7 +113,7 @@ const env = {
   vapidPublicKey: process.env.VAPID_PUBLIC_KEY,
   vapidPrivateKey: process.env.VAPID_PRIVATE_KEY,
   // A contact the push services can reach about abuse: "mailto:..." or an https URL.
-  vapidSubject: process.env.VAPID_SUBJECT ?? "mailto:support@afritask.app",
+  vapidSubject: process.env.VAPID_SUBJECT,
 
   // The admin console's own address (e.g. https://admin.example.com). Browsers there may
   // call the API directly, so it's allowed by CORS next to CLIENT_URL. Leave unset when
@@ -81,10 +126,11 @@ const env = {
   superadminPassword: process.env.SUPERADMIN_PASSWORD,
   superadminName: process.env.SUPERADMIN_NAME,
 
-  // Google OAuth is optional: routes answer 500 "not configured" when these are missing.
+  // Google sign-in is optional: without these, the Google button answers "not available".
+  // When set, all three are required (checked above).
   googleClientId: process.env.GOOGLE_CLIENT_ID,
   googleClientSecret: process.env.GOOGLE_CLIENT_SECRET,
-  googleCallbackUrl: process.env.GOOGLE_CALLBACK_URL ?? "/api/v1/auth/google/callback",
+  googleCallbackUrl: googleCallbackUrl(),
 
   // Swagger UI at /api/docs. On by default except in production (set API_DOCS=on there
   // to expose it, or API_DOCS=off anywhere to hide it).

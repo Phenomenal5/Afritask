@@ -23,7 +23,8 @@ export const isPushConfigured = () => Boolean(env.vapidPublicKey && env.vapidPri
 let vapidReady = false;
 const ensureVapid = () => {
     if (vapidReady || !isPushConfigured()) return;
-    webpush.setVapidDetails(env.vapidSubject, env.vapidPublicKey!, env.vapidPrivateKey!);
+    // All three are set together or not at all (config/env.ts refuses half a setup).
+    webpush.setVapidDetails(env.vapidSubject!, env.vapidPublicKey!, env.vapidPrivateKey!);
     vapidReady = true;
 };
 
