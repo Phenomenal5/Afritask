@@ -172,7 +172,7 @@ function AccountMenu({ onNavigate, pushedToBottom }: { onNavigate?: () => void; 
   return (
     <div ref={containerRef} className={cx("relative border-t border-white/10 pt-3", pushedToBottom && "mt-auto")}>
       {open && (
-        <div className="absolute bottom-full left-0 right-0 z-40 mb-2 overflow-hidden rounded-[12px] border border-line bg-surface py-1.5 shadow-lg animate-rise-in">
+        <div className="absolute bottom-full left-0 right-0 z-40 mb-2 overflow-hidden rounded-[12px] border border-line bg-surface py-1.5 shadow-lg animate-pop-in-up">
           <Link href="/settings" onClick={() => { setOpen(false); onNavigate?.(); }} className={menuItem}>
             <UserRound size={17} aria-hidden="true" className="text-muted" />
             Profile &amp; preferences

@@ -64,7 +64,7 @@ export default function Dialog({
         className={cx(
           "relative flex flex-col bg-surface shadow-lg outline-none",
           isSheet
-            ? "h-full w-full animate-fade-in sm:max-w-[640px] sm:border-l sm:border-line"
+            ? "h-full w-full animate-sheet-in sm:max-w-[640px] sm:border-l sm:border-line"
             : cx("max-h-[92dvh] w-full animate-rise-in rounded-t-[14px] sm:rounded-[14px]", SIZES[size])
         )}
       >

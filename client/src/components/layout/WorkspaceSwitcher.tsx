@@ -77,7 +77,7 @@ export default function WorkspaceSwitcher({ onNavigate }: { onNavigate?: () => v
       </button>
 
       {open && (
-        <div className="absolute left-0 right-0 z-40 mt-2 overflow-hidden rounded-[12px] border border-line bg-surface py-1.5 text-ink shadow-lg animate-rise-in">
+        <div className="absolute left-0 right-0 z-40 mt-2 overflow-hidden rounded-[12px] border border-line bg-surface py-1.5 text-ink shadow-lg animate-pop-in">
           <p className="px-3.5 pb-1 pt-1.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-muted">Your workspaces</p>
           <ul>
             {workspaces.map((workspace: WorkspaceSummary) => {

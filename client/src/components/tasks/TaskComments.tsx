@@ -175,7 +175,7 @@ function MentionInput({ label, value, onChange, onPick, members, disabled, autoF
           id={listId}
           role="listbox"
           aria-label="People you can mention"
-          className="absolute left-0 right-0 top-full z-20 mt-1 max-h-60 overflow-auto rounded-[12px] border border-line bg-surface py-1 shadow-md sm:right-auto sm:w-72"
+          className="absolute left-0 right-0 top-full z-20 mt-1 max-h-60 animate-pop-in overflow-auto rounded-[12px] border border-line bg-surface py-1 shadow-md sm:right-auto sm:w-72"
         >
           {suggestions.map((member, index) => (
             <li
