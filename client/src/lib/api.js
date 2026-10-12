@@ -3,8 +3,8 @@ import axios from "axios";
 
 // Relative on purpose: next.config.mjs rewrites /api to the backend, so requests are
 // same-origin and the browser attaches the httpOnly token cookies automatically:
-// a 15-minute access token on every request, and a 30-day refresh token that only goes
-// to /api/v1/auth. JavaScript can't read either — nothing is kept in localStorage.
+// a short access token on every request (ACCESS_TOKEN_TTL_MINUTES on the server), and a
+// refresh token that only goes to /api/v1/auth (REFRESH_TOKEN_TTL_DAYS, 7 days for now). JavaScript can't read either — nothing is kept in localStorage.
 const api = axios.create({
   // Versioned API: a breaking server change will arrive as /api/v2 beside this.
   baseURL: "/api/v1",
@@ -21,8 +21,9 @@ const api = axios.create({
 // expired: refresh it once and replay the request, invisibly to the page.
 // NOTE: one refresh at a time — when several requests fail together they all wait for the
 // same refresh. Firing one each would rotate the refresh token under the others' feet.
+// Exported for the live-updates stream, which reconnects through the same refresh.
 let refreshInFlight = null;
-const refreshAccessToken = () => {
+export const refreshAccessToken = () => {
   refreshInFlight ??= api.post("/auth/refresh").finally(() => {
     refreshInFlight = null;
   });
@@ -31,7 +32,7 @@ const refreshAccessToken = () => {
 
 // ─── Session expiry ─────────────────────
 // A 401 that survives the refresh means the session really ended (signed out, password
-// reset, sign-out elsewhere, 30 days up). AuthContext listens for this event and sends the
+// reset, sign-out elsewhere, the refresh token's days up). AuthContext listens for this event and sends the
 // user to sign in, keeping where they were.
 // NOTE: some 401s are NOT expiry and must be left to the form that asked:
 //  - /auth/* — a wrong password on /auth/login, the signed-out probe on /auth/me;

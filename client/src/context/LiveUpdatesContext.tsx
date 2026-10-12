@@ -11,7 +11,7 @@
  *   get the "Turn on notifications" banner instead (PushPermissionBanner).
  */
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import api from "@/lib/api";
+import { refreshAccessToken } from "@/lib/api";
 import { useMyWork } from "@/context/MyWorkContext";
 import { getNotificationPreferences, updateNotificationPreferences, type NotificationPreferences } from "@/lib/services/notificationPreferenceService";
 import { askPermission, currentPermission, pushSupport, subscribeThisBrowser, unsubscribeThisBrowser, type PushSupport } from "@/utils/browserPush";
@@ -131,7 +131,9 @@ export function LiveUpdatesProvider({ children }: { children: ReactNode }) {
         // the server ends streams then). Refresh the token, then reconnect.
         source = null;
         try {
-          await api.post("/auth/refresh");
+          // NOTE: the shared single-flight refresh, so this never races the page's own
+          // refresh (two at once would rotate the refresh token under each other).
+          await refreshAccessToken();
         } catch {
           // Session really over — AuthContext takes it from here (the next API call 401s).
           return;

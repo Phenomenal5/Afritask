@@ -1,6 +1,7 @@
 // API: /api/v1/auth — signup, verification, login/logout, sessions, recovery, Google hand-off.
 import { afterAll, beforeEach, describe, expect, it } from "@jest/globals";
 import { issueAccountToken } from "../../src/services/accountTokenService.js";
+import { explainRefreshFailure } from "../../src/services/sessionService.js";
 import { anonymous, createClient } from "../helpers/client.js";
 import { disconnectDatabase, prisma, resetDatabase } from "../helpers/database.js";
 import { DEFAULT_PASSWORD, createUser, signIn, uniqueEmail } from "../helpers/factories.js";
@@ -127,7 +128,7 @@ describe("GET /auth/verify-email/:token", () => {
 });
 
 describe("POST /auth/login", () => {
-    it("sets httpOnly access (15 min) and refresh (30 days) cookies and returns the user without secrets", async () => {
+    it("sets httpOnly access (15 min) and refresh (7 days) cookies and returns the user without secrets", async () => {
         const user = await createUser();
         const response = await createClient().post("/auth/login", { email: user.email, password: DEFAULT_PASSWORD });
 
@@ -140,6 +141,9 @@ describe("POST /auth/login", () => {
         expect(accessCookie).toMatch(/Max-Age=900/);
         expect(refreshCookie).toMatch(/HttpOnly/i);
         expect(refreshCookie).toMatch(/Path=\/api\/v1\/auth/);
+        // REFRESH_TOKEN_TTL_DAYS defaults to 7 (the cookie carries the session's end date).
+        const refreshExpiresAt = Date.parse(/Expires=([^;]+)/.exec(refreshCookie ?? "")?.[1] ?? "");
+        expect(Math.abs(refreshExpiresAt - (Date.now() + 7 * 24 * 60 * 60 * 1000))).toBeLessThan(60 * 1000);
         expect(response.body.token).toBeUndefined();
         expect(response.body.user.email).toBe(user.email);
         expect(response.body.user).not.toHaveProperty("password");
@@ -261,6 +265,25 @@ describe("POST /auth/refresh", () => {
 
         await prisma.session.updateMany({ where: { userId: user.id }, data: { revokedAt: new Date() } });
         await expect(createClient({ refreshToken }).post("/auth/refresh")).resolves.toMatchObject({ status: 401 });
+    });
+
+    it("the log says why a refresh was refused", async () => {
+        const user = await createUser();
+        const login = await createClient().post("/auth/login", { email: user.email, password: DEFAULT_PASSWORD });
+        const refreshToken = cookieValue(refreshCookieOf(login));
+
+        await expect(explainRefreshFailure("made-up")).resolves.toMatch(/unknown token/);
+
+        // Rotated, then the old token presented again after the grace window.
+        await createClient({ refreshToken }).post("/auth/refresh");
+        await prisma.session.updateMany({ where: { userId: user.id }, data: { rotatedAt: new Date(Date.now() - 5 * 60 * 1000) } });
+        await expect(explainRefreshFailure(refreshToken)).resolves.toMatch(/old refresh token/);
+
+        await prisma.session.updateMany({ where: { userId: user.id }, data: { expiresAt: new Date(Date.now() - 1000) } });
+        await expect(explainRefreshFailure(refreshToken)).resolves.toMatch(/expired at/);
+
+        await prisma.session.updateMany({ where: { userId: user.id }, data: { revokedAt: new Date() } });
+        await expect(explainRefreshFailure(refreshToken)).resolves.toMatch(/signed out at/);
     });
 });
 

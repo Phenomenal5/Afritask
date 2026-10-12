@@ -1851,7 +1851,7 @@ const openApiDocument = {
         description: [
             "Workspaces, projects, tasks and invitations for Afritask.",
             "",
-            "**Auth:** sign in with `POST /auth/login`. The response sets httpOnly `afritask_access` (15 min) and `afritask_refresh` (30 days, auth routes only) cookies that this page then sends automatically. Call `POST /auth/refresh` when the access token expires.",
+            "**Auth:** sign in with `POST /auth/login`. The response sets httpOnly `afritask_access` (15 min) and `afritask_refresh` (7 days by default, auth routes only) cookies that this page then sends automatically. Call `POST /auth/refresh` when the access token expires.",
             "**CSRF:** every POST/PUT/PATCH/DELETE must send `X-Requested-With: XMLHttpRequest`. This page adds it for you.",
             "**Isolation:** anything in a workspace you're not an active member of answers `404`, exactly like something that doesn't exist.",
         ].join("\n"),

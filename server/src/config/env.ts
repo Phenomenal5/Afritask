@@ -29,6 +29,16 @@ if ((process.env.ACCESS_TOKEN_SECRET ?? "").length < 32) {
 // Safe after the check above: every ALWAYS_REQUIRED key is a non-empty string.
 const requiredValue = (key: (typeof ALWAYS_REQUIRED)[number]): string => process.env[key] as string;
 
+// NOTE: a typo here ("7d", "0") would quietly give sessions a broken lifetime, so a set
+// value that isn't a positive number stops the boot instead.
+const positiveNumber = (key: string, fallback: number): number => {
+  const raw = process.env[key];
+  if (raw === undefined || raw.trim() === "") return fallback;
+  const value = Number(raw);
+  if (!Number.isFinite(value) || value <= 0) throw new Error(`${key} must be a positive number (got "${raw}") — see server/.env.example`);
+  return value;
+};
+
 const env = {
   nodeEnv: process.env.NODE_ENV ?? "development",
   isProduction: process.env.NODE_ENV === "production",
@@ -42,8 +52,8 @@ const env = {
 
   // Access token: short, sent with every request. Refresh token: how long a login lasts.
   accessTokenSecret: requiredValue("ACCESS_TOKEN_SECRET"),
-  accessTokenTtlMinutes: Number(process.env.ACCESS_TOKEN_TTL_MINUTES ?? 15),
-  refreshTokenTtlDays: Number(process.env.REFRESH_TOKEN_TTL_DAYS ?? 30),
+  accessTokenTtlMinutes: positiveNumber("ACCESS_TOKEN_TTL_MINUTES", 15),
+  refreshTokenTtlDays: positiveNumber("REFRESH_TOKEN_TTL_DAYS", 7),
   // Hops of reverse proxy in front of Express in production (e.g. the client's /api
   // rewrite + the host's load balancer). Needed for correct client IPs in rate limiting.
   trustProxyHops: Number(process.env.TRUST_PROXY_HOPS ?? 1),

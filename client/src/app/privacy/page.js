@@ -177,7 +177,7 @@ export default function PrivacyPage() {
             signed in: <code>afritask_access</code> (renewed every 15 minutes) and{" "}
             <code>afritask_refresh</code>. They&apos;re strictly necessary,
             can&apos;t be read by scripts on the page, and stop working when you
-            sign out or after 30 days. In local storage,{" "}
+            sign out or after 7 days. In local storage,{" "}
             <code>afritask_theme</code> remembers whether you prefer light or dark
             mode.
           </p>

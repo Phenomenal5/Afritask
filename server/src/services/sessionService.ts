@@ -6,7 +6,7 @@ import { signAccessToken, verifyAccessToken } from "../utils/accessToken.js";
 import AppError from "../utils/AppError.js";
 
 // ─── Access + refresh tokens, both in httpOnly cookies ─────────────────────
-// Refresh token: a random secret whose HASH is a Session row — 30 days, revocable
+// Refresh token: a random secret whose HASH is a Session row — REFRESH_TOKEN_TTL_DAYS (7 by default), revocable
 //   (logout, password reset, suspension), rotated every time it's used. Its cookie is
 //   scoped to the auth routes, so it isn't sent with ordinary API requests.
 // Access token: a signed JWT naming its session — 15 minutes, sent with every request.
@@ -134,6 +134,24 @@ export const refreshSession = async (res: Response, rawSecret: string) => {
     if (!recentlyRotated) return null;
     setAccessCookie(res, recentlyRotated.userId, recentlyRotated.id);
     return recentlyRotated;
+};
+
+// Why a refresh token was refused, for the log only (the client always gets the same 401).
+// Answers "why was I signed out?" without guessing.
+export const explainRefreshFailure = async (rawSecret: string) => {
+    const presentedHash = hashSecureToken(rawSecret);
+    const session = await prisma.session.findFirst({
+        where: { OR: [{ secretHash: presentedHash }, { previousSecretHash: presentedHash }] },
+        select: { id: true, kind: true, revokedAt: true, expiresAt: true, secretHash: true, user: { select: { suspendedAt: true } } },
+    });
+    if (!session) return "unknown token (never issued here, or an older one replaced long ago)";
+    const label = `session=${session.id}`;
+    if (session.kind !== "customer") return `${label} is an admin console session`;
+    if (session.revokedAt) return `${label} was signed out at ${session.revokedAt.toISOString()}`;
+    if (session.expiresAt <= new Date()) return `${label} expired at ${session.expiresAt.toISOString()}`;
+    if (session.user.suspendedAt) return `${label} belongs to a suspended account`;
+    if (session.secretHash !== presentedHash) return `${label} got an old refresh token, replaced more than ${ROTATION_GRACE_MS / 1000}s ago`;
+    return `${label} refused for an unknown reason`;
 };
 
 // The session a refresh token belongs to (current or just-rotated), for logout.

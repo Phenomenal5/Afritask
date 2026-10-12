@@ -23,6 +23,7 @@ import {
 import {
     REFRESH_TOKEN_COOKIE,
     clearAuthCookies,
+    explainRefreshFailure,
     findSessionIdForRefreshToken,
     refreshSession,
     revokeAllSessions,
@@ -396,6 +397,9 @@ export const refresh = catchAsync(async (req, res, next) => {
     const rawSecret: unknown = req.cookies?.[REFRESH_TOKEN_COOKIE];
     const session = typeof rawSecret === "string" && rawSecret ? await refreshSession(res, rawSecret) : null;
     if (!session) {
+        // Logged so "why was I signed out?" has an answer; the client gets the same 401 either way.
+        const reason = typeof rawSecret === "string" && rawSecret ? await explainRefreshFailure(rawSecret) : "no refresh cookie was sent";
+        logger.info(`Refresh refused: ${reason} ip=${req.ip}`);
         // Expired, revoked or unknown — drop the dead cookies so the browser stops sending them.
         clearAuthCookies(res);
         return next(new AppError("Your session has ended. Please sign in again.", 401));
