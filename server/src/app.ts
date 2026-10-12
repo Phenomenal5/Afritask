@@ -18,6 +18,7 @@ import newsletterRoute from "./routes/newsletterRoute.js";
 import eventsRoute from "./routes/eventsRoute.js";
 import performanceRoute from "./routes/performanceRoute.js";
 import supportRoute from "./routes/supportRoute.js";
+import contactRoute from "./routes/contactRoute.js";
 import projectRoute from "./routes/projectRoute.js";
 import labelRoute from "./routes/labelRoute.js";
 import commentRoute from "./routes/commentRoute.js";
@@ -170,6 +171,9 @@ app.use("/api/v1/performance", performanceRoute);
 
 // Support tickets (the customer's side; support answers from the admin console).
 app.use("/api/v1/support", supportRoute);
+
+// The public Contact page: a visitor's message becomes a support ticket.
+app.use("/api/v1/contact", contactRoute);
 
 // Admin console (Platform Superadmin): own sign-in, session and MFA.
 app.use("/api/v1/admin", adminRoute);

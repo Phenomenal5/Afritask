@@ -46,6 +46,16 @@ export const invitationLimiter = () => rateLimit({
     message: limitReachedResponse("Too many invitations sent. Please wait 15 minutes and try again."),
 });
 
+// The public Contact page: no account behind it, so tighter than signed-in support.
+export const contactLimiter = () => rateLimit({
+    windowMs: 60 * 60 * 1000,
+    limit: 5,
+    standardHeaders: "draft-8",
+    legacyHeaders: false,
+    skip: skipInTests,
+    message: limitReachedResponse("You've sent several messages in the last hour. We'll answer those first; try again later if you need to."),
+});
+
 // Opening support tickets: plenty for a real problem, not enough to flood the inbox.
 export const supportTicketLimiter = () => rateLimit({
     windowMs: 60 * 60 * 1000,

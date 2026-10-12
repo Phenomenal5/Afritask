@@ -4,8 +4,7 @@
 // email.js, taskReminder.js, upload.js, logger). If you change what the app
 // collects, stores, or emails, update this page and LAST_UPDATED with it.
 import Link from "next/link";
-import ThemeToggle from "@/components/layout/ThemeToggle";
-import Logo from "@/components/ui/Logo";
+import { PublicFooter, PublicHeader } from "@/components/legal/PublicFrame";
 
 export const metadata = {
   title: "Privacy Policy - Afritask",
@@ -57,14 +56,8 @@ function Section({ id, number, title, children }) {
 export default function PrivacyPage() {
   return (
     <div className="flex-1 flex flex-col">
-      <header className="sticky top-0 z-20 border-b border-line bg-page/90 backdrop-blur">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-3">
-          <Link href="/" className="rounded-[8px]" aria-label="Afritask home">
-            <Logo />
-          </Link>
-          <ThemeToggle className="h-11 rounded-[10px] px-3 text-[14px] text-muted hover:bg-surface-muted hover:text-ink" />
-        </div>
-      </header>
+      <PublicHeader />
+
 
       <main className="relative max-w-2xl w-full mx-auto px-6 py-12 flex-1">
         <p
@@ -184,7 +177,8 @@ export default function PrivacyPage() {
           <p>
             Those sign-in cookies are the only cookies we set. We don&apos;t use cookies
             to track you, and Afritask has no analytics, advertising, or third-party
-            tracking scripts.
+            tracking scripts. The <Link href="/cookies">Cookie Policy</Link> lists
+            everything Afritask keeps in your browser, and how to clear it.
           </p>
         </Section>
 
@@ -375,25 +369,15 @@ export default function PrivacyPage() {
             </p>
           ) : (
             <p>
-              Have a question, or want to see, correct, or delete your data? Reply
-              to any email you&apos;ve received from Afritask and we&apos;ll get
-              back to you.
+              Have a question, or want to see, correct, or delete your data? Write
+              to us from the <Link href="/contact">Contact page</Link> and we&apos;ll
+              get back to you by email.
             </p>
           )}
         </Section>
       </main>
 
-      <footer className="relative" style={{ borderTop: "1px solid var(--line)" }}>
-        <div
-          className="max-w-2xl mx-auto px-6 py-8 flex flex-wrap items-center justify-between gap-3 text-xs"
-          style={{ color: "var(--ink-soft)" }}
-        >
-          <span>&copy; {new Date().getFullYear()} Afritask</span>
-          <Link href="/" className="font-medium hover:underline" style={{ color: "var(--moss)" }}>
-            Back to Afritask
-          </Link>
-        </div>
-      </footer>
+      <PublicFooter />
     </div>
   );
 }

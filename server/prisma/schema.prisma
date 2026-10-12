@@ -809,7 +809,11 @@ model SupportTicket {
   id            String                @id @default(uuid(7)) @db.Uuid
   // Human reference shown to both sides, e.g. "#1042".
   number        Int                   @unique @default(autoincrement())
-  requesterId   String                @db.Uuid
+  // The signed-in customer who wrote. Null for a visitor's message from the public Contact
+  // page: then contactName and contactEmail say who to answer (by email only).
+  requesterId   String?               @db.Uuid
+  contactName   String?
+  contactEmail  String?
   // The workspace they were in when they wrote, for context. Optional.
   workspaceId   String?               @db.Uuid
   subject       String
@@ -820,7 +824,7 @@ model SupportTicket {
   createdAt     DateTime              @default(now()) @db.Timestamptz(3)
   updatedAt     DateTime              @updatedAt @db.Timestamptz(3)
 
-  requester User             @relation("SupportTicketRequester", fields: [requesterId], references: [id], onDelete: Cascade)
+  requester User?            @relation("SupportTicketRequester", fields: [requesterId], references: [id], onDelete: Cascade)
   workspace Workspace?       @relation(fields: [workspaceId], references: [id], onDelete: SetNull)
   messages  SupportMessage[]
 

@@ -62,6 +62,10 @@ export default function AuthLayout({ eyebrow, title, description, children, foot
           &copy; {currentYear} Afritask ·{" "}
           <Link href="/privacy" className="underline-offset-4 hover:underline">
             Privacy policy
+          </Link>{" "}
+          ·{" "}
+          <Link href="/contact" className="underline-offset-4 hover:underline">
+            Contact
           </Link>
         </p>
       </aside>
@@ -81,6 +85,10 @@ export default function AuthLayout({ eyebrow, title, description, children, foot
           &copy; {currentYear} Afritask ·{" "}
           <Link href="/privacy" className="underline-offset-4 hover:underline">
             Privacy policy
+          </Link>{" "}
+          ·{" "}
+          <Link href="/contact" className="underline-offset-4 hover:underline">
+            Contact
           </Link>
         </p>
       </main>

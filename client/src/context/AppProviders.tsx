@@ -18,7 +18,7 @@ import { CompletionNoteProvider } from "@/components/tasks/CompletionNoteProvide
 
 // Bridge auth state into the workspace and profile providers without coupling the contexts directly.
 // The terms themselves stay readable while the accept step is showing.
-const PAGES_OPEN_BEFORE_TERMS = new Set(["/terms", "/privacy"]);
+const PAGES_OPEN_BEFORE_TERMS = new Set(["/terms", "/privacy", "/cookies", "/contact"]);
 
 function SessionProviders({ children }: { children: ReactNode }) {
   const { setUser, isAuthenticated, termsRequired } = useAuth();

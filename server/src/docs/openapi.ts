@@ -1718,6 +1718,14 @@ const supportPaths = {
     "/support/tickets/{ticketId}/resolve": {
         post: { tags: ["Support"], summary: "Mark your ticket as solved", security: signedIn, parameters: [ticketIdParam], responses: { 200: jsonResponse("Ticket", dataEnvelope("ticket", customerTicketSchema)), ...errorResponses(401, 404) } },
     },
+    "/contact": {
+        post: {
+            tags: ["Support"],
+            summary: "Public Contact page: a visitor's message becomes a support ticket, answered by email (no sign-in, rate-limited). `website` must stay empty.",
+            requestBody: jsonBody({ type: "object", required: ["name", "email", "message"], properties: { name: { type: "string", maxLength: 80 }, email: { type: "string", format: "email" }, topic: ticketCategorySchema, message: { type: "string", minLength: 10, maxLength: 5000 }, website: { type: "string" } } }),
+            responses: { 201: jsonResponse("Ticket number", dataEnvelope("ticket", { type: "object", properties: { number: { type: ["integer", "null"] } } })), ...errorResponses(400, 429) },
+        },
+    },
 };
 
 const adminSupportPaths = {

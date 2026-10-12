@@ -24,7 +24,11 @@ const ticketListSelect = {
     status: true,
     lastMessageAt: true,
     createdAt: true,
+    // requester is null for a visitor's message from the Contact page; contactName and
+    // contactEmail say who wrote instead.
     requester: { select: { id: true, name: true, email: true } },
+    contactName: true,
+    contactEmail: true,
     workspace: { select: { id: true, name: true } },
     _count: { select: { messages: true } },
 } as const satisfies Prisma.SupportTicketSelect;
@@ -66,6 +70,8 @@ export const listTickets = catchAsync(async (req, res) => {
                 { subject: { contains: search, mode: "insensitive" as const } },
                 { requester: { email: { contains: search, mode: "insensitive" as const } } },
                 { requester: { name: { contains: search, mode: "insensitive" as const } } },
+                { contactEmail: { contains: search, mode: "insensitive" as const } },
+                { contactName: { contains: search, mode: "insensitive" as const } },
             ],
         }),
     };
@@ -108,7 +114,8 @@ export const replyToTicket = catchAsync(async (req, res) => {
             where: { id: ticketId },
             data: { status: nextStatus, lastMessageAt: new Date(), resolvedAt: nextStatus === "resolved" ? new Date() : null },
         });
-        await notifySupportReply(transaction, existing, message.id);
+        // A visitor has no account to notify: the email below is how they hear back.
+        if (existing.requesterId) await notifySupportReply(transaction, { ...existing, requesterId: existing.requesterId }, message.id);
         await recordAdminAudit(transaction, {
             actorId: operator.userId,
             action: "support.replied",
@@ -121,7 +128,8 @@ export const replyToTicket = catchAsync(async (req, res) => {
     dispatchNotificationsSoon();
 
     // The email is a courtesy: the reply is already saved and in the customer's app.
-    sendSupportReplyEmail(existing.requester.email, { ticketId, number: existing.number, subject: existing.subject, reply: body }).catch((error) =>
+    const replyTo = existing.requester?.email ?? existing.contactEmail;
+    if (replyTo) sendSupportReplyEmail(replyTo, { ticketId, number: existing.number, subject: existing.subject, reply: body, fromVisitor: !existing.requesterId }).catch((error) =>
         logger.error(`Support reply email for ticket #${existing.number} failed: ${errorMessage(error)}`)
     );
     res.status(201).json({ status: "success", data: { ticket: await loadTicket(ticketId) } });

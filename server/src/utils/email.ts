@@ -377,7 +377,30 @@ If you have an account, you can also turn off "Afritask newsletter" under Profil
 // ─── Support ─────────────────────
 // Support replied to a ticket. The reply is quoted so it can be read without signing in;
 // replying happens in the app (the link), not by email.
-export const sendSupportReplyEmail = async (to: string, ticket: { ticketId: string; number: number; subject: string; reply: string }) => {
+// fromVisitor: written from the public Contact page, so there's no account to open the
+// request in. The email carries the whole reply and points back to the Contact page.
+export const sendSupportReplyEmail = async (to: string, ticket: { ticketId: string; number: number; subject: string; reply: string; fromVisitor?: boolean }) => {
+  if (ticket.fromVisitor) {
+    const contactUrl = `${CLIENT_URL}/contact`;
+    await emailService.sendEmail({
+      to,
+      subject: `Re: ${ticket.subject} [#${ticket.number}]`,
+      text: `Afritask support replied to your message #${ticket.number} ("${ticket.subject}"):\n\n${ticket.reply}\n\nIf you need more help, write to us again from the Contact page and mention #${ticket.number}:\n\n${contactUrl}`,
+      html: emailTemplate({
+        title: `Reply to #${ticket.number}`,
+        badge: "Support",
+        message: `
+          <p>Afritask support replied to your message <strong>${escapeHtml(ticket.subject)}</strong>.</p>
+          <div style="margin:18px 0; padding:16px 18px; border-left:3px solid #2E6B4E; background:#FFF9F2; white-space:pre-line;">${escapeHtml(ticket.reply)}</div>
+          <p>If you need more help, write to us again from the Contact page and mention #${ticket.number}.</p>
+        `,
+        buttonText: "Write to us again",
+        buttonUrl: contactUrl,
+      }),
+    });
+    return;
+  }
+
   const ticketUrl = `${CLIENT_URL}/support?ticket=${encodeURIComponent(ticket.ticketId)}`;
   await emailService.sendEmail({
     to,

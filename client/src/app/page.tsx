@@ -389,6 +389,14 @@ export default function LandingPage() {
               ·{" "}
               <Link href="/privacy" className="underline-offset-4 hover:underline">
                 Privacy policy
+              </Link>{" "}
+              ·{" "}
+              <Link href="/cookies" className="underline-offset-4 hover:underline">
+                Cookies
+              </Link>{" "}
+              ·{" "}
+              <Link href="/contact" className="underline-offset-4 hover:underline">
+                Contact
               </Link>
             </p>
           </div>

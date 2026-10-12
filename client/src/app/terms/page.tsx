@@ -5,8 +5,7 @@
 // accept again. Have the wording reviewed by someone qualified before relying on it.
 import type { ReactNode } from "react";
 import Link from "next/link";
-import ThemeToggle from "@/components/layout/ThemeToggle";
-import Logo from "@/components/ui/Logo";
+import { PublicFooter, PublicHeader } from "@/components/legal/PublicFrame";
 
 export const metadata = {
   title: "Terms of Service - Afritask",
@@ -44,14 +43,8 @@ function Section({ number, title, children }: { number: number; title: string; c
 export default function TermsPage() {
   return (
     <div className="flex-1 flex flex-col">
-      <header className="sticky top-0 z-20 border-b border-line bg-page/90 backdrop-blur">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-3">
-          <Link href="/" className="rounded-[8px]" aria-label="Afritask home">
-            <Logo />
-          </Link>
-          <ThemeToggle className="h-11 rounded-[10px] px-3 text-[14px] text-muted hover:bg-surface-muted hover:text-ink" />
-        </div>
-      </header>
+      <PublicHeader />
+
 
       <main className="relative max-w-2xl w-full mx-auto px-6 py-12 flex-1">
         <p className="text-xs font-medium tracking-wide uppercase mb-2" style={{ color: "var(--moss)" }}>
@@ -127,11 +120,15 @@ export default function TermsPage() {
                 Email <a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a>.
               </>
             ) : (
-              <>Reply to any email you&apos;ve received from Afritask.</>
+              <>
+                Write to us from the <Link href="/contact">Contact page</Link>.
+              </>
             )}
           </p>
         </Section>
       </main>
+
+      <PublicFooter />
     </div>
   );
 }
