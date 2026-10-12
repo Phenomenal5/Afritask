@@ -25,6 +25,9 @@ export const metadata: Metadata = {
     "Afritask keeps your plans, tasks and the people you work with in one shared workspace, so everyone knows what's next.",
   // The manifest is linked automatically from app/manifest.ts.
   applicationName: "Afritask",
+  // A marker to confirm which build is live: view the page source, or
+  // `curl -s https://afritask.jimba.dev | grep afritask-build`. Bump it when checking a deploy.
+  other: { "afritask-build": "2026-10-12.1" },
   appleWebApp: { capable: true, title: "Afritask", statusBarStyle: "default" },
   icons: {
     icon: [{ url: "/icons/icon.svg", type: "image/svg+xml" }, { url: "/icons/icon-192.png", sizes: "192x192", type: "image/png" }],
