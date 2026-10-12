@@ -3,15 +3,12 @@
 // push, the app works the same, just without system notifications.
 import { getPushPublicKey, removePushSubscription, savePushSubscription } from "@/lib/services/notificationPreferenceService";
 
-export type PushSupport = "supported" | "unsupported" | "development";
+export type PushSupport = "supported" | "unsupported";
 
-// NOTE: the service worker is only registered in production builds (ServiceWorkerManager),
-// so push can't work under `next dev` — say so instead of waiting forever.
-export const pushSupport = (): PushSupport => {
-  if (typeof window === "undefined" || !("Notification" in window) || !("serviceWorker" in navigator) || !("PushManager" in window)) return "unsupported";
-  if (process.env.NODE_ENV !== "production") return "development";
-  return "supported";
-};
+// The browser can do web push. (The service worker that receives pushes is registered in
+// every build: push-only in development, see ServiceWorkerManager.)
+export const pushSupport = (): PushSupport =>
+  typeof window !== "undefined" && "Notification" in window && "serviceWorker" in navigator && "PushManager" in window ? "supported" : "unsupported";
 
 export const currentPermission = (): NotificationPermission | "unsupported" =>
   typeof window !== "undefined" && "Notification" in window ? Notification.permission : "unsupported";

@@ -71,11 +71,9 @@ export default function LiveNotificationSettings() {
   const pushNote =
     !preferences.pushAvailable
       ? "Push isn't set up on this server yet."
-      : support === "development"
-        ? "Push works in the installed or production app, not in development mode."
-        : support === "unsupported"
-          ? "This browser can't show push notifications."
-          : PERMISSION_TEXT[permission] ?? "";
+      : support === "unsupported"
+        ? "This browser can't show push notifications."
+        : PERMISSION_TEXT[permission] ?? "";
 
   return (
     <div className="flex flex-col gap-3">

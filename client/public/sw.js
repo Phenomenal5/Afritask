@@ -16,7 +16,15 @@ const OFFLINE_URL = "/offline.html";
 // The notification sound is cached too, so it plays instantly (and offline).
 const PRECACHE = [OFFLINE_URL, "/icons/icon-192.png", "/icons/icon.svg", "/sounds/mixkit-happy-bells-notification-937.wav"];
 
+// Development (registered as /sw.js?mode=development): push only. No caching at all, so
+// `next dev` never serves an old bundle; it takes over straight away.
+const PUSH_ONLY = new URL(self.location.href).searchParams.get("mode") === "development";
+
 self.addEventListener("install", (event) => {
+  if (PUSH_ONLY) {
+    self.skipWaiting();
+    return;
+  }
   event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(PRECACHE)));
 });
 
@@ -39,6 +47,7 @@ self.addEventListener("message", (event) => {
 const isStaticAsset = (url) => url.pathname.startsWith("/_next/static/") || url.pathname.startsWith("/icons/") || url.pathname.startsWith("/sounds/");
 
 self.addEventListener("fetch", (event) => {
+  if (PUSH_ONLY) return;
   const request = event.request;
   if (request.method !== "GET") return;
   const url = new URL(request.url);

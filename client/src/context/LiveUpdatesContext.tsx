@@ -160,7 +160,6 @@ export function LiveUpdatesProvider({ children }: { children: ReactNode }) {
   const setSoundEnabled = useCallback((enabled: boolean) => savePreference({ soundEnabled: enabled }), [savePreference]);
 
   const requestPushPermission = useCallback(async (): Promise<ActionResult> => {
-    if (pushSupport() === "development") return { success: false, message: "Push works in the installed or production app, not in development mode." };
     if (pushSupport() !== "supported") return { success: false, message: "This browser can't show push notifications." };
     const result = await askPermission();
     setPermission(result);

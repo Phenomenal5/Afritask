@@ -15,7 +15,15 @@ export default function ServiceWorkerManager() {
 
   useEffect(() => {
     capturePwaInstallPrompt();
-    if (process.env.NODE_ENV !== "production" || !("serviceWorker" in navigator)) return;
+    if (!("serviceWorker" in navigator)) return;
+
+    // NOTE: in development the worker is registered push-only (no caching, see sw.js), so
+    // web push can be tested with `next dev` without serving stale bundles. The update
+    // prompt below is production-only.
+    if (process.env.NODE_ENV !== "production") {
+      navigator.serviceWorker.register("/sw.js?mode=development", { scope: "/", updateViaCache: "none" }).catch(() => {});
+      return;
+    }
 
     let cancelled = false;
     const watchForUpdate = (registration: ServiceWorkerRegistration) => {
