@@ -39,7 +39,7 @@ import Button from "@/components/ui/Button";
 import { StatusBadge } from "@/components/ui/Badges";
 import { EmptyState, FailurePanel, SkeletonRows } from "@/components/ui/States";
 import { ParentContext, ProjectTag } from "@/components/tasks/TaskMeta";
-import type { AppNotification, Task } from "@/types/models";
+import type { AppNotification, Invitation, Task } from "@/types/models";
 
 type InboxFilter = "all" | "unread";
 
@@ -260,7 +260,18 @@ export default function NotificationsPage() {
           <>
             <ul className="overflow-hidden rounded-[14px] border border-line bg-surface">
               {notifications.map((notification) => (
-                <NotificationItem key={notification.id} notification={notification} now={now} onOpen={open} onMarkRead={markRead} />
+                <NotificationItem
+                  key={notification.id}
+                  notification={notification}
+                  now={now}
+                  onOpen={open}
+                  onMarkRead={markRead}
+                  invitation={notification.type === "invitation_received" ? invitations.find((invitation) => invitation.id === notification.invitationId) : undefined}
+                  onInvitationResolved={(invitation) => {
+                    removeInvitation(invitation.id);
+                    markRead(notification);
+                  }}
+                />
               ))}
             </ul>
             {nextCursor && (
@@ -333,19 +344,32 @@ function NotificationItem({
   now,
   onOpen,
   onMarkRead,
+  invitation,
+  onInvitationResolved,
 }: {
   notification: AppNotification;
   now: Date | null;
   onOpen: (notification: AppNotification) => void;
   onMarkRead: (notification: AppNotification) => void;
+  // invitation_received only: the still-open invitation, answered right here.
+  invitation?: Invitation;
+  onInvitationResolved: (invitation: Invitation) => void;
 }) {
   const meta = TYPE_META[notification.type];
   const Icon = notification.available ? meta.icon : CircleSlash;
   const isUnread = !notification.readAt;
-  const canOpen = notification.available && (notification.type === "invitation_received" || !!notification.taskId || !!notification.supportTicketId);
+  // An open invitation is answered in place (Accept / Decline below) rather than opened.
+  const answerInPlace = notification.type === "invitation_received" && !!invitation;
+  const canOpen = notification.available && !answerInPlace && (notification.type === "invitation_received" || !!notification.taskId || !!notification.supportTicketId);
 
   return (
-    <li className={cx("flex gap-3 border-t border-line-soft px-4 py-4 first:border-t-0 sm:px-5", isUnread && "bg-lime/25")}>
+    <li
+      className={cx(
+        "relative flex gap-3 border-t border-line-soft px-4 py-4 first:border-t-0 sm:px-5",
+        isUnread && "bg-lime/25",
+        canOpen && "cursor-pointer transition-colors hover:bg-surface-muted/70"
+      )}
+    >
       <span className="relative mt-0.5 shrink-0">
         {notification.actor ? <Avatar user={notification.actor} size={36} /> : <span className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-surface-muted" />}
         <span className="absolute -bottom-1 -right-1 inline-flex h-5 w-5 items-center justify-center rounded-full border border-line bg-surface text-forest">
@@ -374,8 +398,18 @@ function NotificationItem({
         </p>
 
         <div className="mt-2 flex flex-wrap gap-2">
+          {answerInPlace && invitation && (
+            <div className="relative z-10 w-full">
+              <InvitationResponses invitations={[invitation]} onResolved={(resolved) => onInvitationResolved(resolved)} />
+            </div>
+          )}
           {canOpen && (
-            <Button size="sm" variant={isUnread ? "primary" : "secondary"} onClick={() => onOpen(notification)}>
+            <Button
+              size="sm"
+              variant={isUnread ? "primary" : "secondary"}
+              onClick={() => onOpen(notification)}
+              className="after:absolute after:inset-0 after:content-['']"
+            >
               {notification.type === "invitation_received"
                 ? "Respond"
                 : notification.type === "support_reply"
@@ -386,7 +420,7 @@ function NotificationItem({
             </Button>
           )}
           {isUnread && (
-            <Button size="sm" variant="ghost" onClick={() => onMarkRead(notification)}>
+            <Button size="sm" variant="ghost" onClick={() => onMarkRead(notification)} className="relative z-10">
               Mark as read
             </Button>
           )}

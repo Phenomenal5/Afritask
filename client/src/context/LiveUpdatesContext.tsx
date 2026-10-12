@@ -42,7 +42,7 @@ interface LiveUpdatesState {
 const LiveUpdatesContext = createContext<LiveUpdatesState | null>(null);
 
 export function LiveUpdatesProvider({ children }: { children: ReactNode }) {
-  const { refreshUnreadNotifications } = useMyWork();
+  const { refreshUnreadNotifications, reloadInvitations } = useMyWork();
   const [preferences, setPreferences] = useState<NotificationPreferences | null>(null);
   const [permission, setPermission] = useState<NotificationPermission | "unsupported">("unsupported");
   const [support, setSupport] = useState<PushSupport>("unsupported");
@@ -51,12 +51,14 @@ export function LiveUpdatesProvider({ children }: { children: ReactNode }) {
   // just because a preference changed.
   const soundEnabledRef = useRef(true);
   const refreshUnreadRef = useRef(refreshUnreadNotifications);
+  const reloadInvitationsRef = useRef(reloadInvitations);
   useEffect(() => {
     soundEnabledRef.current = preferences?.soundEnabled ?? true;
   }, [preferences]);
   useEffect(() => {
     refreshUnreadRef.current = refreshUnreadNotifications;
-  }, [refreshUnreadNotifications]);
+    reloadInvitationsRef.current = reloadInvitations;
+  }, [refreshUnreadNotifications, reloadInvitations]);
 
   // ─── Preferences + the permission prompt on load ─────────────────────
   useEffect(() => {
@@ -96,6 +98,9 @@ export function LiveUpdatesProvider({ children }: { children: ReactNode }) {
       source = new EventSource(EVENTS_URL);
       source.addEventListener("notification", (message) => {
         refreshUnreadRef.current();
+        // It may be an invitation: refresh the open invitations so the dashboard's
+        // "You're invited" box shows it straight away.
+        reloadInvitationsRef.current();
         // Every notification makes a sound (when sound is on) — in a background tab too.
         // playChime makes sure only one open tab plays it; the service worker keeps the
         // matching push notification silent while a tab is open, so it's never doubled.
