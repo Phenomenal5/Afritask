@@ -10,7 +10,7 @@ import {
 } from '../utils/email.js';
 import logger, { errorMessage } from '../utils/logger.js';
 import { comparePassword, hashPassword } from '../utils/password.js';
-import { assertValidEmail, assertValidPassword, normalizeName, parseAge, parseTimezone } from '../utils/userValidation.js';
+import { assertValidEmail, assertValidPassword, normalizeEmail, normalizeName, parseAge, parseTimezone } from '../utils/userValidation.js';
 import { requireUser } from '../middlewares/auth.middleware.js';
 import CLIENT_URL from '../config/clientUrl.js';
 import routeParam from '../utils/routeParam.js';
@@ -74,7 +74,8 @@ const sendAuthResponse = async (req: Request, res: Response, user: PublicUser, s
 };
 
 export const signup = catchAsync(async (req, res, next) => {
-    const { name, email, password, age, timezone, acceptTerms, newsletter } = req.body;
+    const { name, password, age, timezone, acceptTerms, newsletter } = req.body;
+    const email = normalizeEmail(req.body.email);
     try {
         if (!name || !email || !password) {
             return next(new AppError("Please provide all required fields", 400));
@@ -89,7 +90,8 @@ export const signup = catchAsync(async (req, res, next) => {
         // (e.g. { "not": "" }) would be read as a filter operator — reject it up front.
         assertValidEmail(email);
 
-        const existingUser = await prisma.user.findUnique({ where: { email } });
+        // Case-insensitive: accounts created before emails were lowercased keep their spelling.
+        const existingUser = await prisma.user.findFirst({ where: { email: { equals: email, mode: "insensitive" } } });
         if (existingUser) {
             return next(new AppError("Email already in use", 400));
         }
@@ -181,7 +183,8 @@ export const resetPassword = catchAsync(async (req, res, next) => {
 
 
 export const login = catchAsync(async (req, res, next) => {
-    const { email, password } = req.body;
+    const { password } = req.body;
+    const email = normalizeEmail(req.body.email);
     try {
         // typeof checks: a non-string email would act as a Prisma filter operator.
         if (typeof email !== "string" || typeof password !== "string" || !email || !password) {
@@ -190,8 +193,8 @@ export const login = catchAsync(async (req, res, next) => {
         }
 
         // password is omitted by default (config/prisma.ts) — opt back in for this one check
-        const userWithPassword = await prisma.user.findUnique({
-            where: { email },
+        const userWithPassword = await prisma.user.findFirst({
+            where: { email: { equals: email, mode: "insensitive" } },
             omit: { password: false },
         });
 
@@ -339,7 +342,7 @@ export const me = catchAsync(async (req, res, next) => {
 })
 
 export const forgotPassword = catchAsync(async (req, res, next) => {
-    const { email } = req.body;
+    const email = normalizeEmail(req.body.email);
     try {
         // typeof check: a non-string email would act as a Prisma filter operator.
         if (typeof email !== "string" || !email) {
@@ -347,7 +350,7 @@ export const forgotPassword = catchAsync(async (req, res, next) => {
             return next(new AppError("Please provide your email", 400));
         }
 
-        const user = await prisma.user.findUnique({ where: { email } });
+        const user = await prisma.user.findFirst({ where: { email: { equals: email, mode: "insensitive" } } });
         if (!user) {
             logger.warn(`Forgot password requested for missing user: ${email}`);
             return res.status(200).json({ status: "success", message: FORGOT_PASSWORD_RESPONSE });

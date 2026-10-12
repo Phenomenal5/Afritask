@@ -214,6 +214,8 @@ const parseLabelIds = async (labelIds: unknown, workspaceId: string): Promise<st
     if (!Array.isArray(labelIds) || !labelIds.every((labelId) => typeof labelId === "string" && validator.isUUID(labelId))) {
         throw new AppError("labelIds must be a list of label ids", 400);
     }
+    // Same cap as mentions: no task needs more, and it bounds the lookup below.
+    if (labelIds.length > 50) throw new AppError("A task can have at most 50 labels", 400);
     const uniqueLabelIds = [...new Set(labelIds as string[])];
     const found = await prisma.label.count({ where: { id: { in: uniqueLabelIds }, workspaceId } });
     if (found !== uniqueLabelIds.length) throw new AppError("Label not found", 400);
@@ -406,12 +408,14 @@ const uuidValues = (values: string[], name: string) => {
 
 // ?page=&limit=: offset paging over a STABLE order (the sort, then id), so walking the pages
 // of unchanged data never repeats or skips a task (SRS SR13 acceptance). No limit = all.
+const MAX_PAGE = 10_000;
 const parsePaging = (pageParam: unknown, limitParam: unknown) => {
     if (limitParam === undefined) return null;
     const limit = Number(limitParam);
     const page = pageParam === undefined ? 1 : Number(pageParam);
     if (!Number.isInteger(limit) || limit < 1 || limit > MAX_PAGE_LIMIT) throw new AppError(`limit must be between 1 and ${MAX_PAGE_LIMIT}`, 400);
-    if (!Number.isInteger(page) || page < 1) throw new AppError("page must be 1 or more", 400);
+    // NOTE: capped so (page - 1) * limit stays a valid database offset (a 500 otherwise).
+    if (!Number.isInteger(page) || page < 1 || page > MAX_PAGE) throw new AppError(`page must be between 1 and ${MAX_PAGE}`, 400);
     return { page, limit };
 };
 

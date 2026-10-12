@@ -37,8 +37,9 @@ const endMembership = async (transaction: Prisma.TransactionClient, membershipId
 // The target membership must belong to the SAME workspace as the caller's — a membership id
 // from another workspace answers 404, like any other cross-workspace id.
 type TargetMembership = Membership & { user: { name: string } };
-const loadTargetMembership = async (membershipId: string | undefined, workspaceId: string): Promise<TargetMembership> => {
-    if (!membershipId || !validator.isUUID(membershipId)) throw new AppError("Member not found", 404);
+const loadTargetMembership = async (membershipId: unknown, workspaceId: string): Promise<TargetMembership> => {
+    // typeof first: validator.isUUID throws (a 500) on a number or an object.
+    if (typeof membershipId !== "string" || !validator.isUUID(membershipId)) throw new AppError("Member not found", 404);
     const target = await prisma.membership.findFirst({
         where: { id: membershipId, workspaceId, status: "active" },
         include: { user: { select: { name: true } } },

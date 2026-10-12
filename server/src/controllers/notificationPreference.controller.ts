@@ -55,10 +55,16 @@ export const getPushPublicKey = catchAsync(async (_req, res) => {
     res.status(200).json({ status: "success", data: { publicKey: env.vapidPublicKey } });
 });
 
-const isHttpsUrl = (value: unknown): value is string => {
+// NOTE: the server POSTs to this URL whenever the person gets a notification. Any https URL
+// would let someone point it at an internal address (SSRF), so only the browsers' own push
+// services are accepted: Chrome/Edge (FCM), Firefox (Mozilla), Safari (Apple), Windows (WNS).
+const PUSH_SERVICE_HOSTS = ["fcm.googleapis.com", "push.services.mozilla.com", "push.apple.com", "notify.windows.com"];
+const isPushServiceUrl = (value: unknown): value is string => {
     if (typeof value !== "string" || value.length > 1000) return false;
     try {
-        return new URL(value).protocol === "https:";
+        const url = new URL(value);
+        const isPushService = PUSH_SERVICE_HOSTS.some((host) => url.hostname === host || url.hostname.endsWith(`.${host}`));
+        return url.protocol === "https:" && !url.port && isPushService;
     } catch {
         return false;
     }
@@ -72,8 +78,7 @@ const isKey = (value: unknown): value is string => typeof value === "string" && 
 export const savePushSubscription = catchAsync(async (req, res) => {
     const userId = requireUser(req).id;
     const { endpoint, keys } = req.body ?? {};
-    // NOTE: push endpoints are always https URLs on the browser vendor's push service.
-    if (!isHttpsUrl(endpoint) || !isKey(keys?.p256dh) || !isKey(keys?.auth)) throw new AppError("That isn't a valid push subscription.", 400);
+    if (!isPushServiceUrl(endpoint) || !isKey(keys?.p256dh) || !isKey(keys?.auth)) throw new AppError("That isn't a valid push subscription.", 400);
 
     const subscription = { userId, p256dh: keys.p256dh as string, auth: keys.auth as string, userAgent: req.get("user-agent")?.slice(0, 300) ?? null };
     await prisma.pushSubscription.upsert({ where: { endpoint }, create: { endpoint, ...subscription }, update: subscription });

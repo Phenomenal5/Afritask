@@ -1,6 +1,6 @@
 import type { DueKind } from "../generated/prisma/client.js";
 import AppError from "./AppError.js";
-import { zonedWallTimeToUtc } from "./dueDate.js";
+import { parseInstant, zonedWallTimeToUtc } from "./dueDate.js";
 import { parseTimezone } from "./userValidation.js";
 
 // ─── Start dates ("I'll start this tomorrow") ─────────────────────
@@ -39,8 +39,8 @@ export const parseStart = (body: Record<string, unknown>, profileTimezone: strin
         return { startAt: zonedWallTimeToUtc(year, month, day, 0, 0, startTimezone), startKind: "date", startTimezone };
     }
 
-    const startAt = new Date(rawValue);
-    if (Number.isNaN(startAt.getTime())) throw new AppError("Please provide a valid start date", 400);
+    const startAt = parseInstant(rawValue);
+    if (!startAt) throw new AppError("Please provide a valid start date", 400);
     return { startAt, startKind: "datetime", startTimezone };
 };
 

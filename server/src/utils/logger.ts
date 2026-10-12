@@ -18,8 +18,10 @@ const logger = winston.createLogger({
         // the month where the minutes belong.
         winston.format.timestamp({ format: "YYYY-MM-DD HH:mm:ss" }),
         winston.format.errors({ stack: true }),
+        // NOTE: messages can carry client input (an email typed at sign-in). A newline in it
+        // would forge a whole log line, so line breaks in the message are written as \n.
         winston.format.printf(({ timestamp, level, message, stack }) => {
-            return `[${timestamp}] ${level.toUpperCase()}: ${stack || message}`;
+            return `[${timestamp}] ${level.toUpperCase()}: ${stack || String(message).replace(/\r?\n|\r/g, "\\n")}`;
         })
     ),
     transports: [

@@ -16,7 +16,7 @@ beforeEach(async () => {
 afterAll(disconnectDatabase);
 
 const subscriptionFor = (label: string) => ({
-    endpoint: `https://push.example.test/send/${label}`,
+    endpoint: `https://fcm.googleapis.com/fcm/send/${label}`,
     keys: { p256dh: "BNcRdreALRFXTkOOUHK1EtK2wtaz5Ry4YfYCA_0QTpQtUbVlUls0VJXg7A8u-Ts1XbjhazAkj7I99e8QcYP7DkM", auth: "tBHItJI5svbpez7KI4CCXg" },
 });
 
@@ -59,6 +59,10 @@ describe("push subscriptions", () => {
         await expect(client.get("/notifications/push/public-key")).resolves.toMatchObject({ body: { data: { publicKey: process.env.VAPID_PUBLIC_KEY } } });
 
         await expect(client.post("/notifications/push/subscriptions", { endpoint: "http://not-https.example/x", keys: subscriptionFor("x").keys })).resolves.toMatchObject({ status: 400 });
+        // Only real push services: never an internal address the server would then POST to.
+        for (const endpoint of ["https://169.254.169.254/latest", "https://localhost/x", "https://fcm.googleapis.com.evil.example/x", "https://fcm.googleapis.com:8443/x"]) {
+            await expect(client.post("/notifications/push/subscriptions", { endpoint, keys: subscriptionFor("x").keys })).resolves.toMatchObject({ status: 400 });
+        }
         await expect(client.post("/notifications/push/subscriptions", { endpoint: subscriptionFor("x").endpoint, keys: { p256dh: "<script>", auth: "a" } })).resolves.toMatchObject({ status: 400 });
         await expect(client.post("/notifications/push/subscriptions", subscriptionFor("laptop"))).resolves.toMatchObject({ status: 201 });
         // Saving the same browser again updates it instead of duplicating.

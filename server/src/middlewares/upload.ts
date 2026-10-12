@@ -33,7 +33,11 @@ const imageFileFilter: Options['fileFilter'] = (req, file, callback) => {
 export const upload = multer({
     storage,
     limits: {
-        fileSize: 1024 * 1024 * 5 // 5MB
+        fileSize: 1024 * 1024 * 5, // 5MB
+        // NOTE: multer's default text-field size is 1 MB; the profile form sends a few short fields.
+        files: 1,
+        fields: 10,
+        fieldSize: 10 * 1024,
     },
     fileFilter: imageFileFilter
 });

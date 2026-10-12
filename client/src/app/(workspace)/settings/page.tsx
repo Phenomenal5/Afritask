@@ -24,6 +24,9 @@ import { buttonClasses } from "@/components/ui/Button";
 const ALLOWED_IMAGE_TYPES = ["image/png", "image/jpeg", "image/gif"];
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 const PASSWORD_MIN_LENGTH = 6;
+// Same limits as the server (utils/userValidation.ts).
+const PASSWORD_MAX_LENGTH = 128;
+const NAME_MAX_LENGTH = 80;
 
 // Inline save feedback next to a form's button.
 function SaveStatus({ state, error }: { state: "idle" | "saved" | "failed"; error: string | null }) {
@@ -60,6 +63,7 @@ export default function AccountSettingsPage() {
     event.preventDefault();
     const trimmedName = profile.name.trim();
     if (!trimmedName) return setNameError("Your name helps teammates recognise your work.");
+    if (trimmedName.length > NAME_MAX_LENGTH) return setNameError(`Keep your name under ${NAME_MAX_LENGTH} characters.`);
     if (profile.age && (!/^\d+$/.test(profile.age) || Number(profile.age) < 1 || Number(profile.age) > 120)) return setAgeError("Enter your age as a whole number, or leave it empty.");
     setProfileSaving(true);
     const result = await updateProfile({
@@ -112,6 +116,7 @@ export default function AccountSettingsPage() {
     const errors: typeof passwordErrors = {};
     if (!passwords.currentPassword) errors.current = "Enter the password you use now.";
     if (passwords.newPassword.length < PASSWORD_MIN_LENGTH) errors.next = `Use at least ${PASSWORD_MIN_LENGTH} characters.`;
+    else if (passwords.newPassword.length > PASSWORD_MAX_LENGTH) errors.next = `Keep your password under ${PASSWORD_MAX_LENGTH} characters.`;
     if (passwords.confirmPassword !== passwords.newPassword) errors.confirm = "This doesn't match the new password.";
     setPasswordErrors(errors);
     if (Object.keys(errors).length) return;

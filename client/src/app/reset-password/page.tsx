@@ -13,6 +13,8 @@ import PasswordField from "@/components/auth/PasswordField";
 import Button, { ButtonLink } from "@/components/ui/Button";
 
 const PASSWORD_MIN_LENGTH = 6;
+// Same limits as the server (utils/userValidation.ts).
+const PASSWORD_MAX_LENGTH = 128;
 
 function ResetPasswordForm() {
   const searchParams = useSearchParams();
@@ -53,6 +55,7 @@ function ResetPasswordForm() {
     event.preventDefault();
     const nextErrors: typeof errors = {};
     if (form.password.length < PASSWORD_MIN_LENGTH) nextErrors.password = `Use at least ${PASSWORD_MIN_LENGTH} characters.`;
+    else if (form.password.length > PASSWORD_MAX_LENGTH) nextErrors.password = `Keep your password under ${PASSWORD_MAX_LENGTH} characters.`;
     if (form.confirmPassword !== form.password) nextErrors.confirm = "This doesn't match the password above.";
     setErrors(nextErrors);
     if (Object.keys(nextErrors).length) return;

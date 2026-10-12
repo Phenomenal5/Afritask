@@ -19,6 +19,9 @@ import { TextField } from "@/components/ui/Field";
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const PASSWORD_MIN_LENGTH = 6;
+// Same limits as the server (utils/userValidation.ts).
+const PASSWORD_MAX_LENGTH = 128;
+const NAME_MAX_LENGTH = 80;
 
 type FieldName = "name" | "email" | "password" | "age" | "terms";
 
@@ -58,8 +61,10 @@ export default function SignupPage() {
     event.preventDefault();
     const errors: typeof fieldErrors = {};
     if (!form.name.trim()) errors.name = "Tell us your name. It's how teammates will see you.";
+    else if (form.name.trim().length > NAME_MAX_LENGTH) errors.name = `Keep your name under ${NAME_MAX_LENGTH} characters.`;
     if (!EMAIL_PATTERN.test(form.email.trim())) errors.email = "Enter a full email address, like name@example.com.";
     if (form.password.length < PASSWORD_MIN_LENGTH) errors.password = `Use at least ${PASSWORD_MIN_LENGTH} characters.`;
+    else if (form.password.length > PASSWORD_MAX_LENGTH) errors.password = `Keep your password under ${PASSWORD_MAX_LENGTH} characters.`;
     if (form.age && (!/^\d+$/.test(form.age) || Number(form.age) < 1 || Number(form.age) > 120)) errors.age = "Enter a whole number, or leave it empty.";
     if (!acceptedTerms) errors.terms = "You need to accept the Terms of Service and Privacy Policy to create an account.";
     setFieldErrors(errors);

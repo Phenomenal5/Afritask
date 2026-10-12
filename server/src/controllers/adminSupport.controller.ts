@@ -55,7 +55,8 @@ export const listTickets = catchAsync(async (req, res) => {
     const paging = parsePaging(req.query);
     const statusFilter = typeof req.query.status === "string" && req.query.status ? parseStatus(req.query.status) : null;
     const search = typeof req.query.q === "string" ? req.query.q.trim().slice(0, 200) : "";
-    const ticketNumber = /^#?\d+$/.test(search) ? Number(search.replace("#", "")) : null;
+    // Up to 9 digits: a longer number can't be a ticket and overflows the column (a 500).
+    const ticketNumber = /^#?\d{1,9}$/.test(search) ? Number(search.replace("#", "")) : null;
 
     const where: Prisma.SupportTicketWhereInput = {
         ...(statusFilter ? { status: statusFilter } : { status: { in: ["open", "waiting_on_customer"] } }),

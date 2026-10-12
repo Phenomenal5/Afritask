@@ -60,6 +60,12 @@ const corsOptions = {
 
 app.use(cors(corsOptions));
 app.use(express.json());
+// NOTE: Express 5 leaves req.body undefined when no JSON was sent, and handlers that read
+// req.body.x then crashed with a 500. An empty object lets their own checks answer 400.
+app.use((req, res, next) => {
+    req.body ??= {};
+    next();
+});
 app.use(cookieParser());
 app.use(express.static('public'))
 app.use(passport.initialize());

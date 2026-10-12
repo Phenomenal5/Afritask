@@ -42,6 +42,18 @@ export const zonedWallTimeToUtc = (year: number, month: number, day: number, hou
     return new Date(correctedOffset === firstOffset ? firstGuess : naiveUtc - correctedOffset);
 };
 
+// An exact moment from the client: a full ISO date-time ("2026-10-12T09:00:00.000Z"), in
+// a sensible range. Anything else is null.
+// NOTE: `new Date(raw)` alone accepted loose input like "1", and years Postgres can't
+// store, which turned into 500s instead of a 400.
+const ISO_DATE_TIME = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/;
+export const parseInstant = (rawValue: string): Date | null => {
+    if (!ISO_DATE_TIME.test(rawValue)) return null;
+    const instant = new Date(rawValue);
+    const year = instant.getUTCFullYear();
+    return Number.isNaN(instant.getTime()) || year < 1970 || year > 2999 ? null : instant;
+};
+
 export interface ParsedDue {
     dueAt: Date | null;
     dueKind: DueKind | null;
@@ -75,7 +87,7 @@ export const parseDue = (body: Record<string, unknown>, profileTimezone: string)
         return { dueAt, dueKind: "date", dueTimezone };
     }
 
-    const dueAt = new Date(rawValue);
-    if (Number.isNaN(dueAt.getTime())) throw new AppError("Please provide a valid due date", 400);
+    const dueAt = parseInstant(rawValue);
+    if (!dueAt) throw new AppError("Please provide a valid due date", 400);
     return { dueAt, dueKind: "datetime", dueTimezone };
 };

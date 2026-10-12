@@ -49,10 +49,13 @@ export const updatePassword = catchAsync(async (req, res, next) => {
   const { currentPassword, newPassword } = req.body;
   const userId = requireUser(req).id;
   try {
-    if (!currentPassword || !newPassword) {
+    // NOTE: typeof first: bcrypt throws (a 500) on anything that isn't a string. The new
+    // password is checked before any comparing is done.
+    if (typeof currentPassword !== "string" || typeof newPassword !== "string" || !currentPassword || !newPassword) {
       logger.warn(`Password update requested with missing fields for userId=${userId}`);
       return next(new AppError("Please provide current password and new password", 400));
     }
+    assertValidPassword(newPassword);
 
     const user = await prisma.user.findUnique({
       where: { id: userId },

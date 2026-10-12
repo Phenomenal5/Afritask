@@ -27,7 +27,7 @@ if (googleClientId && googleClientSecret) {
 
       async (accessToken: string, refreshToken: string, profile: Profile, done: VerifyCallback) => {
         try {
-          const email = profile.emails?.[0]?.value;
+          const email = profile.emails?.[0]?.value?.trim().toLowerCase();
 
           if (!email) {
             logger.warn("Google OAuth failed: account has no email");
@@ -48,7 +48,7 @@ if (googleClientId && googleClientSecret) {
             return done(null, existingUser);
           }
 
-          const userWithEmail = await prisma.user.findUnique({ where: { email } });
+          const userWithEmail = await prisma.user.findFirst({ where: { email: { equals: email, mode: "insensitive" } } });
 
           if (userWithEmail) {
             // Link Google to an existing account with the same verified email.
