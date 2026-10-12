@@ -25,6 +25,7 @@ import TodayAgenda from "@/components/overview/TodayAgenda";
 import WeekAhead from "@/components/overview/WeekAhead";
 import TeamPulse from "@/components/overview/TeamPulse";
 import SupportQuickCard from "@/components/support/SupportQuickCard";
+import FeedbackCard from "@/components/support/FeedbackCard";
 import InvitationResponses from "@/components/people/InvitationResponses";
 import ActivityFeed from "@/components/activity/ActivityFeed";
 import { FailurePanel } from "@/components/ui/States";
@@ -207,6 +208,7 @@ export default function OverviewPage() {
               <ActivityFeed loadPage={loadActivity} limit={6} reloadKey={workspaceTasks.tasks.map((task) => task.version).join()} />
             </section>
 
+            <FeedbackCard />
             <SupportQuickCard />
           </div>
         </div>
