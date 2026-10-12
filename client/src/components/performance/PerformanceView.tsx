@@ -86,6 +86,39 @@ function FinishBreakdown({ summary }: { summary: MonthSummary }) {
   );
 }
 
+// ─── What they did this month ─────────────────────
+// The month's activity in plain counts, the same list a shared link shows.
+function ActivityList({ summary }: { summary: MonthSummary }) {
+  const rows = [
+    { label: "Tasks created", value: summary.tasksCreated },
+    { label: "Projects created", value: summary.projectsCreated },
+    { label: "Tasks completed", value: summary.completed },
+    { label: "Completed before the due date", value: summary.completedOnTime },
+    { label: "Completed after the first due date", value: summary.completedAfterOriginalDue, hint: "Extended, or late" },
+    { label: "Subtasks completed", value: summary.subtasksCompleted },
+    { label: "Deadline extensions", value: summary.extensions },
+    { label: "Comments written", value: summary.commentsWritten },
+  ];
+  return (
+    <section aria-labelledby="activity-heading" className="rounded-[14px] border border-line bg-surface p-4">
+      <h3 id="activity-heading" className="text-[15px] font-semibold text-ink">
+        Activity this month
+      </h3>
+      <dl className="mt-2 grid grid-cols-1 gap-x-8 sm:grid-cols-2">
+        {rows.map((row) => (
+          <div key={row.label} className="flex items-baseline gap-3 border-b border-line-soft py-2 last:border-b-0 sm:[&:nth-last-child(2)]:border-b-0">
+            <dt className="flex-1 text-[14px] text-ink">
+              {row.label}
+              {row.hint && <span className="ml-1.5 text-[12.5px] text-muted">({row.hint})</span>}
+            </dt>
+            <dd className="text-[15px] font-semibold tabular-nums text-ink">{row.value}</dd>
+          </div>
+        ))}
+      </dl>
+    </section>
+  );
+}
+
 // ─── The last six months ─────────────────────
 function TrendCharts({ trend }: { trend: TrendPoint[] }) {
   const colors = useThemeColors();
@@ -173,7 +206,8 @@ function TrendCharts({ trend }: { trend: TrendPoint[] }) {
   );
 }
 
-export default function PerformanceView({ summary, trend }: { summary: MonthSummary; trend: TrendPoint[] }) {
+// `scopeNote` says whose work and where: "across your workspaces", "in Team Space"...
+export default function PerformanceView({ summary, trend, scopeNote = "across your workspaces" }: { summary: MonthSummary; trend: TrendPoint[]; scopeNote?: string }) {
   return (
     <div className="flex flex-col gap-6">
       <dl className="grid grid-cols-2 gap-3 lg:grid-cols-3">
@@ -189,14 +223,15 @@ export default function PerformanceView({ summary, trend }: { summary: MonthSumm
         />
       </dl>
 
+      <ActivityList summary={summary} />
+
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
         <FinishBreakdown summary={summary} />
         <TrendCharts trend={trend} />
       </div>
 
       <p className="text-[13px] leading-relaxed text-muted">
-        Counts your tasks (assigned to you, or created by you with nobody assigned) across your workspaces, in {summary.timezone} time. No task titles or details are
-        included.
+        Counts tasks assigned to them, or created by them with nobody assigned, {scopeNote}, in {summary.timezone} time. No task titles or details are included.
       </p>
     </div>
   );

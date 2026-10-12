@@ -77,6 +77,11 @@ describe("GET /performance", () => {
             tasksCreated: 4,
             plannedAhead: 3,
             plannedAheadRate: 0.75,
+            // B (late) and C (finished after its first deadline, within the extended one).
+            completedAfterOriginalDue: 2,
+            subtasksCompleted: 0,
+            projectsCreated: 0,
+            commentsWritten: 0,
         });
     });
 
@@ -111,7 +116,7 @@ describe("GET /performance", () => {
 describe("share links", () => {
     it("shares a month publicly (counts only) until revoked", async () => {
         const team = await buildSeptember();
-        const created = await team.member.client.post("/performance/shares", { month: "2026-09" });
+        const created = await team.member.client.post("/performance/shares", { month: "2026-09", workspaceIds: [team.workspace.id] });
         expect(created.status).toBe(201);
         const { id, token } = created.body.data.share;
         expect(token).toMatch(/^[0-9a-f]{64}$/);
@@ -134,14 +139,14 @@ describe("share links", () => {
 
     it("can't revoke someone else's link; unknown tokens are 404", async () => {
         const team = await buildSeptember();
-        const created = await team.member.client.post("/performance/shares", { month: "2026-09" });
+        const created = await team.member.client.post("/performance/shares", { month: "2026-09", workspaceIds: [team.workspace.id] });
         await expect(team.owner.client.delete(`/performance/shares/${created.body.data.share.id}`)).resolves.toMatchObject({ status: 404 });
         await expect(anonymous().get(`/api/v1/performance/shared/${"0".repeat(64)}`)).resolves.toMatchObject({ status: 404 });
     });
 
     it("a suspended account's links stop working", async () => {
         const team = await buildSeptember();
-        const created = await team.member.client.post("/performance/shares", { month: "2026-09" });
+        const created = await team.member.client.post("/performance/shares", { month: "2026-09", workspaceIds: [team.workspace.id] });
         await prisma.user.update({ where: { id: team.member.user.id }, data: { suspendedAt: new Date() } });
         await expect(anonymous().get(`/api/v1/performance/shared/${created.body.data.share.token}`)).resolves.toMatchObject({ status: 404 });
     });

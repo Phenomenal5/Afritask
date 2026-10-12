@@ -9,6 +9,7 @@ import { createProject, listWorkspaceProjects } from "../controllers/project.con
 import { createLabel, listLabels } from "../controllers/label.controller.js";
 import { listWorkspaceActivity } from "../controllers/activity.controller.js";
 import { getWorkspaceDashboard } from "../controllers/dashboard.controller.js";
+import { getMemberPerformance, listTeamPerformance } from "../controllers/teamPerformance.controller.js";
 import { changeMemberRole, leaveWorkspace, removeMember, transferOwnership } from "../controllers/member.controller.js";
 
 
@@ -53,6 +54,10 @@ router.get("/:workspaceId/activity", requireWorkspaceMember, listWorkspaceActivi
 
 // Dashboard counts: personal and workspace figures, each matching the list it links to.
 router.get("/:workspaceId/dashboard", requireWorkspaceMember, getWorkspaceDashboard);
+
+// Team performance: each member's numbers in THIS workspace (an Admin doesn't see the Owner's).
+router.get("/:workspaceId/performance", requireWorkspaceMember, requireWorkspaceRole("owner", "admin"), listTeamPerformance);
+router.get("/:workspaceId/performance/:membershipId", requireWorkspaceMember, requireWorkspaceRole("owner", "admin"), getMemberPerformance);
 
 
 export default router;

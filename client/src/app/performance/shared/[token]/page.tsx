@@ -1,7 +1,8 @@
 "use client";
 
 // A shared month of someone's performance summary — public, read-only. Shows their name
-// and the numbers only (never task titles); the owner can revoke the link any time.
+// and the numbers only (never task titles) for the workspaces they chose; the workspaces'
+// names appear only if they chose that. The owner can revoke the link any time.
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
@@ -12,11 +13,19 @@ import PerformanceView, { monthLabel } from "@/components/performance/Performanc
 import Avatar from "@/components/ui/Avatar";
 import Logo from "@/components/ui/Logo";
 import { FailurePanel, SkeletonRows } from "@/components/ui/States";
-import type { MonthSummary, TrendPoint } from "@/types/models";
+import type { MonthSummary, SharedScope, TrendPoint } from "@/types/models";
+
+// "across all their workspaces" / "in Team Space" / "across 2 workspaces".
+const coverage = (scope: SharedScope) => {
+  if (scope.allWorkspaces) return "across all their workspaces";
+  if (scope.workspaceNames?.length === 1) return `in ${scope.workspaceNames[0]}`;
+  if (scope.workspaceNames?.length) return `in ${scope.workspaceNames.join(", ")}`;
+  return scope.workspaceCount === 1 ? "in one workspace" : `across ${scope.workspaceCount} workspaces`;
+};
 
 export default function SharedPerformancePage() {
   const { token } = useParams<{ token: string }>();
-  const [report, setReport] = useState<{ owner: { name: string; photo: string | null }; summary: MonthSummary; trend: TrendPoint[] } | null>(null);
+  const [report, setReport] = useState<{ owner: { name: string; photo: string | null }; summary: MonthSummary; trend: TrendPoint[]; scope: SharedScope } | null>(null);
   const [failure, setFailure] = useState<Failure | null>(null);
 
   useEffect(() => {
@@ -50,9 +59,10 @@ export default function SharedPerformancePage() {
                 <h1 className="text-[26px] font-semibold leading-tight text-ink">
                   {report.owner.name} · {monthLabel(report.summary.month)}
                 </h1>
+                <p className="mt-1 text-[14px] text-muted">Their activity {coverage(report.scope)}.</p>
               </div>
             </div>
-            <PerformanceView summary={report.summary} trend={report.trend} />
+            <PerformanceView summary={report.summary} trend={report.trend} scopeNote={coverage(report.scope)} />
           </>
         )}
       </main>

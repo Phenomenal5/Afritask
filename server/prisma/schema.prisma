@@ -222,17 +222,18 @@ model Workspace {
   createdAt     DateTime  @default(now()) @db.Timestamptz(3)
   updatedAt     DateTime  @updatedAt @db.Timestamptz(3)
 
-  memberships    Membership[]
-  invitations    Invitation[]
-  projects       Project[]
-  labels         Label[]
-  tasks          Task[]
-  activities     Activity[]
-  comments       Comment[]
-  notifications  Notification[]
-  deletedBy      User?              @relation("WorkspaceDeleter", fields: [deletedById], references: [id], onDelete: SetNull)
-  dueExtensions  DueDateExtension[]
-  supportTickets SupportTicket[]
+  memberships       Membership[]
+  invitations       Invitation[]
+  projects          Project[]
+  labels            Label[]
+  tasks             Task[]
+  activities        Activity[]
+  comments          Comment[]
+  notifications     Notification[]
+  deletedBy         User?                       @relation("WorkspaceDeleter", fields: [deletedById], references: [id], onDelete: SetNull)
+  dueExtensions     DueDateExtension[]
+  supportTickets    SupportTicket[]
+  performanceShares PerformanceShareWorkspace[]
 }
 
 // Workspace-scoped tags for tasks (PRD FR07). Owners/Admins manage them; anyone who can
@@ -772,17 +773,36 @@ model DueDateExtension {
 // their name and the numbers (never task titles). Only the token's hash is stored; the
 // owner can revoke it any time.
 model PerformanceShare {
-  id        String    @id @default(uuid(7)) @db.Uuid
-  userId    String    @db.Uuid
+  id                 String    @id @default(uuid(7)) @db.Uuid
+  userId             String    @db.Uuid
   // "YYYY-MM", in the owner's timezone.
-  month     String
-  tokenHash String    @unique
-  revokedAt DateTime? @db.Timestamptz(3)
-  createdAt DateTime  @default(now()) @db.Timestamptz(3)
+  month              String
+  tokenHash          String    @unique
+  // True only for links made before links had a list of workspaces: they cover everything.
+  // New links always list their workspaces (PerformanceShareWorkspace).
+  allWorkspaces      Boolean   @default(false)
+  // The owner chose to show the workspaces' names on the link (off: "2 workspaces").
+  showWorkspaceNames Boolean   @default(false)
+  revokedAt          DateTime? @db.Timestamptz(3)
+  createdAt          DateTime  @default(now()) @db.Timestamptz(3)
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user       User                        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspaces PerformanceShareWorkspace[]
 
   @@index([userId, createdAt])
+}
+
+// The workspaces a share link covers. A workspace the owner has since left (or that was
+// deleted) simply stops counting; when none are left, the link stops working.
+model PerformanceShareWorkspace {
+  shareId     String @db.Uuid
+  workspaceId String @db.Uuid
+
+  share     PerformanceShare @relation(fields: [shareId], references: [id], onDelete: Cascade)
+  workspace Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@id([shareId, workspaceId])
+  @@index([workspaceId])
 }
 
 // ─── Support tickets ─────────────────────

@@ -1649,6 +1649,10 @@ const monthSummarySchema = {
         tasksCreated: { type: "integer" },
         plannedAhead: { type: "integer", description: "Tasks you created this month that were given a due or start date" },
         plannedAheadRate: { type: ["number", "null"] },
+        completedAfterOriginalDue: { type: "integer", description: "Completed after the task's first deadline (extended or late)" },
+        subtasksCompleted: { type: "integer", description: "Of completed, how many were subtasks" },
+        projectsCreated: { type: "integer" },
+        commentsWritten: { type: "integer" },
     },
 };
 const trendSchema = {
@@ -1657,15 +1661,28 @@ const trendSchema = {
     items: { type: "object", properties: { month: { type: "string" }, completedOnTime: { type: "integer" }, completedLate: { type: "integer" }, extensions: { type: "integer" }, planningDays: { type: "integer" } } },
 };
 const performanceEnvelope = { type: "object", properties: { status: { type: "string" }, data: { type: "object", properties: { summary: monthSummarySchema, trend: trendSchema } } } };
-const shareSchema = { type: "object", properties: { id: { type: "string", format: "uuid" }, month: { type: "string" }, createdAt: { type: "string", format: "date-time" } } };
+const shareSchema = {
+    type: "object",
+    properties: {
+        id: { type: "string", format: "uuid" },
+        month: { type: "string" },
+        createdAt: { type: "string", format: "date-time" },
+        allWorkspaces: { type: "boolean", description: "A link made before links had a list: covers every workspace" },
+        showWorkspaceNames: { type: "boolean" },
+        workspaces: { type: "array", items: { type: "object", properties: { id: { type: "string", format: "uuid" }, name: { type: "string" } } } },
+    },
+};
 
 const performancePaths = {
     "/performance": {
         get: {
             tags: ["Performance"],
-            summary: "Your monthly summary (default: this month) and a six-month trend",
+            summary: "Your monthly summary (default: this month) and a six-month trend, for every workspace or only the ones in `workspaces` (comma-separated ids of workspaces you're in)",
             security: signedIn,
-            parameters: [{ name: "month", in: "query", schema: { type: "string", pattern: "^\\d{4}-(0[1-9]|1[0-2])$" } }],
+            parameters: [
+                { name: "month", in: "query", schema: { type: "string", pattern: "^\\d{4}-(0[1-9]|1[0-2])$" } },
+                { name: "workspaces", in: "query", schema: { type: "string", description: "Comma-separated workspace ids; omit for every workspace" } },
+            ],
             responses: { 200: jsonResponse("Summary", performanceEnvelope), ...errorResponses(400, 401) },
         },
     },
@@ -1673,9 +1690,17 @@ const performancePaths = {
         get: { tags: ["Performance"], summary: "Your active share links (not their tokens)", security: signedIn, responses: { 200: jsonResponse("Links", dataEnvelope("shares", { type: "array", items: shareSchema })), ...errorResponses(401) } },
         post: {
             tags: ["Performance"],
-            summary: "Create a share link for a month. The token is returned once only.",
+            summary: "Create a share link for a month and a chosen list of workspaces (names hidden unless showWorkspaceNames). The token is returned once only.",
             security: signedIn,
-            requestBody: jsonBody({ type: "object", properties: { month: { type: "string", example: "2026-09" } } }),
+            requestBody: jsonBody({
+                type: "object",
+                required: ["workspaceIds"],
+                properties: {
+                    month: { type: "string", example: "2026-09" },
+                    workspaceIds: { type: "array", minItems: 1, maxItems: 50, items: { type: "string", format: "uuid" } },
+                    showWorkspaceNames: { type: "boolean", default: false },
+                },
+            }),
             responses: { 201: jsonResponse("Link", dataEnvelope("share", { allOf: [shareSchema, { type: "object", properties: { token: { type: "string" } } }] })), ...errorResponses(400, 401, 409) },
         },
     },
@@ -1685,7 +1710,7 @@ const performancePaths = {
     "/performance/shared/{token}": {
         get: {
             tags: ["Performance"],
-            summary: "Public: a shared month. Only the owner's name and the numbers, nothing else",
+            summary: "Public: a shared month for the chosen workspaces. Only the owner's name, the numbers, and the workspace names if the owner chose to show them",
             security: publicRoute,
             parameters: [pathParam("token", "Token from the share link")],
             responses: {
@@ -1740,6 +1765,28 @@ const supportPaths = {
     },
     "/support/tickets/{ticketId}/messages": {
         post: { tags: ["Support"], summary: "Reply in your ticket (reopens a resolved one; closed ones need a new ticket)", security: signedIn, parameters: [ticketIdParam], requestBody: messageBody, responses: { 201: jsonResponse("Ticket", dataEnvelope("ticket", customerTicketSchema)), ...errorResponses(400, 401, 404, 409) } },
+    },
+    "/workspaces/{workspaceId}/performance": {
+        get: {
+            tags: ["Performance"],
+            summary: "Owner/Admin: every member's month in THIS workspace only (an Admin doesn't see the Owner)",
+            security: signedIn,
+            parameters: [{ name: "workspaceId", in: "path", required: true, schema: { type: "string", format: "uuid" } }, { name: "month", in: "query", schema: { type: "string", example: "2026-10" } }],
+            responses: { 200: jsonResponse("Members and their month", { type: "object" }), ...errorResponses(401, 403, 404) },
+        },
+    },
+    "/workspaces/{workspaceId}/performance/{membershipId}": {
+        get: {
+            tags: ["Performance"],
+            summary: "Owner/Admin: one member's month and six-month trend in THIS workspace (404 for the Owner when an Admin asks)",
+            security: signedIn,
+            parameters: [
+                { name: "workspaceId", in: "path", required: true, schema: { type: "string", format: "uuid" } },
+                { name: "membershipId", in: "path", required: true, schema: { type: "string", format: "uuid" } },
+                { name: "month", in: "query", schema: { type: "string", example: "2026-10" } },
+            ],
+            responses: { 200: jsonResponse("Member, month and trend", { type: "object" }), ...errorResponses(401, 403, 404) },
+        },
     },
     "/support/tickets/{ticketId}/resolve": {
         post: { tags: ["Support"], summary: "Mark your ticket as solved", security: signedIn, parameters: [ticketIdParam], responses: { 200: jsonResponse("Ticket", dataEnvelope("ticket", customerTicketSchema)), ...errorResponses(401, 404) } },

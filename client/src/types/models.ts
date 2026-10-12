@@ -230,6 +230,11 @@ export interface MonthSummary {
   tasksCreated: number;
   plannedAhead: number;
   plannedAheadRate: number | null;
+  // Finished after the task's first deadline (extended or late).
+  completedAfterOriginalDue: number;
+  subtasksCompleted: number;
+  projectsCreated: number;
+  commentsWritten: number;
 }
 
 export interface TrendPoint {
@@ -244,8 +249,28 @@ export interface PerformanceShare {
   id: string;
   month: string;
   createdAt: string;
+  // Links made before links had a list of workspaces cover everything.
+  allWorkspaces: boolean;
+  showWorkspaceNames: boolean;
+  workspaces: { id: string; name: string }[];
   // Only in the response that created it.
   token?: string;
+}
+
+// What a shared link covers, as the public page may show it.
+export interface SharedScope {
+  allWorkspaces: boolean;
+  workspaceCount: number | null;
+  // Only when the owner chose to show them.
+  workspaceNames: string[] | null;
+}
+
+// One member's month in one workspace (team performance: Owners and Admins).
+export interface TeamMemberPerformance {
+  membershipId: string;
+  role: WorkspaceRole;
+  user: { id: string; name: string; photo: string | null };
+  summary: MonthSummary;
 }
 
 // ─── Support tickets ─────────────────────
