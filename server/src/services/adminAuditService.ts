@@ -19,12 +19,14 @@ export type AdminAuditAction =
     | "newsletter.drafted"
     | "newsletter.edited"
     | "newsletter.published"
-    | "newsletter.deleted";
+    | "newsletter.deleted"
+    | "support.replied"
+    | "support.status_changed";
 
 export interface AdminAuditInput {
     actorId: string | null;
     action: AdminAuditAction;
-    targetType?: "user" | "workspace" | "delivery" | "operator" | "newsletter_post";
+    targetType?: "user" | "workspace" | "delivery" | "operator" | "newsletter_post" | "support_ticket";
     targetId?: string;
     reason?: string;
     metadata?: Prisma.InputJsonValue;

@@ -146,6 +146,7 @@ const PUSH_TITLES: Record<string, string> = {
     task_reminder: "Reminder",
     task_overdue: "Overdue",
     task_starting: "Starting tomorrow",
+    support_reply: "Afritask support replied",
 };
 
 export const dispatchPendingNotifications = async () => {

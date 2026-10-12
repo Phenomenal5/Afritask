@@ -45,3 +45,13 @@ export const invitationLimiter = () => rateLimit({
     skip: skipInTests,
     message: limitReachedResponse("Too many invitations sent. Please wait 15 minutes and try again."),
 });
+
+// Opening support tickets: plenty for a real problem, not enough to flood the inbox.
+export const supportTicketLimiter = () => rateLimit({
+    windowMs: 60 * 60 * 1000,
+    limit: 10,
+    standardHeaders: "draft-8",
+    legacyHeaders: false,
+    skip: skipInTests,
+    message: limitReachedResponse("You've opened several requests in the last hour. Add to an existing one, or try again later."),
+});

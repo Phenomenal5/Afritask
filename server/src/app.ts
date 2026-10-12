@@ -17,6 +17,7 @@ import invitationRoute from "./routes/invitationRoute.js";
 import newsletterRoute from "./routes/newsletterRoute.js";
 import eventsRoute from "./routes/eventsRoute.js";
 import performanceRoute from "./routes/performanceRoute.js";
+import supportRoute from "./routes/supportRoute.js";
 import projectRoute from "./routes/projectRoute.js";
 import labelRoute from "./routes/labelRoute.js";
 import commentRoute from "./routes/commentRoute.js";
@@ -45,9 +46,11 @@ app.use(helmet({
   crossOriginResourcePolicy: { policy: 'cross-origin' },
 }));
 
-// Same origin the OAuth flow redirects back to — see config/clientUrl.js.
+// The web app (the same origin the OAuth flow redirects back to, see config/clientUrl.js)
+// and, when it's hosted on its own address, the admin console (ADMIN_URL).
+const allowedOrigins = [CLIENT_URL, env.adminUrl].filter((origin): origin is string => Boolean(origin));
 const corsOptions = {
-  origin: CLIENT_URL,
+  origin: allowedOrigins,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'X-Requested-With'],
   // The browser normally reaches the API same-origin via the client's /api rewrite;
@@ -158,6 +161,9 @@ app.use("/api/v1/events", eventsRoute);
 
 // Monthly performance summary and its share links.
 app.use("/api/v1/performance", performanceRoute);
+
+// Support tickets (the customer's side; support answers from the admin console).
+app.use("/api/v1/support", supportRoute);
 
 // Admin console (Platform Superadmin): own sign-in, session and MFA.
 app.use("/api/v1/admin", adminRoute);

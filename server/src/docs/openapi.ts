@@ -1670,6 +1670,92 @@ const performancePaths = {
     },
 };
 
+// ─── Support tickets ─────────────────────
+const ticketIdParam = pathParam("ticketId", "Support ticket id (UUID)");
+const ticketStatusSchema = { type: "string", enum: ["open", "waiting_on_customer", "resolved", "closed"] };
+const ticketCategorySchema = { type: "string", enum: ["question", "problem", "account", "billing", "feedback"] };
+const customerTicketSchema = {
+    type: "object",
+    description: "A support ticket as its requester sees it. Support replies have fromSupport: true and no author.",
+    properties: {
+        id: { type: "string", format: "uuid" },
+        number: { type: "integer", example: 1042 },
+        subject: { type: "string" },
+        category: ticketCategorySchema,
+        status: ticketStatusSchema,
+        lastMessageAt: { type: "string", format: "date-time" },
+        createdAt: { type: "string", format: "date-time" },
+        messages: { type: "array", items: { type: "object", properties: { id: { type: "string" }, body: { type: "string" }, fromSupport: { type: "boolean" }, createdAt: { type: "string", format: "date-time" } } } },
+    },
+};
+const adminTicketSchema = {
+    type: "object",
+    properties: {
+        ...customerTicketSchema.properties,
+        requester: { type: "object", properties: { id: { type: "string" }, name: { type: "string" }, email: { type: "string" } } },
+        workspace: { type: ["object", "null"], properties: { id: { type: "string" }, name: { type: "string" } } },
+    },
+};
+const messageBody = jsonBody({ type: "object", required: ["body"], properties: { body: { type: "string", maxLength: 5000 } } });
+
+const supportPaths = {
+    "/support/tickets": {
+        get: { tags: ["Support"], summary: "Your support requests, most recently active first", security: signedIn, responses: { 200: jsonResponse("Tickets", dataEnvelope("tickets", { type: "array", items: customerTicketSchema })), ...errorResponses(401) } },
+        post: {
+            tags: ["Support"],
+            summary: "Write to Afritask support (rate-limited)",
+            security: signedIn,
+            requestBody: jsonBody({ type: "object", required: ["subject", "message"], properties: { subject: { type: "string", maxLength: 150 }, category: ticketCategorySchema, message: { type: "string", maxLength: 5000 }, workspaceId: { type: "string", format: "uuid" } } }),
+            responses: { 201: jsonResponse("Ticket", dataEnvelope("ticket", customerTicketSchema)), ...errorResponses(400, 401, 429) },
+        },
+    },
+    "/support/tickets/{ticketId}": {
+        get: { tags: ["Support"], summary: "One of your tickets with its conversation (404 if not yours)", security: signedIn, parameters: [ticketIdParam], responses: { 200: jsonResponse("Ticket", dataEnvelope("ticket", customerTicketSchema)), ...errorResponses(401, 404) } },
+    },
+    "/support/tickets/{ticketId}/messages": {
+        post: { tags: ["Support"], summary: "Reply in your ticket (reopens a resolved one; closed ones need a new ticket)", security: signedIn, parameters: [ticketIdParam], requestBody: messageBody, responses: { 201: jsonResponse("Ticket", dataEnvelope("ticket", customerTicketSchema)), ...errorResponses(400, 401, 404, 409) } },
+    },
+    "/support/tickets/{ticketId}/resolve": {
+        post: { tags: ["Support"], summary: "Mark your ticket as solved", security: signedIn, parameters: [ticketIdParam], responses: { 200: jsonResponse("Ticket", dataEnvelope("ticket", customerTicketSchema)), ...errorResponses(401, 404) } },
+    },
+};
+
+const adminSupportPaths = {
+    "/admin/support/summary": {
+        get: { tags: ["Admin"], summary: "Support ticket counts by status", security: operatorSession, responses: { 200: jsonResponse("Counts", dataEnvelope("summary", { type: "object" })), ...errorResponses(401) } },
+    },
+    "/admin/support/tickets": {
+        get: {
+            tags: ["Admin"],
+            summary: "Support tickets (default: open and waiting on the customer). Search by #number, subject, name or email.",
+            security: operatorSession,
+            parameters: [{ name: "status", in: "query", schema: ticketStatusSchema }, { name: "q", in: "query", schema: { type: "string" } }, ...postPagingParams],
+            responses: { 200: jsonResponse("Tickets", { type: "object", properties: { status: { type: "string" }, data: { type: "object", properties: { items: { type: "array", items: adminTicketSchema }, pagination: { type: "object" } } } } }), ...errorResponses(400, 401) },
+        },
+    },
+    "/admin/support/tickets/{ticketId}": {
+        get: { tags: ["Admin"], summary: "One ticket with its full conversation", security: operatorSession, parameters: [ticketIdParam], responses: { 200: jsonResponse("Ticket", dataEnvelope("ticket", adminTicketSchema)), ...errorResponses(401, 404) } },
+        patch: {
+            tags: ["Admin"],
+            summary: "Change a ticket's status (audited)",
+            security: operatorSession,
+            parameters: [ticketIdParam],
+            requestBody: jsonBody({ type: "object", required: ["status"], properties: { status: ticketStatusSchema } }),
+            responses: { 200: jsonResponse("Ticket", dataEnvelope("ticket", adminTicketSchema)), ...errorResponses(400, 401, 404) },
+        },
+    },
+    "/admin/support/tickets/{ticketId}/messages": {
+        post: {
+            tags: ["Admin"],
+            summary: "Reply as Afritask support; notifies the customer in the app and by email (audited)",
+            security: operatorSession,
+            parameters: [ticketIdParam],
+            requestBody: jsonBody({ type: "object", required: ["body"], properties: { body: { type: "string", maxLength: 5000 }, status: ticketStatusSchema } }),
+            responses: { 201: jsonResponse("Ticket", dataEnvelope("ticket", adminTicketSchema)), ...errorResponses(400, 401, 404, 409) },
+        },
+    },
+};
+
 const healthPaths = {
     "/health": {
         // Unversioned: probed by infrastructure, not part of the API contract.
@@ -1782,6 +1868,7 @@ const openApiDocument = {
         { name: "Labels", description: "Workspace labels for tagging tasks" },
         { name: "Comments", description: "Discussion on tasks, with @mentions of workspace members" },
         { name: "Notifications", description: "In-app notifications: assignments, mentions and invitations" },
+        { name: "Support", description: "Writing to Afritask support and following up" },
         { name: "Performance", description: "Your monthly summary (counts only) and share links" },
         { name: "Newsletter", description: "The public News feed, subscribing (double opt-in), opting out, and the account newsletter setting" },
         { name: "Admin", description: "Admin console (Platform Superadmin): its own sign-in with MFA" },
@@ -1796,7 +1883,7 @@ const openApiDocument = {
         },
         schemas,
     },
-    paths: withOperationIds({ ...authPaths, ...userPaths, ...workspacePaths, ...invitationPaths, ...projectPaths, ...labelPaths, ...taskPaths, ...subtaskPaths, ...commentPaths, ...notificationPaths, ...activityPaths, ...dashboardPaths, ...healthPaths, ...adminAuthPaths, ...adminDirectoryPaths, ...adminOperationsPaths, ...newsletterPaths, ...adminNewsletterPaths, ...eventsPaths, ...performancePaths }),
+    paths: withOperationIds({ ...authPaths, ...userPaths, ...workspacePaths, ...invitationPaths, ...projectPaths, ...labelPaths, ...taskPaths, ...subtaskPaths, ...commentPaths, ...notificationPaths, ...activityPaths, ...dashboardPaths, ...healthPaths, ...adminAuthPaths, ...adminDirectoryPaths, ...adminOperationsPaths, ...newsletterPaths, ...adminNewsletterPaths, ...eventsPaths, ...performancePaths, ...supportPaths, ...adminSupportPaths }),
 };
 
 export default openApiDocument;

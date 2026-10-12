@@ -14,6 +14,7 @@ import {
 } from "../controllers/adminDirectory.controller.js";
 import { getOperationsHealth, listAudit, listDeliveries, retryDelivery } from "../controllers/adminOperations.controller.js";
 import { createPost, deleteDraft, getPost, getSubscriberSummary, listPosts, publishPost, updatePost } from "../controllers/adminNewsletter.controller.js";
+import { getSupportSummary, getTicket, listTickets, replyToTicket, updateTicketStatus } from "../controllers/adminSupport.controller.js";
 
 
 const router = express.Router();
@@ -54,6 +55,13 @@ router.patch("/newsletter/posts/:postId", requireOperator, updatePost);
 router.delete("/newsletter/posts/:postId", requireOperator, deleteDraft);
 router.post("/newsletter/posts/:postId/publish", requireOperator, publishPost);
 router.get("/newsletter/subscribers/summary", requireOperator, getSubscriberSummary);
+
+// Support tickets: read, reply (as "Afritask support") and change status — all audited.
+router.get("/support/summary", requireOperator, getSupportSummary);
+router.get("/support/tickets", requireOperator, listTickets);
+router.get("/support/tickets/:ticketId", requireOperator, getTicket);
+router.post("/support/tickets/:ticketId/messages", requireOperator, replyToTicket);
+router.patch("/support/tickets/:ticketId", requireOperator, updateTicketStatus);
 
 
 export default router;

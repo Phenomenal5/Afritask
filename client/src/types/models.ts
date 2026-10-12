@@ -127,7 +127,7 @@ export interface Comment {
   canDelete: boolean;
 }
 
-export type NotificationType = "task_assigned" | "comment_mention" | "invitation_received" | "task_reminder" | "task_overdue" | "task_starting";
+export type NotificationType = "task_assigned" | "comment_mention" | "invitation_received" | "task_reminder" | "task_overdue" | "task_starting" | "support_reply";
 
 export interface AppNotification {
   id: string;
@@ -139,6 +139,8 @@ export interface AppNotification {
   taskId: string | null;
   commentId: string | null;
   invitationId: string | null;
+  // support_reply only: the ticket to open.
+  supportTicketId: string | null;
   // Task title (or workspace name for invitations) when it happened. Empty once the
   // item can't be opened any more — the server withholds it.
   summary: string;
@@ -241,4 +243,28 @@ export interface PerformanceShare {
   createdAt: string;
   // Only in the response that created it.
   token?: string;
+}
+
+// ─── Support tickets ─────────────────────
+export type SupportTicketStatus = "open" | "waiting_on_customer" | "resolved" | "closed";
+export type SupportTicketCategory = "question" | "problem" | "account" | "billing" | "feedback";
+
+export interface SupportMessage {
+  id: string;
+  body: string;
+  // Replies from support show as "Afritask support"; no name is ever given.
+  fromSupport: boolean;
+  createdAt: string;
+}
+
+export interface SupportTicket {
+  id: string;
+  number: number;
+  subject: string;
+  category: SupportTicketCategory;
+  status: SupportTicketStatus;
+  lastMessageAt: string;
+  createdAt: string;
+  _count?: { messages: number };
+  messages?: SupportMessage[];
 }

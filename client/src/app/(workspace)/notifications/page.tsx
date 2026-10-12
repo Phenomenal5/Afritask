@@ -6,9 +6,11 @@
 // workspace you've left shows why it can't open instead of its content.
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
 import {
   AlarmClock,
+  LifeBuoy,
   AtSign,
   BellOff,
   CalendarClock,
@@ -48,6 +50,7 @@ const TYPE_META: Record<AppNotification["type"], { icon: LucideIcon; label: stri
   task_reminder: { icon: AlarmClock, label: "Reminder" },
   task_overdue: { icon: TriangleAlert, label: "Overdue" },
   task_starting: { icon: CalendarClock, label: "Starting soon" },
+  support_reply: { icon: LifeBuoy, label: "Support" },
 };
 
 // One sentence that says what happened and why it matters to you.
@@ -65,6 +68,8 @@ function describeNotification(notification: AppNotification): ReactNode {
       return <>{subject} is planned to start tomorrow. A good moment to get ready.</>;
     case "task_overdue":
       return <>{subject} has passed its due time and is still open. Finish it, move the date, or hand it to someone else.</>;
+    case "support_reply":
+      return <>Afritask support replied to your request {subject}.</>;
     case "invitation_received":
       return (
         <>
@@ -76,6 +81,7 @@ function describeNotification(notification: AppNotification): ReactNode {
 }
 
 export default function NotificationsPage() {
+  const router = useRouter();
   const { activeWorkspace, switchWorkspace, workspaces } = useWorkspaces();
   const { myTasks, myTasksStatus, myTasksFailure, reloadMyTasks, invitations, invitationsStatus, removeInvitation, setUnreadNotifications } = useMyWork();
   const { openTask } = useTaskPanels();
@@ -150,6 +156,10 @@ export default function NotificationsPage() {
 
   const open = (notification: AppNotification) => {
     markRead(notification);
+    if (notification.type === "support_reply" && notification.supportTicketId) {
+      router.push(`/support?ticket=${notification.supportTicketId}`);
+      return;
+    }
     if (notification.type === "invitation_received") {
       document.getElementById("waiting-invitations")?.scrollIntoView({ behavior: "smooth", block: "start" });
       return;
@@ -332,7 +342,7 @@ function NotificationItem({
   const meta = TYPE_META[notification.type];
   const Icon = notification.available ? meta.icon : CircleSlash;
   const isUnread = !notification.readAt;
-  const canOpen = notification.available && (notification.type === "invitation_received" || !!notification.taskId);
+  const canOpen = notification.available && (notification.type === "invitation_received" || !!notification.taskId || !!notification.supportTicketId);
 
   return (
     <li className={cx("flex gap-3 border-t border-line-soft px-4 py-4 first:border-t-0 sm:px-5", isUnread && "bg-lime/25")}>
@@ -366,7 +376,13 @@ function NotificationItem({
         <div className="mt-2 flex flex-wrap gap-2">
           {canOpen && (
             <Button size="sm" variant={isUnread ? "primary" : "secondary"} onClick={() => onOpen(notification)}>
-              {notification.type === "invitation_received" ? "Respond" : notification.type === "comment_mention" ? "Open comment" : "Open task"}
+              {notification.type === "invitation_received"
+                ? "Respond"
+                : notification.type === "support_reply"
+                  ? "Read reply"
+                  : notification.type === "comment_mention"
+                    ? "Open comment"
+                    : "Open task"}
             </Button>
           )}
           {isUnread && (

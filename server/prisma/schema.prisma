@@ -152,6 +152,8 @@ model User {
   notificationPreference NotificationPreference?
   pushSubscriptions      PushSubscription[]
   newsletterPosts        NewsletterPost[]        @relation("NewsletterPostAuthor")
+  supportTickets         SupportTicket[]         @relation("SupportTicketRequester")
+  supportMessages        SupportMessage[]        @relation("SupportMessageAuthor")
 }
 
 // Customer sessions (the web app) and operator sessions (the admin console) live in one
@@ -220,16 +222,17 @@ model Workspace {
   createdAt     DateTime  @default(now()) @db.Timestamptz(3)
   updatedAt     DateTime  @updatedAt @db.Timestamptz(3)
 
-  memberships   Membership[]
-  invitations   Invitation[]
-  projects      Project[]
-  labels        Label[]
-  tasks         Task[]
-  activities    Activity[]
-  comments      Comment[]
-  notifications Notification[]
-  deletedBy     User?              @relation("WorkspaceDeleter", fields: [deletedById], references: [id], onDelete: SetNull)
-  dueExtensions DueDateExtension[]
+  memberships    Membership[]
+  invitations    Invitation[]
+  projects       Project[]
+  labels         Label[]
+  tasks          Task[]
+  activities     Activity[]
+  comments       Comment[]
+  notifications  Notification[]
+  deletedBy      User?              @relation("WorkspaceDeleter", fields: [deletedById], references: [id], onDelete: SetNull)
+  dueExtensions  DueDateExtension[]
+  supportTickets SupportTicket[]
 }
 
 // Workspace-scoped tags for tasks (PRD FR07). Owners/Admins manage them; anyone who can
@@ -492,6 +495,8 @@ model CommentMention {
 }
 
 enum NotificationType {
+  // Afritask support replied to one of your support tickets.
+  support_reply
   // Someone else made you the assignee of a task or subtask.
   task_assigned
   // You were newly mentioned in a comment (once per comment edit event).
@@ -543,26 +548,28 @@ model EmailDelivery {
 // rolled-back one never leaves a stray. Links are re-checked when listed and opened —
 // the stored summary is hidden once the recipient can no longer see the item.
 model Notification {
-  id           String           @id @default(uuid(7)) @db.Uuid
-  recipientId  String           @db.Uuid
+  id              String           @id @default(uuid(7)) @db.Uuid
+  recipientId     String           @db.Uuid
   // Null for invitations: the recipient isn't a member of that workspace yet.
-  workspaceId  String?          @db.Uuid
-  actorId      String?          @db.Uuid
-  type         NotificationType
+  workspaceId     String?          @db.Uuid
+  actorId         String?          @db.Uuid
+  type            NotificationType
   // What it points at. No foreign keys: the notification outlives a deleted task.
-  taskId       String?          @db.Uuid
-  commentId    String?          @db.Uuid
-  invitationId String?          @db.Uuid
+  taskId          String?          @db.Uuid
+  commentId       String?          @db.Uuid
+  invitationId    String?          @db.Uuid
+  // support_reply only.
+  supportTicketId String?          @db.Uuid
   // Snapshot for display (task title / workspace name at the time).
-  summary      String           @default("")
+  summary         String           @default("")
   // Idempotency: one logical notification per recipient. Repeating the same event
   // (a retried request, a re-run job) hits this unique key instead of duplicating.
-  deliveryKey  String           @unique
-  readAt       DateTime?        @db.Timestamptz(3)
+  deliveryKey     String           @unique
+  readAt          DateTime?        @db.Timestamptz(3)
   // When it was handed to the live channels (SSE to open tabs, web push to devices).
   // Null = not yet; set by an atomic claim so it's dispatched once (services/realtimeService.ts).
-  dispatchedAt DateTime?        @db.Timestamptz(3)
-  createdAt    DateTime         @default(now()) @db.Timestamptz(3)
+  dispatchedAt    DateTime?        @db.Timestamptz(3)
+  createdAt       DateTime         @default(now()) @db.Timestamptz(3)
 
   recipient User       @relation("NotificationRecipient", fields: [recipientId], references: [id], onDelete: Cascade)
   actor     User?      @relation("NotificationActor", fields: [actorId], references: [id], onDelete: SetNull)
@@ -776,4 +783,62 @@ model PerformanceShare {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, createdAt])
+}
+
+// ─── Support tickets ─────────────────────
+// A customer writes to "Afritask support" from the app; support (admin console operators)
+// replies in the same thread. Customers never see who replied — only "Afritask support".
+enum SupportTicketStatus {
+  open
+  // Support replied and is waiting for the customer.
+  waiting_on_customer
+  resolved
+  // No more replies; a new question starts a new ticket.
+  closed
+}
+
+enum SupportTicketCategory {
+  question
+  problem
+  account
+  billing
+  feedback
+}
+
+model SupportTicket {
+  id            String                @id @default(uuid(7)) @db.Uuid
+  // Human reference shown to both sides, e.g. "#1042".
+  number        Int                   @unique @default(autoincrement())
+  requesterId   String                @db.Uuid
+  // The workspace they were in when they wrote, for context. Optional.
+  workspaceId   String?               @db.Uuid
+  subject       String
+  category      SupportTicketCategory @default(question)
+  status        SupportTicketStatus   @default(open)
+  lastMessageAt DateTime              @default(now()) @db.Timestamptz(3)
+  resolvedAt    DateTime?             @db.Timestamptz(3)
+  createdAt     DateTime              @default(now()) @db.Timestamptz(3)
+  updatedAt     DateTime              @updatedAt @db.Timestamptz(3)
+
+  requester User             @relation("SupportTicketRequester", fields: [requesterId], references: [id], onDelete: Cascade)
+  workspace Workspace?       @relation(fields: [workspaceId], references: [id], onDelete: SetNull)
+  messages  SupportMessage[]
+
+  @@index([status, lastMessageAt])
+  @@index([requesterId, lastMessageAt])
+}
+
+model SupportMessage {
+  id          String   @id @default(uuid(7)) @db.Uuid
+  ticketId    String   @db.Uuid
+  authorId    String?  @db.Uuid
+  // True for replies from support; the customer sees these as "Afritask support".
+  fromSupport Boolean  @default(false)
+  body        String
+  createdAt   DateTime @default(now()) @db.Timestamptz(3)
+
+  ticket SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  author User?         @relation("SupportMessageAuthor", fields: [authorId], references: [id], onDelete: SetNull)
+
+  @@index([ticketId, createdAt])
 }

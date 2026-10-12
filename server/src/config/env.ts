@@ -60,6 +60,11 @@ const env = {
   // A contact the push services can reach about abuse: "mailto:..." or an https URL.
   vapidSubject: process.env.VAPID_SUBJECT ?? "mailto:support@afritask.app",
 
+  // The admin console's own address (e.g. https://admin.example.com). Browsers there may
+  // call the API directly, so it's allowed by CORS next to CLIENT_URL. Leave unset when
+  // the console reaches the API through a same-origin /api proxy (as in local dev).
+  adminUrl: process.env.ADMIN_URL?.replace(/\/$/, "") || undefined,
+
   // Optional: the first admin console (Platform Superadmin) account, created on boot if it
   // doesn't exist yet (services/bootstrapOperatorService.ts). Remove once it exists.
   superadminEmail: process.env.SUPERADMIN_EMAIL,

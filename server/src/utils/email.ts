@@ -373,3 +373,26 @@ If you have an account, you can also turn off "Afritask newsletter" under Profil
     },
   });
 };
+
+// ─── Support ─────────────────────
+// Support replied to a ticket. The reply is quoted so it can be read without signing in;
+// replying happens in the app (the link), not by email.
+export const sendSupportReplyEmail = async (to: string, ticket: { ticketId: string; number: number; subject: string; reply: string }) => {
+  const ticketUrl = `${CLIENT_URL}/support?ticket=${encodeURIComponent(ticket.ticketId)}`;
+  await emailService.sendEmail({
+    to,
+    subject: `Re: ${ticket.subject} [#${ticket.number}]`,
+    text: `Afritask support replied to your request #${ticket.number} ("${ticket.subject}"):\n\n${ticket.reply}\n\nReply or mark it solved in Afritask:\n\n${ticketUrl}`,
+    html: emailTemplate({
+      title: `Reply to #${ticket.number}`,
+      badge: "Support",
+      message: `
+        <p>Afritask support replied to your request <strong>${escapeHtml(ticket.subject)}</strong>.</p>
+        <div style="margin:18px 0; padding:16px 18px; border-left:3px solid #2E6B4E; background:#FFF9F2; white-space:pre-line;">${escapeHtml(ticket.reply)}</div>
+        <p>You can reply or mark the request as solved in Afritask.</p>
+      `,
+      buttonText: "Open your request",
+      buttonUrl: ticketUrl,
+    }),
+  });
+};

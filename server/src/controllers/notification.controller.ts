@@ -51,6 +51,8 @@ const checkAvailability = async (rows: NotificationRow[], userId: string) => {
     );
 
     return (row: NotificationRow): string | null => {
+        // A reply to the recipient's own support ticket: always theirs to open.
+        if (row.type === "support_reply") return null;
         if (row.type === "invitation_received") {
             return row.invitationId && openInvitations.has(row.invitationId) ? null : UNAVAILABLE_REASONS.invitationClosed;
         }
@@ -70,6 +72,7 @@ const toNotificationResponse = (row: NotificationRow, unavailableReason: string 
     taskId: unavailableReason ? null : row.taskId,
     commentId: unavailableReason ? null : row.commentId,
     invitationId: row.type === "invitation_received" && !unavailableReason ? row.invitationId : null,
+    supportTicketId: row.type === "support_reply" ? row.supportTicketId : null,
     // NOTE: never echo the task title to someone who can no longer open the task.
     summary: unavailableReason && row.type !== "invitation_received" ? "" : row.summary,
     available: unavailableReason === null,
