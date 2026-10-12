@@ -49,7 +49,7 @@ const findActivityPage = async (where: Prisma.ActivityWhereInput, query: Record<
 // ─── GET /api/tasks/:id/activity ─────────────────────
 export const listTaskActivity = catchAsync(async (req, res) => {
     const taskId = routeParam(req, "id");
-    if (!taskId || !validator.isUUID(taskId)) throw new AppError("Invalid id format", 400);
+    if (!taskId || !validator.isUUID(taskId)) throw new AppError("We couldn't find that task. Refresh to see the latest.", 400);
     const { task } = await loadTaskForMember(taskId, requireUser(req).id);
 
     const page = await findActivityPage({ workspaceId: task.workspaceId, entityType: "task", entityId: task.id }, req.query);

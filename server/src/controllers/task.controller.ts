@@ -41,7 +41,7 @@ const parseStatus = (status: unknown): TaskStatus | undefined => {
     if (status === undefined) return undefined;
     const normalizedStatus = typeof status === "string" ? LEGACY_STATUS_ALIASES[status] ?? status : status;
     if (!Object.values(TaskStatus).includes(normalizedStatus as TaskStatus)) {
-        throw new AppError("Status must be todo, in_progress, in_review or completed", 400);
+        throw new AppError("Choose a status: To do, In progress, In review or Completed.", 400);
     }
     return normalizedStatus as TaskStatus;
 };
@@ -49,7 +49,7 @@ const parseStatus = (status: unknown): TaskStatus | undefined => {
 const parsePriority = (priority: unknown): TaskPriority | undefined => {
     if (priority === undefined) return undefined;
     if (!Object.values(TaskPriority).includes(priority as TaskPriority)) {
-        throw new AppError("Priority must be low, medium, high or urgent", 400);
+        throw new AppError("Choose a priority: Low, Medium, High or Urgent.", 400);
     }
     return priority as TaskPriority;
 };
@@ -57,22 +57,22 @@ const parsePriority = (priority: unknown): TaskPriority | undefined => {
 const parseTitle = (title: unknown, { required }: { required: boolean }): string | undefined => {
     if (title === undefined && !required) return undefined;
     const trimmedTitle = typeof title === "string" ? title.trim() : "";
-    if (!trimmedTitle) throw new AppError("Please provide a task title", 400);
-    if (trimmedTitle.length > TITLE_MAX_LENGTH) throw new AppError(`Title must be ${TITLE_MAX_LENGTH} characters or fewer`, 400);
+    if (!trimmedTitle) throw new AppError("Give the task a title.", 400);
+    if (trimmedTitle.length > TITLE_MAX_LENGTH) throw new AppError(`Keep the title to ${TITLE_MAX_LENGTH} characters or fewer. Put the rest in the description.`, 400);
     return trimmedTitle;
 };
 
 const parseDescription = (description: unknown): string | undefined => {
     if (description === undefined) return undefined;
     if (description === null) return "";
-    if (typeof description !== "string") throw new AppError("Description must be text", 400);
-    if (description.length > DESCRIPTION_MAX_LENGTH) throw new AppError("Description is too long", 400);
+    if (typeof description !== "string") throw new AppError("We couldn't read the description. Type it again.", 400);
+    if (description.length > DESCRIPTION_MAX_LENGTH) throw new AppError("The description is too long. Keep it to 20,000 characters or fewer.", 400);
     return description;
 };
 
 // Same message Mongoose's CastError produced for a malformed ObjectId.
 const assertValidTaskId = (id: string | undefined): string => {
-    if (!id || !validator.isUUID(id)) throw new AppError("Invalid id format", 400);
+    if (!id || !validator.isUUID(id)) throw new AppError("We couldn't find that task. Refresh to see the latest.", 400);
     return id;
 };
 
@@ -81,7 +81,7 @@ const assertValidTaskId = (id: string | undefined): string => {
 const parseExpectedVersion = (version: unknown): number => {
     const expectedVersion = Number(version);
     if (!Number.isInteger(expectedVersion) || expectedVersion < 1) {
-        throw new AppError("Please include the task's current version", 400);
+        throw new AppError("This task needs a refresh before you can save. Refresh and try again.", 400);
     }
     return expectedVersion;
 };
@@ -115,8 +115,8 @@ const parseSort = (sort: unknown): Prisma.TaskOrderByWithRelationInput[] => {
 // task and "not your workspace" both answer the same 404 (no existence leak).
 export const loadTaskForMember = async (taskId: string, userId: string) => {
     const task = await prisma.task.findUnique({ where: { id: taskId } });
-    if (!task) throw new AppError("Task not found", 404);
-    const membership = await requireActiveMembership(task.workspaceId, userId).catch(notFoundUnlessSuspended("Task not found"));
+    if (!task) throw new AppError("We couldn't find that task. It may have been deleted. Refresh to see the latest.", 404);
+    const membership = await requireActiveMembership(task.workspaceId, userId).catch(notFoundUnlessSuspended("We couldn't find that task. It may have been deleted. Refresh to see the latest."));
     // For a subtask: who is assigned its parent (they control the parent's subtasks too).
     const parentAssigneeMembershipId = task.parentTaskId
         ? (await prisma.task.findUnique({ where: { id: task.parentTaskId }, select: { assigneeMembershipId: true } }))?.assigneeMembershipId ?? null
@@ -212,13 +212,13 @@ const findTaskResponse = async (taskId: string) => {
 const parseLabelIds = async (labelIds: unknown, workspaceId: string): Promise<string[] | undefined> => {
     if (labelIds === undefined) return undefined;
     if (!Array.isArray(labelIds) || !labelIds.every((labelId) => typeof labelId === "string" && validator.isUUID(labelId))) {
-        throw new AppError("labelIds must be a list of label ids", 400);
+        throw new AppError("We couldn't read those labels. Choose them again.", 400);
     }
     // Same cap as mentions: no task needs more, and it bounds the lookup below.
     if (labelIds.length > 50) throw new AppError("A task can have at most 50 labels", 400);
     const uniqueLabelIds = [...new Set(labelIds as string[])];
     const found = await prisma.label.count({ where: { id: { in: uniqueLabelIds }, workspaceId } });
-    if (found !== uniqueLabelIds.length) throw new AppError("Label not found", 400);
+    if (found !== uniqueLabelIds.length) throw new AppError("That label was deleted. Refresh to see the latest.", 400);
     return uniqueLabelIds;
 };
 
@@ -227,7 +227,7 @@ const assertTaskWritable = async (task: { projectId: string | null }) => {
     if (!task.projectId) return;
     const project = await prisma.project.findUnique({ where: { id: task.projectId }, select: { state: true } });
     if (project?.state === "archived") {
-        throw new AppError("This task's project is archived. Restore the project to make changes.", 409);
+        throw new AppError("This project is archived, so its tasks are read-only. An Owner or Admin can restore it.", 409);
     }
 };
 
@@ -236,10 +236,10 @@ const assertTaskWritable = async (task: { projectId: string | null }) => {
 const parseProjectId = async (projectId: unknown, workspaceId: string): Promise<string | null | undefined> => {
     if (projectId === undefined) return undefined;
     if (projectId === null || projectId === "") return null;
-    if (typeof projectId !== "string" || !validator.isUUID(projectId)) throw new AppError("Project not found", 400);
+    if (typeof projectId !== "string" || !validator.isUUID(projectId)) throw new AppError("That project was deleted or isn't in this workspace. Refresh to see the latest.", 400);
     const project = await prisma.project.findFirst({ where: { id: projectId, workspaceId }, select: { state: true } });
-    if (!project) throw new AppError("Project not found", 400);
-    if (project.state === "archived") throw new AppError("Can't add tasks to an archived project", 409);
+    if (!project) throw new AppError("That project was deleted or isn't in this workspace. Refresh to see the latest.", 400);
+    if (project.state === "archived") throw new AppError("That project is archived. Choose another project, or ask an Owner or Admin to restore it.", 409);
     return projectId;
 };
 
@@ -249,13 +249,13 @@ const parseAssigneeMembershipId = async (assigneeMembershipId: unknown, workspac
     if (assigneeMembershipId === undefined) return undefined;
     if (assigneeMembershipId === null || assigneeMembershipId === "") return null;
     if (typeof assigneeMembershipId !== "string" || !validator.isUUID(assigneeMembershipId)) {
-        throw new AppError("Assignee must be an active member of this workspace", 400);
+        throw new AppError("That person isn't in this workspace any more. Choose someone else.", 400);
     }
     const assignee = await prisma.membership.findFirst({
         where: { id: assigneeMembershipId, workspaceId, status: "active" },
         select: { id: true },
     });
-    if (!assignee) throw new AppError("Assignee must be an active member of this workspace", 400);
+    if (!assignee) throw new AppError("That person isn't in this workspace any more. Choose someone else.", 400);
     return assigneeMembershipId;
 };
 
@@ -267,10 +267,10 @@ export const COMPLETION_NOTE_REQUIRED = "Add a short note on what was done befor
 // The "what was done" note sent with a completion. Required for top-level tasks; subtasks
 // (checklist items) may leave it empty.
 const parseCompletionNote = (rawNote: unknown, isSubtask: boolean): string | null => {
-    if (rawNote !== undefined && rawNote !== null && typeof rawNote !== "string") throw new AppError("completionNote must be text", 400);
+    if (rawNote !== undefined && rawNote !== null && typeof rawNote !== "string") throw new AppError("We couldn't read your note. Type it again.", 400);
     const note = (rawNote ?? "").trim();
     if (!note && !isSubtask) throw new AppError(COMPLETION_NOTE_REQUIRED, 400, "completion_note_required");
-    if (note.length > COMPLETION_NOTE_MAX_LENGTH) throw new AppError(`Keep the completion note under ${COMPLETION_NOTE_MAX_LENGTH} characters`, 400);
+    if (note.length > COMPLETION_NOTE_MAX_LENGTH) throw new AppError(`Keep the note to ${COMPLETION_NOTE_MAX_LENGTH} characters or fewer.`, 400);
     return note || null;
 };
 
@@ -281,9 +281,9 @@ const EXTENSION_REASON_MAX_LENGTH = 500;
 // still To do; required from Members and Admins once work has started (see editTask).
 const parseExtensionReason = (rawReason: unknown): string | null => {
     if (rawReason === undefined || rawReason === null) return null;
-    if (typeof rawReason !== "string") throw new AppError("dueChangeReason must be text", 400);
+    if (typeof rawReason !== "string") throw new AppError("We couldn't read your reason. Type it again.", 400);
     const reason = rawReason.trim();
-    if (reason.length > EXTENSION_REASON_MAX_LENGTH) throw new AppError(`Keep the reason under ${EXTENSION_REASON_MAX_LENGTH} characters`, 400);
+    if (reason.length > EXTENSION_REASON_MAX_LENGTH) throw new AppError(`Keep the reason to ${EXTENSION_REASON_MAX_LENGTH} characters or fewer.`, 400);
     return reason || null;
 };
 
@@ -402,7 +402,7 @@ const queryValues = (value: unknown): string[] =>
 // One filter type → one OR group. Unknown ids are rejected rather than silently ignored,
 // so a typo never looks like "no results".
 const uuidValues = (values: string[], name: string) => {
-    if (!values.every((value) => validator.isUUID(value))) throw new AppError(`${name} must be ids`, 400);
+    if (!values.every((value) => validator.isUUID(value))) throw new AppError("One of your filters is out of date. Clear the filters and try again.", 400);
     return values;
 };
 
@@ -413,9 +413,9 @@ const parsePaging = (pageParam: unknown, limitParam: unknown) => {
     if (limitParam === undefined) return null;
     const limit = Number(limitParam);
     const page = pageParam === undefined ? 1 : Number(pageParam);
-    if (!Number.isInteger(limit) || limit < 1 || limit > MAX_PAGE_LIMIT) throw new AppError(`limit must be between 1 and ${MAX_PAGE_LIMIT}`, 400);
+    if (!Number.isInteger(limit) || limit < 1 || limit > MAX_PAGE_LIMIT) throw new AppError("We couldn't load that page of tasks. Refresh and try again.", 400);
     // NOTE: capped so (page - 1) * limit stays a valid database offset (a 500 otherwise).
-    if (!Number.isInteger(page) || page < 1 || page > MAX_PAGE) throw new AppError(`page must be between 1 and ${MAX_PAGE}`, 400);
+    if (!Number.isInteger(page) || page < 1 || page > MAX_PAGE) throw new AppError("We couldn't load that page of tasks. Refresh and try again.", 400);
     return { page, limit };
 };
 
@@ -424,7 +424,7 @@ export const listWorkspaceTasks = catchAsync(async (req, res) => {
     const user = requireUser(req);
     const { sort, includeSubtasks, due, counts } = req.query;
     if (due !== undefined && !isDueView(due)) {
-        throw new AppError(`due must be one of ${DUE_VIEWS.join(", ")}`, 400);
+        throw new AppError("That filter isn't available. Clear the filters and try again.", 400);
     }
     const paging = parsePaging(req.query.page, req.query.limit ?? (req.query.page !== undefined ? DEFAULT_PAGE_LIMIT : undefined));
     const search = typeof req.query.q === "string" ? req.query.q.trim().slice(0, SEARCH_MAX_LENGTH) : "";
@@ -533,7 +533,7 @@ export const createWorkspaceTask = catchAsync(async (req, res) => {
 
     if (clientRequestId !== undefined && clientRequestId !== null
         && (typeof clientRequestId !== "string" || clientRequestId.length > 100)) {
-        throw new AppError("clientRequestId must be a string of up to 100 characters", 400);
+        throw new AppError("We couldn't save the task. Refresh and try again.", 400);
     }
 
     const findByRequestId = async () => {
@@ -630,7 +630,7 @@ export const editTask = catchAsync(async (req, res) => {
     const { task: existingTask, membership, parentAssigneeMembershipId } = await loadTaskForMember(id, user.id);
 
     if (!canEditTask(membership, existingTask, parentAssigneeMembershipId)) {
-        throw new AppError("You can only edit tasks you created or are assigned to", 403);
+        throw new AppError("You can only change tasks you created or are assigned to. Ask the assignee or an Admin.", 403);
     }
     await assertTaskWritable(existingTask);
     const expectedVersion = parseExpectedVersion(req.body.version);
@@ -638,7 +638,7 @@ export const editTask = catchAsync(async (req, res) => {
     const assigneeMembershipId = await parseAssigneeMembershipId(req.body.assigneeMembershipId, existingTask.workspaceId);
     if (assigneeMembershipId !== undefined && assigneeMembershipId !== existingTask.assigneeMembershipId
         && !canAssignTask(membership, existingTask, parentAssigneeMembershipId)) {
-        throw new AppError("You can't reassign this task", 403);
+        throw new AppError("Only the task's creator, its assignee or an Admin can reassign it.", 403);
     }
 
     const status = parseStatus(req.body.status);
@@ -659,7 +659,7 @@ export const editTask = catchAsync(async (req, res) => {
 
     // A subtask always lives in its parent's project (PRD FR07) — it can't move on its own.
     if (existingTask.parentTaskId && projectId !== undefined && projectId !== existingTask.projectId) {
-        throw new AppError("A subtask stays in its parent's project. Move the parent instead", 400);
+        throw new AppError("A subtask stays in its task's project. Move the task instead.", 400);
     }
     const movesProject = !existingTask.parentTaskId && projectId !== undefined && projectId !== existingTask.projectId;
 
@@ -735,10 +735,10 @@ export const updateTaskStatus = catchAsync(async (req, res) => {
     const { task: existingTask, membership, parentAssigneeMembershipId } = await loadTaskForMember(id, requireUser(req).id);
 
     if (!canEditTask(membership, existingTask, parentAssigneeMembershipId)) {
-        throw new AppError("You can only update tasks you created or are assigned to", 403);
+        throw new AppError("You can only change tasks you created or are assigned to. Ask the assignee or an Admin.", 403);
     }
     await assertTaskWritable(existingTask);
-    if (req.body.status === undefined) throw new AppError("Please provide a valid status", 400);
+    if (req.body.status === undefined) throw new AppError("Choose a status for this task.", 400);
     const status = parseStatus(req.body.status);
     const expectedVersion = parseExpectedVersion(req.body.version);
 
@@ -758,7 +758,7 @@ export const deleteTask = catchAsync(async (req, res) => {
     const { task, membership, parentAssigneeMembershipId } = await loadTaskForMember(id, requireUser(req).id);
 
     if (!canDeleteTask(membership, task, parentAssigneeMembershipId)) {
-        throw new AppError("You can only delete tasks you created", 403);
+        throw new AppError("You can only delete tasks you created. Ask an Admin if it needs to go.", 403);
     }
     await assertTaskWritable(task);
 

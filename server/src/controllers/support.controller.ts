@@ -26,9 +26,9 @@ const ticketSummarySelect = {
 
 // 404 for anything that isn't theirs, so ticket ids can't be probed.
 const loadOwnTicket = async (ticketId: string | undefined, userId: string) => {
-    if (!ticketId || !validator.isUUID(ticketId)) throw new AppError("Ticket not found", 404);
+    if (!ticketId || !validator.isUUID(ticketId)) throw new AppError("We couldn't find that request. Refresh to see the latest.", 404);
     const ticket = await prisma.supportTicket.findFirst({ where: { id: ticketId, requesterId: userId } });
-    if (!ticket) throw new AppError("Ticket not found", 404);
+    if (!ticket) throw new AppError("We couldn't find that request. Refresh to see the latest.", 404);
     return ticket;
 };
 

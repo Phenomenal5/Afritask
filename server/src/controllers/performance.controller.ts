@@ -52,12 +52,12 @@ export const createShare = catchAsync(async (req, res) => {
 // DELETE /api/v1/performance/shares/:shareId — the link stops working at once.
 export const revokeShare = catchAsync(async (req, res) => {
     const shareId = routeParam(req, "shareId");
-    if (!shareId || !validator.isUUID(shareId)) throw new AppError("Link not found", 404);
+    if (!shareId || !validator.isUUID(shareId)) throw new AppError("That link was already turned off. Refresh to see the latest.", 404);
     const { count } = await prisma.performanceShare.updateMany({
         where: { id: shareId, userId: requireUser(req).id, revokedAt: null },
         data: { revokedAt: new Date() },
     });
-    if (count === 0) throw new AppError("Link not found", 404);
+    if (count === 0) throw new AppError("That link was already turned off. Refresh to see the latest.", 404);
     res.status(204).send();
 });
 

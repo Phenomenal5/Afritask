@@ -114,7 +114,7 @@ export const parseReminderOffset = (reminderOffset: unknown): ReminderOffset | n
     if (reminderOffset === undefined) return undefined;
     if (reminderOffset === null || reminderOffset === "none" || reminderOffset === "") return null;
     if (!Object.values(ReminderOffset).includes(reminderOffset as ReminderOffset)) {
-        throw new AppError("Reminder must be none, at_due, one_hour, one_day, three_days or one_week", 400);
+        throw new AppError("Choose a reminder from the list.", 400);
     }
     return reminderOffset as ReminderOffset;
 };

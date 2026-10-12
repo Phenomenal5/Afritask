@@ -62,7 +62,7 @@ export default function LoginPage() {
     const result = await login({ email: form.email.trim(), password: form.password });
     if (!result.success) {
       setSubmitting(false);
-      setFormError(result.message ?? "We couldn't sign you in.");
+      setFormError(result.message ?? "We couldn't sign you in. Check your email and password.");
     }
   };
 

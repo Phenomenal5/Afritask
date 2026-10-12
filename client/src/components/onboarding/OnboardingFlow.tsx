@@ -125,13 +125,13 @@ export default function OnboardingFlow({ mode }: { mode: "first" | "additional" 
               // Already created in this setup — rename it rather than make a second one.
               if (name !== createdWorkspace.name) {
                 const result = await renameWorkspace(createdWorkspace.id, name);
-                if (!result.success) return result.message ?? "Couldn't rename the workspace.";
+                if (!result.success) return result.message ?? "Couldn't rename the workspace. Try again.";
               }
               goTo({ workspaceId: createdWorkspace.id, step: 2 });
               return null;
             }
             const result = await createWorkspace(name);
-            if (!result.success || !result.data) return result.message ?? "Couldn't create the workspace.";
+            if (!result.success || !result.data) return result.message ?? "Couldn't create the workspace. Try again.";
             goTo({ workspaceId: result.data.id, step: 2 });
             return null;
           }}
@@ -199,7 +199,7 @@ function NameStep({
     event.preventDefault();
     const trimmedName = name.trim();
     if (!trimmedName) return setNameError("Give it a name. You can change it later.");
-    if (trimmedName.length > 100) return setNameError("Keep it under 100 characters.");
+    if (trimmedName.length > 100) return setNameError("Keep the name to 100 characters or fewer.");
     setSaving(true);
     const error = await onSubmit(trimmedName, timezone);
     setSaving(false);
@@ -304,7 +304,7 @@ function InviteStep({
         const delivered = response.data.data.invitation.deliveryStatus !== "failed";
         setRows((current) => current.map((item, itemIndex) => (itemIndex === index ? { ...item, result: delivered ? "sent" : "failed" } : item)));
       } catch (error) {
-        setRows((current) => current.map((item, itemIndex) => (itemIndex === index ? { ...item, error: failureMessage(error, "Couldn't invite this person.") } : item)));
+        setRows((current) => current.map((item, itemIndex) => (itemIndex === index ? { ...item, error: failureMessage(error, "Couldn't invite this person. Try again, or skip for now.") } : item)));
       }
     }
     setSending(false);
@@ -431,7 +431,7 @@ function FirstTaskStep({
     event.preventDefault();
     const trimmedTitle = title.trim();
     if (!trimmedTitle) return setTitleError("Write the task, or skip and go to your workspace.");
-    if (trimmedTitle.length > 200) return setTitleError("Keep it under 200 characters.");
+    if (trimmedTitle.length > 200) return setTitleError("Keep it to 200 characters or fewer.");
     setSaving(true);
     const result = await onCreate({
       title: trimmedTitle,

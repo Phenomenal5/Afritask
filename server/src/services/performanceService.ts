@@ -54,7 +54,7 @@ export interface TrendPoint {
 // ─── Months ─────────────────────
 export const parseMonth = (value: unknown, fallback: string) => {
     if (value === undefined || value === "") return fallback;
-    if (typeof value !== "string" || !MONTH_PATTERN.test(value)) throw new AppError("month must look like 2026-10", 400);
+    if (typeof value !== "string" || !MONTH_PATTERN.test(value)) throw new AppError("We couldn't read that month. Pick one from the list.", 400);
     return value;
 };
 

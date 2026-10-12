@@ -16,14 +16,14 @@ const MESSAGE_MAX_LENGTH = 5000;
 export const parseSubject = (value: unknown) => {
     const subject = typeof value === "string" ? value.trim() : "";
     if (subject.length < SUBJECT_MIN_LENGTH) throw new AppError("Give your message a short subject.", 400);
-    if (subject.length > SUBJECT_MAX_LENGTH) throw new AppError(`Keep the subject under ${SUBJECT_MAX_LENGTH} characters.`, 400);
+    if (subject.length > SUBJECT_MAX_LENGTH) throw new AppError(`Keep the subject to ${SUBJECT_MAX_LENGTH} characters or fewer.`, 400);
     return subject;
 };
 
 export const parseMessageBody = (value: unknown) => {
     const body = typeof value === "string" ? value.trim() : "";
     if (body.length < MESSAGE_MIN_LENGTH) throw new AppError("Write a message first.", 400);
-    if (body.length > MESSAGE_MAX_LENGTH) throw new AppError(`Keep the message under ${MESSAGE_MAX_LENGTH} characters.`, 400);
+    if (body.length > MESSAGE_MAX_LENGTH) throw new AppError(`Keep the message to ${MESSAGE_MAX_LENGTH} characters or fewer.`, 400);
     return body;
 };
 
@@ -34,7 +34,7 @@ export const parseCategory = (value: unknown): SupportTicketCategory => {
 };
 
 export const parseStatus = (value: unknown): SupportTicketStatus => {
-    if (typeof value !== "string" || !TICKET_STATUSES.includes(value as SupportTicketStatus)) throw new AppError("Unknown ticket status.", 400);
+    if (typeof value !== "string" || !TICKET_STATUSES.includes(value as SupportTicketStatus)) throw new AppError("Choose a status from the list.", 400);
     return value as SupportTicketStatus;
 };
 

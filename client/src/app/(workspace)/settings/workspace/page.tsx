@@ -45,7 +45,7 @@ export default function WorkspaceSettingsPage() {
     if (!workspaceId) return;
     const trimmedName = nameDraft.trim();
     if (!trimmedName) return setNameError("A workspace needs a name.");
-    if (trimmedName.length > NAME_MAX_LENGTH) return setNameError(`Keep it under ${NAME_MAX_LENGTH} characters.`);
+    if (trimmedName.length > NAME_MAX_LENGTH) return setNameError(`Keep the name to ${NAME_MAX_LENGTH} characters or fewer.`);
     setRenaming(true);
     const result = await renameWorkspace(workspaceId, trimmedName);
     setRenaming(false);
@@ -53,7 +53,7 @@ export default function WorkspaceSettingsPage() {
       toast.success("Workspace renamed");
       reloadWorkspace();
     } else {
-      setNameError(result.message ?? "Couldn't rename the workspace.");
+      setNameError(result.message ?? "Couldn't rename the workspace. Try again.");
     }
   };
 

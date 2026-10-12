@@ -63,7 +63,7 @@ export default function AccountSettingsPage() {
     event.preventDefault();
     const trimmedName = profile.name.trim();
     if (!trimmedName) return setNameError("Your name helps teammates recognise your work.");
-    if (trimmedName.length > NAME_MAX_LENGTH) return setNameError(`Keep your name under ${NAME_MAX_LENGTH} characters.`);
+    if (trimmedName.length > NAME_MAX_LENGTH) return setNameError(`Keep your name to ${NAME_MAX_LENGTH} characters or fewer.`);
     if (profile.age && (!/^\d+$/.test(profile.age) || Number(profile.age) < 1 || Number(profile.age) > 120)) return setAgeError("Enter your age as a whole number, or leave it empty.");
     setProfileSaving(true);
     const result = await updateProfile({
@@ -93,7 +93,7 @@ export default function AccountSettingsPage() {
     setAvatarUploading(true);
     const result = await updateAvatar(file);
     setAvatarUploading(false);
-    if (!result.success) setAvatarError(result.message ?? "Couldn't upload that picture.");
+    if (!result.success) setAvatarError(result.message ?? "Couldn't upload that picture. Try again, or choose another image.");
     setAvatarPreview(null);
   };
 
@@ -116,7 +116,7 @@ export default function AccountSettingsPage() {
     const errors: typeof passwordErrors = {};
     if (!passwords.currentPassword) errors.current = "Enter the password you use now.";
     if (passwords.newPassword.length < PASSWORD_MIN_LENGTH) errors.next = `Use at least ${PASSWORD_MIN_LENGTH} characters.`;
-    else if (passwords.newPassword.length > PASSWORD_MAX_LENGTH) errors.next = `Keep your password under ${PASSWORD_MAX_LENGTH} characters.`;
+    else if (passwords.newPassword.length > PASSWORD_MAX_LENGTH) errors.next = `Keep your password to ${PASSWORD_MAX_LENGTH} characters or fewer.`;
     if (passwords.confirmPassword !== passwords.newPassword) errors.confirm = "This doesn't match the new password.";
     setPasswordErrors(errors);
     if (Object.keys(errors).length) return;

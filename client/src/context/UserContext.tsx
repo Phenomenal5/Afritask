@@ -36,7 +36,7 @@ export function UserProvider({ children, setUser }: { children: ReactNode; setUs
         setUser((previous) => (previous ? { ...previous, ...response.data.user } : previous));
         return { success: true };
       } catch (error) {
-        return { success: false, message: failureMessage(error, "Couldn't save your profile.") };
+        return { success: false, message: failureMessage(error, "Couldn't save your profile. Try again.") };
       }
     },
     [setUser]
@@ -51,7 +51,7 @@ export function UserProvider({ children, setUser }: { children: ReactNode; setUs
       if (isAxiosError(error) && error.response?.status === 401) {
         return { success: false, message: error.response.data?.message || "Your current password is incorrect." };
       }
-      return { success: false, message: failureMessage(error, "Couldn't change your password.") };
+      return { success: false, message: failureMessage(error, "Couldn't change your password. Try again.") };
     }
   }, []);
 
@@ -64,7 +64,7 @@ export function UserProvider({ children, setUser }: { children: ReactNode; setUs
         setUser((previous) => (previous ? { ...previous, ...response.data.user } : previous));
         return { success: true };
       } catch (error) {
-        return { success: false, message: failureMessage(error, "Couldn't upload that picture.") };
+        return { success: false, message: failureMessage(error, "Couldn't upload that picture. Try again, or choose another image.") };
       }
     },
     [setUser]

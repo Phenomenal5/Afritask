@@ -40,7 +40,7 @@ export const getPublishedPost = catchAsync(async (req, res) => {
     const post = postId && validator.isUUID(postId)
         ? await prisma.newsletterPost.findFirst({ where: { id: postId, status: "published" }, select: PUBLIC_POST_FIELDS })
         : null;
-    if (!post) throw new AppError("Post not found", 404);
+    if (!post) throw new AppError("This post isn't available any more. See the latest news instead.", 404);
     res.status(200).json({ status: "success", data: { post } });
 });
 
@@ -54,7 +54,7 @@ export const getMySubscription = catchAsync(async (req, res) => {
 // PUT /api/v1/newsletter/subscription  { subscribed: boolean }
 export const updateMySubscription = catchAsync(async (req, res) => {
     const { subscribed } = req.body ?? {};
-    if (typeof subscribed !== "boolean") throw new AppError("subscribed must be true or false", 400);
+    if (typeof subscribed !== "boolean") throw new AppError("We couldn't save your newsletter choice. Try again.", 400);
     const user = requireUser(req);
     await setAccountSubscription(user, subscribed);
     logger.info(`Newsletter ${subscribed ? "on" : "off"} for user ${user.id}`);

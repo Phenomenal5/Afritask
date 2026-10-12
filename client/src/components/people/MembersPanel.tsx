@@ -40,7 +40,7 @@ export default function MembersPanel({ workspace }: { workspace: WorkspaceDetail
       toast.success(successMessage);
       await Promise.all([refreshWorkspaces(), reloadWorkspace()]);
     } catch (error) {
-      toast.error(failureMessage(error, "That didn't work. Nothing was changed."));
+      toast.error(failureMessage(error, "Couldn't update this person. Nothing was changed. Try again."));
     } finally {
       setBusyId(null);
     }
@@ -103,7 +103,7 @@ export default function MembersPanel({ workspace }: { workspace: WorkspaceDetail
       await refreshWorkspaces();
       router.replace("/dashboard");
     } catch (error) {
-      toast.error(failureMessage(error, "Couldn't leave the workspace."));
+      toast.error(failureMessage(error, "Couldn't leave the workspace. Try again."));
       setBusyId(null);
     }
   };

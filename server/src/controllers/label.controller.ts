@@ -21,15 +21,15 @@ const isManager = (membership: Membership) => membership.role === "owner" || mem
 
 const parseLabelName = (name: unknown): string => {
     const trimmedName = typeof name === "string" ? name.trim() : "";
-    if (!trimmedName) throw new AppError("Label name is required", 400);
-    if (trimmedName.length > LABEL_NAME_MAX_LENGTH) throw new AppError(`Label name must be ${LABEL_NAME_MAX_LENGTH} characters or fewer`, 400);
+    if (!trimmedName) throw new AppError("Give the label a name.", 400);
+    if (trimmedName.length > LABEL_NAME_MAX_LENGTH) throw new AppError(`Keep the label name to ${LABEL_NAME_MAX_LENGTH} characters or fewer.`, 400);
     return trimmedName;
 };
 
 const parseLabelColor = (color: unknown): string | undefined => {
     if (color === undefined) return undefined;
     if (!LABEL_COLORS.includes(color as (typeof LABEL_COLORS)[number])) {
-        throw new AppError(`Color must be one of: ${LABEL_COLORS.join(", ")}`, 400);
+        throw new AppError("Choose a colour from the list.", 400);
     }
     return color as string;
 };
@@ -45,10 +45,10 @@ const assertNameAvailable = async (workspaceId: string, name: string, exceptLabe
 
 // Item routes carry no workspace id: access comes from the label's workspace (404 for outsiders).
 const loadLabelForManager = async (labelId: string | undefined, userId: string) => {
-    if (!labelId || !validator.isUUID(labelId)) throw new AppError("Label not found", 404);
+    if (!labelId || !validator.isUUID(labelId)) throw new AppError("That label was deleted. Refresh to see the latest.", 404);
     const label = await prisma.label.findUnique({ where: { id: labelId } });
-    if (!label) throw new AppError("Label not found", 404);
-    const membership = await requireActiveMembership(label.workspaceId, userId).catch(notFoundUnlessSuspended("Label not found"));
+    if (!label) throw new AppError("That label was deleted. Refresh to see the latest.", 404);
+    const membership = await requireActiveMembership(label.workspaceId, userId).catch(notFoundUnlessSuspended("That label was deleted. Refresh to see the latest."));
     if (!isManager(membership)) throw new AppError("Only Owners and Admins can manage labels", 403);
     return label;
 };

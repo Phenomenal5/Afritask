@@ -145,7 +145,7 @@ export default function TaskComposer({ open, defaults, onClose, onCreated }: Tas
       return;
     }
     if (trimmedTitle.length > TITLE_MAX_LENGTH) {
-      setTitleError(`Keep the title under ${TITLE_MAX_LENGTH} characters. Put the rest in the description.`);
+      setTitleError(`Keep the title to ${TITLE_MAX_LENGTH} characters or fewer. Put the rest in the description.`);
       titleRef.current?.focus();
       return;
     }

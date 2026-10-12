@@ -51,12 +51,12 @@ describe("parseDue", () => {
     });
 
     it.each([
-        [{ dueDate: "2026-02-31" }, "Please provide a valid due date"],
-        [{ dueDate: "13/01/2026" }, "Please provide a valid due date"],
-        [{ dueAt: "not a date" }, "Please provide a valid due date"],
-        [{ dueDate: 20261201 }, "Please provide a valid due date"],
-        [{ dueDate: "2026-12-01", dueAt: "2026-12-01T09:00:00Z" }, "Send either dueDate or dueAt, not both"],
-        [{ dueDate: "2026-12-01", dueTimezone: "Mars/Olympus_Mons" }, "Please provide a valid timezone"],
+        [{ dueDate: "2026-02-31" }, "That due date isn't a real date. Pick one from the calendar."],
+        [{ dueDate: "13/01/2026" }, "That due date isn't a real date. Pick one from the calendar."],
+        [{ dueAt: "not a date" }, "That due date isn't a real date. Pick one from the calendar."],
+        [{ dueDate: 20261201 }, "That due date isn't a real date. Pick one from the calendar."],
+        [{ dueDate: "2026-12-01", dueAt: "2026-12-01T09:00:00Z" }, "We couldn't read the due date. Pick it again."],
+        [{ dueDate: "2026-12-01", dueTimezone: "Mars/Olympus_Mons" }, "Choose your time zone from the list."],
     ])("rejects %p", (body, message) => {
         expect(() => parseDue(body as Record<string, unknown>, "UTC")).toThrow(message);
     });

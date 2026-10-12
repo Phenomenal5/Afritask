@@ -41,7 +41,7 @@ const publicInvitation = (invitation: Invitation & { inviter?: { name: string } 
 
 const normalizeInviteEmail = (email: unknown): string => {
     if (typeof email !== "string" || !validator.isEmail(email.trim())) {
-        throw new AppError("Please provide a valid email address", 400);
+        throw new AppError("Enter a full email address, like name@example.com.", 400);
     }
     return email.trim().toLowerCase();
 };
@@ -94,12 +94,12 @@ const issueAndSendInvitation = async (invitationId: string) => {
 // Managers act on an invitation through their membership in ITS workspace. A non-manager
 // or outsider gets 404 (no confirmation the invitation exists).
 const loadInvitationForManager = async (invitationId: string | undefined, userId: string) => {
-    if (!invitationId || !validator.isUUID(invitationId)) throw new AppError("Invitation not found", 404);
+    if (!invitationId || !validator.isUUID(invitationId)) throw new AppError("This invitation was withdrawn or replaced. Refresh to see the latest.", 404);
     const invitation = await prisma.invitation.findUnique({ where: { id: invitationId } });
-    if (!invitation) throw new AppError("Invitation not found", 404);
+    if (!invitation) throw new AppError("This invitation was withdrawn or replaced. Refresh to see the latest.", 404);
 
-    const membership = await requireActiveMembership(invitation.workspaceId, userId).catch(notFoundUnlessSuspended("Invitation not found"));
-    if (invitableRolesFor(membership.role).length === 0) throw new AppError("Invitation not found", 404);
+    const membership = await requireActiveMembership(invitation.workspaceId, userId).catch(notFoundUnlessSuspended("This invitation was withdrawn or replaced. Refresh to see the latest."));
+    if (invitableRolesFor(membership.role).length === 0) throw new AppError("This invitation was withdrawn or replaced. Refresh to see the latest.", 404);
     // An Admin can manage Member invitations, but not Admin ones (PRD §8: managing Admins is Owner-only).
     if (!invitableRolesFor(membership.role).includes(invitation.role as InvitableRole)) {
         throw new AppError("Only the Owner can manage Admin invitations", 403);
@@ -177,7 +177,7 @@ export const listWorkspaceInvitations = catchAsync(async (req, res) => {
 
 export const resendInvitation = catchAsync(async (req, res) => {
     const { invitation: existing } = await loadInvitationForManager(routeParam(req, "invitationId"), requireUser(req).id);
-    if (existing.status !== "pending") throw new AppError("Only pending invitations can be resent", 409);
+    if (existing.status !== "pending") throw new AppError("Only invitations that haven't been answered yet can be sent again.", 409);
 
     // A new token replaces the old one, so links from earlier emails stop working.
     const invitation = await issueAndSendInvitation(existing.id);
@@ -193,7 +193,7 @@ export const revokeInvitation = catchAsync(async (req, res) => {
         where: { id: existing.id, status: "pending" },
         data: { status: "revoked", respondedAt: new Date() },
     });
-    if (count === 0) throw new AppError("This invitation is no longer pending", 409);
+    if (count === 0) throw new AppError("This invitation was already answered or withdrawn.", 409);
 
     logger.info(`Invitation revoked invitationId=${existing.id}`);
     res.status(200).json({ status: "success", message: "Invitation revoked" });
@@ -205,7 +205,7 @@ export const revokeInvitation = catchAsync(async (req, res) => {
 // role, invited email) — the link holder already has the invitation.
 export const previewInvitation = catchAsync(async (req, res) => {
     const token = routeParam(req, "token");
-    if (!token) throw new AppError("Invitation not found", 404);
+    if (!token) throw new AppError("This invitation was withdrawn or replaced. Refresh to see the latest.", 404);
 
     const invitation = await prisma.invitation.findUnique({
         where: { tokenHash: hashSecureToken(token) },
@@ -255,7 +255,7 @@ const loadInvitationForRecipient = async (body: { token?: unknown; invitationId?
     } else if (typeof body.invitationId === "string" && validator.isUUID(body.invitationId)) {
         invitation = await prisma.invitation.findUnique({ where: { id: body.invitationId } });
     } else {
-        throw new AppError("Please provide the invitation token or id", 400);
+        throw new AppError("This invitation link is incomplete. Open it from your email again.", 400);
     }
     if (!invitation) throw new AppError("This invitation link is invalid or has been replaced", 404);
 
@@ -267,7 +267,7 @@ const loadInvitationForRecipient = async (body: { token?: unknown; invitationId?
             403
         );
     }
-    if (invitation.status !== "pending") throw new AppError(`This invitation was already ${invitation.status}`, 409);
+    if (invitation.status !== "pending") throw new AppError("This invitation can't be used any more. Ask for a new one.", 409);
     if (isExpired(invitation)) throw new AppError("This invitation has expired. Ask for a new one.", 410);
     return invitation;
 };
@@ -289,7 +289,7 @@ export const acceptInvitation = catchAsync(async (req, res) => {
             where: { id: invitation.id, status: "pending", expiresAt: { gt: new Date() } },
             data: { status: "accepted", respondedAt: new Date() },
         });
-        if (count === 0) throw new AppError("This invitation was already used", 409);
+        if (count === 0) throw new AppError("This invitation was already used. Look for the workspace in your workspace switcher.", 409);
 
         const existingMembership = await transaction.membership.findUnique({
             where: { workspaceId_userId: { workspaceId: invitation.workspaceId, userId: user.id } },
@@ -333,7 +333,7 @@ export const declineInvitation = catchAsync(async (req, res) => {
         where: { id: invitation.id, status: "pending" },
         data: { status: "declined", respondedAt: new Date() },
     });
-    if (count === 0) throw new AppError("This invitation is no longer pending", 409);
+    if (count === 0) throw new AppError("This invitation was already answered or withdrawn.", 409);
 
     logger.info(`Invitation declined invitationId=${invitation.id} userId=${user.id}`);
     res.status(200).json({ status: "success", message: "Invitation declined" });

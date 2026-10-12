@@ -59,7 +59,7 @@ export default function ProjectsPage() {
   const setCreateOpen = (open: boolean) => window.history.replaceState(null, "", open ? "/projects?new=1" : "/projects");
 
   const handleCreate = async ({ name, description }: { name: string; description: string }) => {
-    if (!workspaceId) return "No workspace is open.";
+    if (!workspaceId) return "Open a workspace first, then try again.";
     try {
       const response = await createProject(workspaceId, { name, description });
       toast.success(`Created “${name}”`);
@@ -69,7 +69,7 @@ export default function ProjectsPage() {
       router.push(`/projects/${response.data.data.project.id}`);
       return null;
     } catch (error) {
-      return failureMessage(error, "Couldn't create the project.");
+      return failureMessage(error, "Couldn't create the project. Try again.");
     }
   };
 

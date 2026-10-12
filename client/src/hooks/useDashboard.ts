@@ -25,7 +25,7 @@ export function useDashboard(workspaceId: string | null | undefined) {
       setFailure(null);
     } catch (error) {
       if (requestNumber !== latestRequestRef.current) return;
-      setFailure(describeFailure(error, "Couldn't load the counts."));
+      setFailure(describeFailure(error, "Couldn't load your overview. Try again."));
     }
   }, [workspaceId]);
 

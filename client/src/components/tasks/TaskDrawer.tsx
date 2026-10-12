@@ -223,7 +223,7 @@ export default function TaskDrawer({ taskId, onClose, onOpenTask }: TaskDrawerPr
     && (form.dueDate !== original.dueDate || form.dueTime !== original.dueTime || form.startDate !== original.startDate || form.startTime !== original.startTime);
   const reasonRequired = timingChanged && task?.status !== "todo" && viewer.role !== "owner";
   const reasonError = reasonRequired && !form?.dueChangeReason.trim() ? "Work on this task has started, so say why its timing is changing." : null;
-  const titleError = form && !form.title.trim() ? "A task needs a title." : form && form.title.trim().length > 200 ? "Keep the title under 200 characters." : null;
+  const titleError = form && !form.title.trim() ? "Give the task a title." : form && form.title.trim().length > 200 ? "Keep the title to 200 characters or fewer." : null;
 
   const handleSave = async (event?: FormEvent) => {
     event?.preventDefault();

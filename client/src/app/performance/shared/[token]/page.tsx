@@ -22,7 +22,7 @@ export default function SharedPerformancePage() {
   useEffect(() => {
     getSharedPerformance(token)
       .then((response) => setReport(response.data.data))
-      .catch((error) => setFailure(describeFailure(error, "This link isn't available.")));
+      .catch((error) => setFailure(describeFailure(error, "This link isn't available. Ask the person who shared it for a new one.")));
   }, [token]);
 
   return (

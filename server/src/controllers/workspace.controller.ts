@@ -95,7 +95,7 @@ export const getWorkspace = catchAsync(async (req, res) => {
             },
         },
     });
-    if (!workspace) throw new AppError("Workspace not found", 404);
+    if (!workspace) throw new AppError("We couldn't open this workspace. It may have been deleted, or you're no longer a member.", 404);
 
     const { memberships, ...workspaceFields } = workspace;
     res.status(200).json({

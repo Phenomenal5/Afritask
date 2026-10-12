@@ -125,9 +125,9 @@ describe("labels", () => {
     });
 
     it.each([
-        [{ name: "" }, "Label name is required"],
-        [{ name: "x".repeat(41) }, "Label name must be 40 characters or fewer"],
-        [{ name: "ok", color: "neon" }, "Color must be one of: gray, moss, clay, gold, sky, plum"],
+        [{ name: "" }, "Give the label a name."],
+        [{ name: "x".repeat(41) }, "Keep the label name to 40 characters or fewer."],
+        [{ name: "ok", color: "neon" }, "Choose a colour from the list."],
     ])("rejects %p", async (body, message) => {
         const team = await createTeam();
         const response = await team.owner.client.post(`/workspaces/${team.workspace.id}/labels`, body);

@@ -26,7 +26,7 @@ export const startFieldError = (fields: StartFields & { dueDate: string; dueTime
   if (!fields.startDate || !fields.dueDate) return null;
   const start = `${fields.startDate}T${fields.startTime || "00:00"}`;
   const due = `${fields.dueDate}T${fields.dueTime || "23:59"}`;
-  return start > due ? "The start can't be after the due date." : null;
+  return start > due ? "The start date can't be after the due date." : null;
 };
 
 // NOTE: like the due date, an untouched start isn't re-sent when editing — re-sending a

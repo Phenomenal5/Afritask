@@ -31,7 +31,7 @@ export default function ForgotPasswordPage() {
     const result = await forgotPassword(email.trim());
     setSubmitting(false);
     if (result.success) setSent(true);
-    else setFormError(result.message ?? "We couldn't send the link.");
+    else setFormError(result.message ?? "We couldn't send the reset link. Try again in a moment.");
   };
 
   const backToSignIn = (

@@ -25,8 +25,8 @@ const isManager = (membership: Membership) => membership.role === "owner" || mem
 
 const parseBody = (body: unknown): string => {
     const trimmedBody = typeof body === "string" ? body.trim() : "";
-    if (!trimmedBody) throw new AppError("Please write a comment", 400);
-    if (trimmedBody.length > BODY_MAX_LENGTH) throw new AppError(`Comments must be ${BODY_MAX_LENGTH.toLocaleString("en")} characters or fewer`, 400);
+    if (!trimmedBody) throw new AppError("Write something before posting.", 400);
+    if (trimmedBody.length > BODY_MAX_LENGTH) throw new AppError(`This comment is too long. Keep it to ${BODY_MAX_LENGTH.toLocaleString("en")} characters or fewer.`, 400);
     return trimmedBody;
 };
 
@@ -36,7 +36,7 @@ const parseMentionIds = async (mentionMembershipIds: unknown, workspaceId: strin
     if (mentionMembershipIds === undefined) return undefined;
     if (!Array.isArray(mentionMembershipIds)
         || !mentionMembershipIds.every((membershipId) => typeof membershipId === "string" && validator.isUUID(membershipId))) {
-        throw new AppError("mentionMembershipIds must be a list of member ids", 400);
+        throw new AppError("We couldn't read the people you mentioned. Mention them again.", 400);
     }
     const uniqueIds = [...new Set(mentionMembershipIds as string[])];
     if (uniqueIds.length > MAX_MENTIONS) throw new AppError(`A comment can mention at most ${MAX_MENTIONS} people`, 400);
@@ -50,7 +50,7 @@ const assertTaskOpenForDiscussion = async (projectId: string | null) => {
     if (!projectId) return;
     const project = await prisma.project.findUnique({ where: { id: projectId }, select: { state: true } });
     if (project?.state === "archived") {
-        throw new AppError("This task's project is archived. Restore the project to comment.", 409);
+        throw new AppError("This project is archived, so comments are closed. An Owner or Admin can restore it.", 409);
     }
 };
 
@@ -88,18 +88,18 @@ const toCommentResponse = (comment: CommentRow, viewer: Membership) => {
 // Item routes carry only the comment id: derive access from its task's workspace.
 // Missing, deleted-task and "not your workspace" all answer the same 404.
 const loadCommentForMember = async (commentId: string | undefined, userId: string) => {
-    if (!commentId || !validator.isUUID(commentId)) throw new AppError("Comment not found", 404);
+    if (!commentId || !validator.isUUID(commentId)) throw new AppError("That comment was deleted. Refresh to see the latest.", 404);
     const comment = await prisma.comment.findUnique({
         where: { id: commentId },
         include: { task: { select: { projectId: true, title: true } }, mentions: { select: { membershipId: true } } },
     });
-    if (!comment) throw new AppError("Comment not found", 404);
-    const membership = await requireActiveMembership(comment.workspaceId, userId).catch(notFoundUnlessSuspended("Comment not found"));
+    if (!comment) throw new AppError("That comment was deleted. Refresh to see the latest.", 404);
+    const membership = await requireActiveMembership(comment.workspaceId, userId).catch(notFoundUnlessSuspended("That comment was deleted. Refresh to see the latest."));
     return { comment, membership };
 };
 
 const assertValidTaskId = (taskId: string | undefined): string => {
-    if (!taskId || !validator.isUUID(taskId)) throw new AppError("Invalid id format", 400);
+    if (!taskId || !validator.isUUID(taskId)) throw new AppError("We couldn't find that task. Refresh to see the latest.", 400);
     return taskId;
 };
 
@@ -152,7 +152,7 @@ export const createComment = catchAsync(async (req, res) => {
 // Author only. Sending mentionMembershipIds replaces the set; leaving it out keeps it.
 export const editComment = catchAsync(async (req, res) => {
     const { comment, membership } = await loadCommentForMember(routeParam(req, "commentId"), requireUser(req).id);
-    if (comment.deletedAt) throw new AppError("This comment was deleted", 409);
+    if (comment.deletedAt) throw new AppError("This comment was deleted, so it can't be edited.", 409);
     if (comment.authorId !== membership.userId) throw new AppError("You can only edit your own comments", 403);
     await assertTaskOpenForDiscussion(comment.task.projectId);
 

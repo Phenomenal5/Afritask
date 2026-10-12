@@ -57,8 +57,8 @@ const FAILURE_COPY: Record<string, { icon: LucideIcon; title: string }> = {
   missing: { icon: FileQuestion, title: "This isn't available" },
   session: { icon: Lock, title: "Your session ended" },
   conflict: { icon: RefreshCw, title: "This changed while you were away" },
-  invalid: { icon: ServerCrash, title: "Something went wrong" },
-  server: { icon: ServerCrash, title: "Something went wrong" },
+  invalid: { icon: ServerCrash, title: "That didn't work" },
+  server: { icon: ServerCrash, title: "Afritask hit a problem" },
 };
 
 export function FailurePanel({ failure, onRetry, action, compact }: { failure: Failure; onRetry?: () => void; action?: ReactNode; compact?: boolean }) {

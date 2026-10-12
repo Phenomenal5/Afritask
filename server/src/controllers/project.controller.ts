@@ -26,8 +26,8 @@ const isManager = (membership: Membership) => membership.role === "owner" || mem
 const parseDescription = (description: unknown): string | undefined => {
     if (description === undefined) return undefined;
     if (description === null) return "";
-    if (typeof description !== "string") throw new AppError("Description must be text", 400);
-    if (description.length > DESCRIPTION_MAX_LENGTH) throw new AppError("Description is too long", 400);
+    if (typeof description !== "string") throw new AppError("We couldn't read the description. Type it again.", 400);
+    if (description.length > DESCRIPTION_MAX_LENGTH) throw new AppError("The description is too long. Keep it to 20,000 characters or fewer.", 400);
     return description;
 };
 
@@ -50,10 +50,10 @@ const withTaskCounts = async (projects: Project[]) => {
 
 // Item routes carry no workspace id: derive access from the project, 404 for outsiders.
 const loadProjectForMember = async (projectId: string | undefined, userId: string) => {
-    if (!projectId || !validator.isUUID(projectId)) throw new AppError("Project not found", 404);
+    if (!projectId || !validator.isUUID(projectId)) throw new AppError("That project was deleted or isn't in this workspace. Refresh to see the latest.", 404);
     const project = await prisma.project.findUnique({ where: { id: projectId } });
-    if (!project) throw new AppError("Project not found", 404);
-    const membership = await requireActiveMembership(project.workspaceId, userId).catch(notFoundUnlessSuspended("Project not found"));
+    if (!project) throw new AppError("That project was deleted or isn't in this workspace. Refresh to see the latest.", 404);
+    const membership = await requireActiveMembership(project.workspaceId, userId).catch(notFoundUnlessSuspended("That project was deleted or isn't in this workspace. Refresh to see the latest."));
     return { project, membership };
 };
 
@@ -97,7 +97,7 @@ export const listWorkspaceProjects = catchAsync(async (req, res) => {
 export const createProject = catchAsync(async (req, res) => {
     const membership = requireMembership(req);
 
-    const name = normalizeWorkspaceName(req.body.name, "Project name");
+    const name = normalizeWorkspaceName(req.body.name, "project");
     const description = parseDescription(req.body.description);
     const project = await prisma.$transaction(async (transaction) => {
         const createdProject = await transaction.project.create({
@@ -124,17 +124,17 @@ export const getProject = catchAsync(async (req, res) => {
 export const updateProject = catchAsync(async (req, res) => {
     const { project, membership } = await loadProjectForMember(routeParam(req, "projectId"), requireUser(req).id);
     assertManager(membership);
-    if (project.state === ProjectState.archived) throw new AppError("This project is archived. Restore it to make changes.", 409);
+    if (project.state === ProjectState.archived) throw new AppError("This project is archived. An Owner or Admin can restore it to make changes.", 409);
 
     const { name, description, state } = req.body;
     if (state !== undefined && !DIRECTLY_SETTABLE_STATES.includes(state)) {
-        throw new AppError("State must be active, on_hold or completed (use archive/restore for archiving)", 400);
+        throw new AppError("Choose Active, On hold or Completed. To archive a project, use Archive.", 400);
     }
 
     // NOTE: completing a project never completes its tasks (PRD FR05). The client warns
     // beforehand using taskCounts.open; the server just records the new state.
     const data = {
-        ...(name !== undefined && { name: normalizeWorkspaceName(name, "Project name") }),
+        ...(name !== undefined && { name: normalizeWorkspaceName(name, "project") }),
         description: parseDescription(description),
         ...(state !== undefined && { state: state as ProjectState }),
     };

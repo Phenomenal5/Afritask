@@ -1722,6 +1722,7 @@ const supportPaths = {
         post: {
             tags: ["Support"],
             summary: "Public Contact page: a visitor's message becomes a support ticket, answered by email (no sign-in, rate-limited). `website` must stay empty.",
+            security: publicRoute,
             requestBody: jsonBody({ type: "object", required: ["name", "email", "message"], properties: { name: { type: "string", maxLength: 80 }, email: { type: "string", format: "email" }, topic: ticketCategorySchema, message: { type: "string", minLength: 10, maxLength: 5000 }, website: { type: "string" } } }),
             responses: { 201: jsonResponse("Ticket number", dataEnvelope("ticket", { type: "object", properties: { number: { type: ["integer", "null"] } } })), ...errorResponses(400, 429) },
         },

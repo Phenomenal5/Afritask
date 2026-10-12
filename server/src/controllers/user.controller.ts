@@ -16,7 +16,7 @@ export const updateProfile = catchAsync(async (req, res, next) => {
     const existingUser = await prisma.user.findUnique({ where: { id: userId } });
     if (!existingUser) {
       logger.warn(`Profile update failed: user not found userId=${userId}`);
-      return next(new AppError("User not found", 404));
+      return next(new AppError("We couldn't find your account. Sign in again.", 404));
     }
 
     if(req.file) {
@@ -53,7 +53,7 @@ export const updatePassword = catchAsync(async (req, res, next) => {
     // password is checked before any comparing is done.
     if (typeof currentPassword !== "string" || typeof newPassword !== "string" || !currentPassword || !newPassword) {
       logger.warn(`Password update requested with missing fields for userId=${userId}`);
-      return next(new AppError("Please provide current password and new password", 400));
+      return next(new AppError("Enter your current password and a new one.", 400));
     }
     assertValidPassword(newPassword);
 
@@ -63,7 +63,7 @@ export const updatePassword = catchAsync(async (req, res, next) => {
     });
     if (!user) {
       logger.warn(`Password update failed: user not found userId=${userId}`);
-      return next(new AppError("User not found", 404));
+      return next(new AppError("We couldn't find your account. Sign in again.", 404));
     }
 
     const isMatch = await comparePassword(currentPassword, user.password);

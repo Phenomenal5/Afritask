@@ -27,15 +27,15 @@ export const updatePreferences = catchAsync(async (req, res) => {
     const { soundEnabled, pushEnabled } = req.body ?? {};
     const changes: { soundEnabled?: boolean; pushEnabled?: boolean } = {};
     if (soundEnabled !== undefined) {
-        if (typeof soundEnabled !== "boolean") throw new AppError("soundEnabled must be true or false", 400);
+        if (typeof soundEnabled !== "boolean") throw new AppError("We couldn't save that setting. Try again.", 400);
         changes.soundEnabled = soundEnabled;
     }
     if (pushEnabled !== undefined) {
-        if (typeof pushEnabled !== "boolean") throw new AppError("pushEnabled must be true or false", 400);
-        if (pushEnabled && !isPushConfigured()) throw new AppError("Push notifications aren't set up on this server yet.", 409);
+        if (typeof pushEnabled !== "boolean") throw new AppError("We couldn't save that setting. Try again.", 400);
+        if (pushEnabled && !isPushConfigured()) throw new AppError("Push notifications aren't available yet. You'll still get them in Afritask and by email.", 409);
         changes.pushEnabled = pushEnabled;
     }
-    if (Object.keys(changes).length === 0) throw new AppError("Nothing to change", 400);
+    if (Object.keys(changes).length === 0) throw new AppError("No settings were changed.", 400);
 
     await prisma.notificationPreference.upsert({
         where: { userId },
@@ -51,7 +51,7 @@ export const updatePreferences = catchAsync(async (req, res) => {
 
 // GET /api/v1/notifications/push/public-key — what the browser subscribes with.
 export const getPushPublicKey = catchAsync(async (_req, res) => {
-    if (!isPushConfigured()) throw new AppError("Push notifications aren't set up on this server yet.", 404);
+    if (!isPushConfigured()) throw new AppError("Push notifications aren't available yet. You'll still get them in Afritask and by email.", 404);
     res.status(200).json({ status: "success", data: { publicKey: env.vapidPublicKey } });
 });
 
@@ -78,7 +78,7 @@ const isKey = (value: unknown): value is string => typeof value === "string" && 
 export const savePushSubscription = catchAsync(async (req, res) => {
     const userId = requireUser(req).id;
     const { endpoint, keys } = req.body ?? {};
-    if (!isPushServiceUrl(endpoint) || !isKey(keys?.p256dh) || !isKey(keys?.auth)) throw new AppError("That isn't a valid push subscription.", 400);
+    if (!isPushServiceUrl(endpoint) || !isKey(keys?.p256dh) || !isKey(keys?.auth)) throw new AppError("This browser couldn't turn on notifications. Try again.", 400);
 
     const subscription = { userId, p256dh: keys.p256dh as string, auth: keys.auth as string, userAgent: req.get("user-agent")?.slice(0, 300) ?? null };
     await prisma.pushSubscription.upsert({ where: { endpoint }, create: { endpoint, ...subscription }, update: subscription });
@@ -88,7 +88,7 @@ export const savePushSubscription = catchAsync(async (req, res) => {
 // DELETE /api/v1/notifications/push/subscriptions  { endpoint } — this browser stops (e.g. signing out).
 export const removePushSubscription = catchAsync(async (req, res) => {
     const { endpoint } = req.body ?? {};
-    if (typeof endpoint !== "string") throw new AppError("endpoint is required", 400);
+    if (typeof endpoint !== "string") throw new AppError("This browser couldn't turn off notifications. Try again.", 400);
     // Only the caller's own subscription — an endpoint isn't proof of anything by itself.
     await prisma.pushSubscription.deleteMany({ where: { endpoint, userId: requireUser(req).id } });
     res.status(204).send();

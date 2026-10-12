@@ -13,7 +13,7 @@ const ROUTES_OPEN_BEFORE_TERMS = new Set(["/api/v1/auth", "/api/v1/users"]);
 // A 401 carries code "access_token_invalid": the client then calls POST /auth/refresh once
 // and retries. If the refresh also fails, the session is really over.
 const unauthorized = (res: Response) =>
-    res.status(401).json({ status: "fail", code: "access_token_invalid", message: "Unauthorized" });
+    res.status(401).json({ status: "fail", code: "access_token_invalid", message: "You've been signed out. Sign in again to continue." });
 
 const protect = async (req: Request, res: Response, next: NextFunction) => {
     try {
@@ -50,7 +50,7 @@ const protect = async (req: Request, res: Response, next: NextFunction) => {
 // Typed access to the user `protect` attached. Only call this behind `protect`;
 // if it ever runs without it, fail loudly as a 401 instead of crashing on undefined.
 export const requireUser = (req: Request): PublicUser => {
-    if (!req.user) throw new AppError("Unauthorized", 401);
+    if (!req.user) throw new AppError("You've been signed out. Sign in again to continue.", 401);
     return req.user;
 };
 

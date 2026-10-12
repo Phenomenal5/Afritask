@@ -24,7 +24,7 @@ const REASON_MAX_LENGTH = 500;
 export const parsePaging = (query: Record<string, unknown>) => {
     const page = Number(query.page ?? 1);
     const limit = Number(query.limit ?? DEFAULT_PAGE_SIZE);
-    if (!Number.isInteger(page) || page < 1 || page > MAX_PAGE) throw new AppError(`page must be between 1 and ${MAX_PAGE}`, 400);
+    if (!Number.isInteger(page) || page < 1 || page > MAX_PAGE) throw new AppError("We couldn't load that page of tasks. Refresh and try again.", 400);
     if (!Number.isInteger(limit) || limit < 1 || limit > MAX_PAGE_SIZE) throw new AppError(`limit must be between 1 and ${MAX_PAGE_SIZE}`, 400);
     return { page, limit, skip: (page - 1) * limit };
 };
@@ -210,7 +210,7 @@ const toWorkspaceDetail = (workspace: WorkspaceRow) => ({
 
 const loadWorkspaceDetail = async (workspaceId: string) => {
     const workspace = await prisma.workspace.findUnique({ where: { id: workspaceId }, select: workspaceSelect });
-    if (!workspace) throw new AppError("Workspace not found", 404);
+    if (!workspace) throw new AppError("We couldn't open this workspace. It may have been deleted, or you're no longer a member.", 404);
     return toWorkspaceDetail(workspace);
 };
 
@@ -233,7 +233,7 @@ export const searchWorkspaces = catchAsync(async (req, res) => {
 
 // GET /api/admin/workspaces/:workspaceId
 export const getWorkspace = catchAsync(async (req, res) => {
-    const workspace = await loadWorkspaceDetail(requireId(routeParam(req, "workspaceId"), "Workspace not found"));
+    const workspace = await loadWorkspaceDetail(requireId(routeParam(req, "workspaceId"), "We couldn't open this workspace. It may have been deleted, or you're no longer a member."));
     res.status(200).json({ status: "success", data: { workspace } });
 });
 
@@ -241,12 +241,12 @@ export const getWorkspace = catchAsync(async (req, res) => {
 // Members can't read, change or join it; reminders are suppressed while it's suspended.
 export const suspendWorkspace = catchAsync(async (req, res) => {
     const { operator } = requireOperatorContext(req);
-    const workspaceId = requireId(routeParam(req, "workspaceId"), "Workspace not found");
+    const workspaceId = requireId(routeParam(req, "workspaceId"), "We couldn't open this workspace. It may have been deleted, or you're no longer a member.");
     const reason = parseReason(req.body?.reason);
 
     await prisma.$transaction(async (transaction) => {
         const current = await transaction.workspace.findUnique({ where: { id: workspaceId }, select: { suspendedAt: true, deletedAt: true } });
-        if (!current) throw new AppError("Workspace not found", 404);
+        if (!current) throw new AppError("We couldn't open this workspace. It may have been deleted, or you're no longer a member.", 404);
         if (current.deletedAt) throw new AppError("This workspace was deleted by its Owner.", 409);
         if (current.suspendedAt) throw new AppError("This workspace is already suspended.", 409);
         await transaction.workspace.update({ where: { id: workspaceId }, data: { suspendedAt: new Date(), suspendReason: reason } });
@@ -262,14 +262,14 @@ export const suspendWorkspace = catchAsync(async (req, res) => {
 // in a burst (SRS SR17 acceptance).
 export const restoreWorkspace = catchAsync(async (req, res) => {
     const { operator } = requireOperatorContext(req);
-    const workspaceId = requireId(routeParam(req, "workspaceId"), "Workspace not found");
+    const workspaceId = requireId(routeParam(req, "workspaceId"), "We couldn't open this workspace. It may have been deleted, or you're no longer a member.");
     const reason = parseReason(req.body?.reason);
 
     await prisma.$transaction(async (transaction) => {
         const { count } = await transaction.workspace.updateMany({ where: { id: workspaceId, suspendedAt: { not: null } }, data: { suspendedAt: null, suspendReason: null } });
         if (count === 0) {
             const exists = await transaction.workspace.count({ where: { id: workspaceId } });
-            throw exists ? new AppError("This workspace isn't suspended.", 409) : new AppError("Workspace not found", 404);
+            throw exists ? new AppError("This workspace isn't suspended.", 409) : new AppError("We couldn't open this workspace. It may have been deleted, or you're no longer a member.", 404);
         }
         const openTasks = await transaction.task.findMany({
             where: { workspaceId, status: { not: "completed" }, OR: [{ dueAt: { not: null } }, { startAt: { not: null } }] },

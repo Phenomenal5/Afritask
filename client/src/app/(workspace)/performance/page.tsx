@@ -76,7 +76,7 @@ export default function PerformancePage() {
       }
       setShares((current) => [created, ...current]);
     } catch (error) {
-      toast.error(failureMessage(error, "Couldn't create a link."));
+      toast.error(failureMessage(error, "Couldn't create a share link. Try again."));
     } finally {
       setSharing(false);
     }
@@ -88,7 +88,7 @@ export default function PerformancePage() {
       setShares((current) => current.filter((item) => item.id !== shareToRevoke.id));
       toast.success("Link revoked. It no longer opens.");
     } catch (error) {
-      toast.error(failureMessage(error, "Couldn't revoke the link."));
+      toast.error(failureMessage(error, "Couldn't turn off that link. Try again."));
     }
   };
 

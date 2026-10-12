@@ -129,7 +129,7 @@ describe("request size and shape", () => {
     it("rejects malformed JSON with 400", async () => {
         const response = await anonymous().post("/api/v1/auth/login").set("X-Requested-With", "XMLHttpRequest").set("Content-Type", "application/json").send('{"email": "a@b.co", ');
         expect(response.status).toBe(400);
-        expect(response.body.message).toBe("Request body is not valid JSON");
+        expect(response.body.message).toBe("We couldn't read that request. Refresh the page and try again.");
     });
 
     it("never echoes internal error details", async () => {

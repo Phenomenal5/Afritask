@@ -23,24 +23,24 @@ export const parseStart = (body: Record<string, unknown>, profileTimezone: strin
     const hasStartDate = body.startDate !== undefined;
     const hasStartAt = body.startAt !== undefined;
     if (!hasStartDate && !hasStartAt) return undefined;
-    if (hasStartDate && hasStartAt) throw new AppError("Send either startDate or startAt, not both", 400);
+    if (hasStartDate && hasStartAt) throw new AppError("We couldn't read the start date. Pick it again.", 400);
 
     const rawValue = hasStartDate ? body.startDate : body.startAt;
     if (rawValue === null || rawValue === "") return { startAt: null, startKind: null, startTimezone: null };
-    if (typeof rawValue !== "string") throw new AppError("Please provide a valid start date", 400);
+    if (typeof rawValue !== "string") throw new AppError("That start date isn't a real date. Pick one from the calendar.", 400);
 
     const startTimezone = parseTimezone(body.startTimezone) ?? profileTimezone;
 
     if (hasStartDate) {
-        if (!DATE_ONLY_PATTERN.test(rawValue)) throw new AppError("startDate must look like YYYY-MM-DD", 400);
+        if (!DATE_ONLY_PATTERN.test(rawValue)) throw new AppError("That start date isn't a real date. Pick one from the calendar.", 400);
         const [year, month, day] = rawValue.split("-").map(Number) as [number, number, number];
         const roundTrip = new Date(Date.UTC(year, month - 1, day));
-        if (roundTrip.getUTCMonth() !== month - 1) throw new AppError("Please provide a valid start date", 400);
+        if (roundTrip.getUTCMonth() !== month - 1) throw new AppError("That start date isn't a real date. Pick one from the calendar.", 400);
         return { startAt: zonedWallTimeToUtc(year, month, day, 0, 0, startTimezone), startKind: "date", startTimezone };
     }
 
     const startAt = parseInstant(rawValue);
-    if (!startAt) throw new AppError("Please provide a valid start date", 400);
+    if (!startAt) throw new AppError("That start date isn't a real date. Pick one from the calendar.", 400);
     return { startAt, startKind: "datetime", startTimezone };
 };
 

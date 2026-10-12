@@ -30,13 +30,13 @@ export const assertSubtaskInsideTask = (task: ScheduleWindow, subtask: ScheduleW
         throw new AppError(`${name} is due after its task. Move it earlier, or give the task more time first.`, 400, "subtask_outside_task");
     }
     if (task.dueAt && subtask.startAt && subtask.startAt.getTime() > task.dueAt.getTime()) {
-        throw new AppError(`${name} starts after its task is due.`, 400, "subtask_outside_task");
+        throw new AppError(`${name} starts after its task is due. Move it earlier.`, 400, "subtask_outside_task");
     }
     if (task.startAt && subtask.startAt && subtask.startAt.getTime() < task.startAt.getTime()) {
         throw new AppError(`${name} starts before its task does. Move it later, or start the task earlier first.`, 400, "subtask_outside_task");
     }
     if (task.startAt && subtask.dueAt && subtask.dueAt.getTime() < task.startAt.getTime()) {
-        throw new AppError(`${name} is due before its task even starts.`, 400, "subtask_outside_task");
+        throw new AppError(`${name} is due before its task starts. Move it later.`, 400, "subtask_outside_task");
     }
 };
 

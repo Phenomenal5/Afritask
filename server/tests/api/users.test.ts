@@ -40,9 +40,9 @@ describe("PUT /users/profile", () => {
     });
 
     it.each([
-        [{ name: "   " }, "Name is required"],
-        [{ age: "-1" }, "Age must be a positive number"],
-        [{ timezone: "Nowhere/Land" }, "Please provide a valid timezone"],
+        [{ name: "   " }, "Enter your name, so teammates know who you are."],
+        [{ age: "-1" }, "Enter your age as a whole number, or leave it empty."],
+        [{ timezone: "Nowhere/Land" }, "Choose your time zone from the list."],
     ])("rejects %p", async (body, message) => {
         const { client } = await createSignedInUser();
         const response = await client.put("/users/profile", body);
@@ -66,7 +66,7 @@ describe("PUT /users/profile", () => {
             .raw("put", "/users/profile")
             .attach("photo", Buffer.from("#!/bin/sh\necho pwned"), { filename: "evil.sh", contentType: "text/x-sh" });
         expect(response.status).toBe(400);
-        expect(response.body.message).toBe("Only image files (png, jpg, jpeg, gif) are allowed");
+        expect(response.body.message).toBe("Choose a PNG, JPG or GIF image.");
     });
 
     it("rejects an image over 5 MB with 400", async () => {
@@ -74,7 +74,7 @@ describe("PUT /users/profile", () => {
         const oversized = Buffer.concat([TINY_PNG, Buffer.alloc(5 * 1024 * 1024 + 10)]);
         const response = await client.raw("put", "/users/profile").attach("photo", oversized, { filename: "big.png", contentType: "image/png" });
         expect(response.status).toBe(400);
-        expect(response.body.message).toBe("Image must be 5 MB or smaller");
+        expect(response.body.message).toBe("That image is over 5 MB. Choose a smaller one.");
     });
 
     it("requires a session", async () => {
@@ -98,8 +98,8 @@ describe("PUT /users/password", () => {
 
     it.each([
         [{ currentPassword: "wrong-one", newPassword: "new-and-long" }, 401, "Current password is incorrect"],
-        [{ currentPassword: DEFAULT_PASSWORD, newPassword: "123" }, 400, "Password must be at least 6 characters"],
-        [{ currentPassword: DEFAULT_PASSWORD }, 400, "Please provide current password and new password"],
+        [{ currentPassword: DEFAULT_PASSWORD, newPassword: "123" }, 400, "Use a password of at least 6 characters."],
+        [{ currentPassword: DEFAULT_PASSWORD }, 400, "Enter your current password and a new one."],
     ])("rejects %p", async (body, status, message) => {
         const { client } = await createSignedInUser();
         const response = await client.put("/users/password", body);

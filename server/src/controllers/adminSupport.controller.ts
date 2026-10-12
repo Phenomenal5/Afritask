@@ -43,13 +43,13 @@ const ticketDetailSelect = {
 } as const satisfies Prisma.SupportTicketSelect;
 
 const requireTicketId = (ticketId: string | undefined) => {
-    if (!ticketId || !validator.isUUID(ticketId)) throw new AppError("Ticket not found", 404);
+    if (!ticketId || !validator.isUUID(ticketId)) throw new AppError("We couldn't find that request. Refresh to see the latest.", 404);
     return ticketId;
 };
 
 const loadTicket = async (ticketId: string) => {
     const ticket = await prisma.supportTicket.findUnique({ where: { id: ticketId }, select: ticketDetailSelect });
-    if (!ticket) throw new AppError("Ticket not found", 404);
+    if (!ticket) throw new AppError("We couldn't find that request. Refresh to see the latest.", 404);
     return ticket;
 };
 
@@ -105,7 +105,7 @@ export const replyToTicket = catchAsync(async (req, res) => {
     const nextStatus = req.body?.status === undefined ? "waiting_on_customer" : parseStatus(req.body.status);
 
     const existing = await prisma.supportTicket.findUnique({ where: { id: ticketId }, include: { requester: { select: { email: true, name: true } } } });
-    if (!existing) throw new AppError("Ticket not found", 404);
+    if (!existing) throw new AppError("We couldn't find that request. Refresh to see the latest.", 404);
     if (existing.status === "closed") throw new AppError("This ticket is closed. Reopen it first if you need to reply.", 409);
 
     await prisma.$transaction(async (transaction) => {
@@ -146,7 +146,7 @@ export const updateTicketStatus = catchAsync(async (req, res) => {
             where: { id: ticketId },
             data: { status, resolvedAt: status === "resolved" ? new Date() : null },
         });
-        if (count === 0) throw new AppError("Ticket not found", 404);
+        if (count === 0) throw new AppError("We couldn't find that request. Refresh to see the latest.", 404);
         await recordAdminAudit(transaction, {
             actorId: operator.userId,
             action: "support.status_changed",

@@ -95,7 +95,7 @@ describe("parseReminderOffset", () => {
         expect(parseReminderOffset("none")).toBeNull();
         expect(parseReminderOffset(null)).toBeNull();
         expect(parseReminderOffset(undefined)).toBeUndefined();
-        expect(() => parseReminderOffset("two_days")).toThrow(/Reminder must be/);
+        expect(() => parseReminderOffset("two_days")).toThrow(/Choose a reminder from the list/);
     });
 });
 

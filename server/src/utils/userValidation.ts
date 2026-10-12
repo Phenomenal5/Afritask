@@ -14,15 +14,15 @@ const EMAIL_MAX_LENGTH = 254;
 
 export const assertValidPassword = (password: unknown): string => {
     if (typeof password !== "string" || password.length < PASSWORD_MIN_LENGTH) {
-        throw new AppError(`Password must be at least ${PASSWORD_MIN_LENGTH} characters`, 400);
+        throw new AppError(`Use a password of at least ${PASSWORD_MIN_LENGTH} characters.`, 400);
     }
-    if (password.length > PASSWORD_MAX_LENGTH) throw new AppError(`Keep your password under ${PASSWORD_MAX_LENGTH} characters`, 400);
+    if (password.length > PASSWORD_MAX_LENGTH) throw new AppError(`Keep your password to ${PASSWORD_MAX_LENGTH} characters or fewer.`, 400);
     return password;
 };
 
 export const assertValidEmail = (email: unknown): string => {
     if (typeof email !== "string" || email.length > EMAIL_MAX_LENGTH || !validator.isEmail(email)) {
-        throw new AppError("Invalid email address", 400);
+        throw new AppError("Enter a full email address, like name@example.com.", 400);
     }
     return email;
 };
@@ -35,8 +35,8 @@ export const normalizeEmail = (email: unknown): string => (typeof email === "str
 // one line (inner whitespace collapsed) and short.
 export const normalizeName = (name: unknown): string => {
     const trimmedName = typeof name === "string" ? name.replace(/\s+/g, " ").trim() : "";
-    if (!trimmedName) throw new AppError("Name is required", 400);
-    if (trimmedName.length > NAME_MAX_LENGTH) throw new AppError(`Keep the name under ${NAME_MAX_LENGTH} characters`, 400);
+    if (!trimmedName) throw new AppError("Enter your name, so teammates know who you are.", 400);
+    if (trimmedName.length > NAME_MAX_LENGTH) throw new AppError(`Keep your name to ${NAME_MAX_LENGTH} characters or fewer.`, 400);
     return trimmedName;
 };
 
@@ -46,7 +46,7 @@ export const parseAge = (age: unknown): number | undefined => {
     if (age === undefined || age === null || age === "") return undefined;
     const parsedAge = Number(age);
     if (!Number.isInteger(parsedAge) || parsedAge < 0 || parsedAge > 150) {
-        throw new AppError("Age must be a positive number", 400);
+        throw new AppError("Enter your age as a whole number, or leave it empty.", 400);
     }
     return parsedAge;
 };
@@ -55,11 +55,11 @@ export const parseAge = (age: unknown): number | undefined => {
 // which is more reliable than a hand-kept list. Empty/undefined = not provided.
 export const parseTimezone = (timezone: unknown): string | undefined => {
     if (timezone === undefined || timezone === null || timezone === "") return undefined;
-    if (typeof timezone !== "string") throw new AppError("Please provide a valid timezone", 400);
+    if (typeof timezone !== "string") throw new AppError("Choose your time zone from the list.", 400);
     try {
         // resolvedOptions() gives the canonical spelling ("africa/lagos" → "Africa/Lagos").
         return new Intl.DateTimeFormat("en-US", { timeZone: timezone }).resolvedOptions().timeZone;
     } catch {
-        throw new AppError("Please provide a valid timezone", 400);
+        throw new AppError("Choose your time zone from the list.", 400);
     }
 };

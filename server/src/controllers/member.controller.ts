@@ -26,7 +26,7 @@ const endMembership = async (transaction: Prisma.TransactionClient, membershipId
         where: { id: membershipId, status: "active" },
         data: { status: "removed", removedAt: new Date() },
     });
-    if (count === 0) throw new AppError("That person is no longer a member", 409);
+    if (count === 0) throw new AppError("That person has left this workspace. Refresh the list.", 409);
 
     await transaction.task.updateMany({
         where: { assigneeMembershipId: membershipId, status: { not: "completed" } },
@@ -39,12 +39,12 @@ const endMembership = async (transaction: Prisma.TransactionClient, membershipId
 type TargetMembership = Membership & { user: { name: string } };
 const loadTargetMembership = async (membershipId: unknown, workspaceId: string): Promise<TargetMembership> => {
     // typeof first: validator.isUUID throws (a 500) on a number or an object.
-    if (typeof membershipId !== "string" || !validator.isUUID(membershipId)) throw new AppError("Member not found", 404);
+    if (typeof membershipId !== "string" || !validator.isUUID(membershipId)) throw new AppError("That person isn't in this workspace any more. Refresh the list.", 404);
     const target = await prisma.membership.findFirst({
         where: { id: membershipId, workspaceId, status: "active" },
         include: { user: { select: { name: true } } },
     });
-    if (!target) throw new AppError("Member not found", 404);
+    if (!target) throw new AppError("That person isn't in this workspace any more. Refresh the list.", 404);
     return target;
 };
 
@@ -64,7 +64,7 @@ export const changeMemberRole = catchAsync(async (req, res) => {
     const role = req.body.role as WorkspaceRole;
 
     if (role !== "admin" && role !== "member") {
-        throw new AppError("Role must be admin or member. To change the Owner, transfer ownership instead", 400);
+        throw new AppError("Choose Admin or Member. To change the Owner, use Transfer ownership.", 400);
     }
     if (target.role === "owner") throw new AppError("The Owner's role can only change through ownership transfer", 409);
 
@@ -142,7 +142,7 @@ export const transferOwnership = catchAsync(async (req, res) => {
             where: { id: target.id, workspaceId: callerMembership.workspaceId, status: "active" },
             data: { role: "owner" },
         });
-        if (promoted.count === 0) throw new AppError("That person is no longer a member", 409);
+        if (promoted.count === 0) throw new AppError("That person has left this workspace. Refresh the list.", 409);
 
         await recordActivity(transaction, memberActivity(target, target.user.name, callerMembership.userId, "ownership.transferred", {
             owner: { from: requireUser(req).name, to: target.user.name },

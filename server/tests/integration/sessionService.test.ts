@@ -65,7 +65,7 @@ describe("startSession", () => {
         expect(cookieNamed(cookies, REFRESH_TOKEN_COOKIE)!.options).toMatchObject({ httpOnly: true, sameSite: "lax", path: REFRESH_COOKIE_PATH });
     });
 
-    it("stores only the refresh token's hash, for 30 days", async () => {
+    it("stores only the refresh token's hash, for REFRESH_TOKEN_TTL_DAYS (7 by default)", async () => {
         const user = await createUser();
         const { sessionId, refreshToken } = await startFor(user.id);
 
@@ -74,8 +74,8 @@ describe("startSession", () => {
         expect(row.secretHash).not.toBe(refreshToken);
         expect(row.userAgent).toBe("jest-agent");
         const daysLeft = (row.expiresAt.getTime() - Date.now()) / (24 * 3600 * 1000);
-        expect(daysLeft).toBeGreaterThan(29.9);
-        expect(daysLeft).toBeLessThanOrEqual(30);
+        expect(daysLeft).toBeGreaterThan(6.9);
+        expect(daysLeft).toBeLessThanOrEqual(7);
     });
 });
 

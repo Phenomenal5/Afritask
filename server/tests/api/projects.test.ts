@@ -17,7 +17,7 @@ describe("creating and listing projects", () => {
         const team = await createTeam();
         const response = await team.owner.client.post(`/workspaces/${team.workspace.id}/projects`, { name: " " });
         expect(response.status).toBe(400);
-        expect(response.body.message).toBe("Project name is required");
+        expect(response.body.message).toBe("Give the project a name.");
     });
 
     it("every member can list, with task counts; archived only on request", async () => {

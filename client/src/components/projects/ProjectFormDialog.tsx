@@ -43,7 +43,7 @@ export default function ProjectFormDialog({ open, onClose, onSubmit, initialValu
       return;
     }
     if (trimmedName.length > NAME_MAX_LENGTH) {
-      setNameError(`Keep the name under ${NAME_MAX_LENGTH} characters.`);
+      setNameError(`Keep the name to ${NAME_MAX_LENGTH} characters or fewer.`);
       nameRef.current?.focus();
       return;
     }

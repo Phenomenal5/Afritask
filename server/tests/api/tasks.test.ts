@@ -32,12 +32,12 @@ describe("POST /workspaces/:id/tasks", () => {
     });
 
     it.each([
-        [{}, "Please provide a task title"],
-        [{ title: "x".repeat(201) }, "Title must be 200 characters or fewer"],
-        [{ title: "x", description: "d".repeat(20_001) }, "Description is too long"],
-        [{ title: "x", status: "done" }, "Status must be todo, in_progress, in_review or completed"],
-        [{ title: "x", priority: "critical" }, "Priority must be low, medium, high or urgent"],
-        [{ title: "x", dueDate: "2026-02-30" }, "Please provide a valid due date"],
+        [{}, "Give the task a title."],
+        [{ title: "x".repeat(201) }, "Keep the title to 200 characters or fewer. Put the rest in the description."],
+        [{ title: "x", description: "d".repeat(20_001) }, "The description is too long. Keep it to 20,000 characters or fewer."],
+        [{ title: "x", status: "done" }, "Choose a status: To do, In progress, In review or Completed."],
+        [{ title: "x", priority: "critical" }, "Choose a priority: Low, Medium, High or Urgent."],
+        [{ title: "x", dueDate: "2026-02-30" }, "That due date isn't a real date. Pick one from the calendar."],
     ])("rejects %p", async (body, message) => {
         const team = await createTeam();
         const response = await team.owner.client.post(`/workspaces/${team.workspace.id}/tasks`, body);
@@ -78,7 +78,7 @@ describe("POST /workspaces/:id/tasks", () => {
         const foreignProject = await createProject(other.workspace.id, other.owner.user.id);
         const response = await team.owner.client.post(`/workspaces/${team.workspace.id}/tasks`, { title: "x", projectId: foreignProject.id });
         expect(response.status).toBe(400);
-        expect(response.body.message).toBe("Project not found");
+        expect(response.body.message).toBe("That project was deleted or isn't in this workspace. Refresh to see the latest.");
     });
 
     it("is idempotent per clientRequestId — even for simultaneous submits", async () => {

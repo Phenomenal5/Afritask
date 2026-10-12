@@ -78,7 +78,7 @@ export const signup = catchAsync(async (req, res, next) => {
     const email = normalizeEmail(req.body.email);
     try {
         if (!name || !email || !password) {
-            return next(new AppError("Please provide all required fields", 400));
+            return next(new AppError("Enter your name, email and a password to create your account.", 400));
         }
 
         // NOTE: strictly `true` — a string "false" or "on" must not count as agreement.
@@ -93,7 +93,7 @@ export const signup = catchAsync(async (req, res, next) => {
         // Case-insensitive: accounts created before emails were lowercased keep their spelling.
         const existingUser = await prisma.user.findFirst({ where: { email: { equals: email, mode: "insensitive" } } });
         if (existingUser) {
-            return next(new AppError("Email already in use", 400));
+            return next(new AppError("There's already an account with this email. Sign in, or reset your password.", 400));
         }
 
         const user = await prisma.user.create({
@@ -115,7 +115,7 @@ export const signup = catchAsync(async (req, res, next) => {
 
         // NOTE: the account is unusable until the verification email lands, so a
         // send failure must not leave a half-created user behind. It used to:
-        // the row survived, a retry answered "Email already in use", and logging
+        // the row survived, a retry answered "There's already an account with this email. Sign in, or reset your password.", and logging
         // in answered "verify your email" — a dead end with no way out.
         try {
             await createAndSendVerificationToken(user);
@@ -144,11 +144,11 @@ export const resetPassword = catchAsync(async (req, res, next) => {
 
     try {
         if (!token) {
-            return next(new AppError("Please provide a password reset token", 400));
+            return next(new AppError("This reset link is incomplete. Open the link from your email again.", 400));
         }
 
         if (!password) {
-            return next(new AppError("Please provide a new password", 400));
+            return next(new AppError("Enter a new password.", 400));
         }
 
         // Validate before consuming, so a too-short password doesn't burn the link.
@@ -158,7 +158,7 @@ export const resetPassword = catchAsync(async (req, res, next) => {
         const userId = await consumeAccountToken(token, "reset_password");
         if (!userId) {
             logger.warn(`Password reset failed with invalid, used or expired token`);
-            return next(new AppError("Invalid or expired password reset token", 400));
+            return next(new AppError("This reset link has expired or was already used. Ask for a new one.", 400));
         }
 
         const user = await prisma.user.update({
@@ -189,7 +189,7 @@ export const login = catchAsync(async (req, res, next) => {
         // typeof checks: a non-string email would act as a Prisma filter operator.
         if (typeof email !== "string" || typeof password !== "string" || !email || !password) {
             logger.warn(`Login attempt with missing credentials: email=${email || 'none'}`);
-            return next(new AppError("Please provide email and password", 400));
+            return next(new AppError("Enter your email and password.", 400));
         }
 
         // password is omitted by default (config/prisma.ts) — opt back in for this one check
@@ -201,7 +201,7 @@ export const login = catchAsync(async (req, res, next) => {
 
         if (!userWithPassword) {
             logger.warn(`Invalid login attempt for email: ${email}`);
-            return next(new AppError("Invalid email or password", 401));
+            return next(new AppError("That email and password don't match. Try again, or reset your password.", 401));
         }
 
         if (!userWithPassword.isVerified) {
@@ -217,7 +217,7 @@ export const login = catchAsync(async (req, res, next) => {
         const isMatch = await comparePassword(password, userWithPassword.password);
         if (!isMatch) {
             logger.warn(`Invalid password attempt for email: ${email}`);
-            return next(new AppError("Invalid email or password", 401));
+            return next(new AppError("That email and password don't match. Try again, or reset your password.", 401));
         }
 
         // Never echo the hash back, even though we fetched it.
@@ -234,13 +234,13 @@ export const verifyEmail = catchAsync(async (req, res, next) => {
     const token = routeParam(req, "token");
     try {
         if (!token) {
-            return next(new AppError("Invalid or expired verification token", 400));
+            return next(new AppError("This link has expired or was replaced. Sign in to get a new one.", 400));
         }
 
         const accountToken = await findAccountToken(token, "verify_email");
         if (!accountToken) {
             logger.warn(`Invalid email verification attempt`);
-            return next(new AppError("Invalid or expired verification token", 400));
+            return next(new AppError("This link has expired or was replaced. Sign in to get a new one.", 400));
         }
         const { user } = accountToken;
 
@@ -262,7 +262,7 @@ export const verifyEmail = catchAsync(async (req, res, next) => {
         // An older link that a resend replaced.
         if (accountToken.usedAt) {
             logger.warn(`Replaced verification link used for user ${user.email}`);
-            return next(new AppError("Invalid or expired verification token", 400));
+            return next(new AppError("This link has expired or was replaced. Sign in to get a new one.", 400));
         }
 
         if (accountToken.expiresAt.getTime() < Date.now()) {
@@ -321,13 +321,13 @@ export const me = catchAsync(async (req, res, next) => {
         const user = await prisma.user.findUnique({ where: { id: userId } });
         if (!user) {
             logger.warn(`Authenticated user not found: ${userId}`);
-            return next(new AppError("User not found", 404));
+            return next(new AppError("We couldn't find your account. Sign in again.", 404));
         }
 
 
         if (!user.isVerified) {
             logger.warn(`Unverified access attempt for user ${user.email}`);
-            return next(new AppError("Please verify your email before accessing this resource", 401));
+            return next(new AppError("Confirm your email first. Check your inbox for the link we sent.", 401));
         }
 
         logger.info(`Authenticated user accessed profile: ${user.email}`);
@@ -347,7 +347,7 @@ export const forgotPassword = catchAsync(async (req, res, next) => {
         // typeof check: a non-string email would act as a Prisma filter operator.
         if (typeof email !== "string" || !email) {
             logger.warn(`Forgot password requested without email`);
-            return next(new AppError("Please provide your email", 400));
+            return next(new AppError("Enter the email on your account.", 400));
         }
 
         const user = await prisma.user.findFirst({ where: { email: { equals: email, mode: "insensitive" } } });
@@ -405,7 +405,7 @@ export const refresh = catchAsync(async (req, res, next) => {
         logger.info(`Refresh refused: ${reason} ip=${req.ip}`);
         // Expired, revoked or unknown — drop the dead cookies so the browser stops sending them.
         clearAuthCookies(res);
-        return next(new AppError("Your session has ended. Please sign in again.", 401));
+        return next(new AppError("You've been signed out. Sign in again to continue.", 401));
     }
     res.status(200).json({ status: "success" });
 });
@@ -449,7 +449,7 @@ export const googleCallback = catchAsync(async (req, res, next) => {
 export const googleExchange = catchAsync(async (req, res, next) => {
     const { code } = req.body;
     if (typeof code !== "string" || !code) {
-        return next(new AppError("Missing sign-in code", 400));
+        return next(new AppError("Google sign-in didn't finish. Try again.", 400));
     }
 
     const userId = await consumeAccountToken(code, "oauth_exchange");

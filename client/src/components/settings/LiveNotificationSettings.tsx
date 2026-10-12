@@ -63,7 +63,7 @@ export default function LiveNotificationSettings() {
     setMessage(null);
     const result = await action();
     setSaving(null);
-    setMessage(result.success ? { tone: "saved", text: savedText } : { tone: "failed", text: result.message ?? "That didn't save." });
+    setMessage(result.success ? { tone: "saved", text: savedText } : { tone: "failed", text: result.message ?? "That setting didn't save. Try again." });
   };
 
   if (!preferences) return <p className="text-[14px] text-muted">Loading your notification settings...</p>;
@@ -72,7 +72,7 @@ export default function LiveNotificationSettings() {
     !preferences.pushAvailable
       ? "Push isn't set up on this server yet."
       : support === "unsupported"
-        ? "This browser can't show push notifications."
+        ? "This browser can't show notifications. You'll still get them in Afritask and by email."
         : PERMISSION_TEXT[permission] ?? "";
 
   return (

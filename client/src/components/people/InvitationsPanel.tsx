@@ -107,7 +107,7 @@ export default function InvitationsPanel({ workspaceId, myRole, autoFocus = fals
       loadInvitations();
     } catch (error) {
       // Field-level when it's about the address (already a member, already invited…).
-      setEmailError(failureMessage(error, "Couldn't send the invitation."));
+      setEmailError(failureMessage(error, "Couldn't send the invitation. Try again."));
     } finally {
       setSending(false);
     }
@@ -121,7 +121,7 @@ export default function InvitationsPanel({ workspaceId, myRole, autoFocus = fals
       else toast.success(`New invitation sent to ${invitation.email}. The old link no longer works.`);
       loadInvitations();
     } catch (error) {
-      toast.error(failureMessage(error, "Couldn't resend the invitation."));
+      toast.error(failureMessage(error, "Couldn't resend the invitation. Try again."));
     } finally {
       setBusyId(null);
     }
@@ -142,7 +142,7 @@ export default function InvitationsPanel({ workspaceId, myRole, autoFocus = fals
       toast.success(`Invitation to ${invitation.email} withdrawn`);
       loadInvitations();
     } catch (error) {
-      toast.error(failureMessage(error, "Couldn't withdraw the invitation."));
+      toast.error(failureMessage(error, "Couldn't withdraw the invitation. Try again."));
     } finally {
       setBusyId(null);
     }

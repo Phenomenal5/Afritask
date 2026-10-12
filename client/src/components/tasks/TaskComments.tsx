@@ -242,7 +242,7 @@ function CommentItem({ comment, now, members, readOnly, onChanged }: CommentItem
       toast.success("Comment updated");
     } catch (failure) {
       // Keep the edit open with the text intact so it can be retried.
-      setError(failureMessage(failure, "We couldn't save that change."));
+      setError(failureMessage(failure, "We couldn't save your edit. Try again."));
     } finally {
       setBusy(null);
     }
@@ -265,7 +265,7 @@ function CommentItem({ comment, now, members, readOnly, onChanged }: CommentItem
       onChanged(response.data.data.comment);
       toast.success("Comment deleted");
     } catch (failure) {
-      toast.error(failureMessage(failure, "We couldn't delete that comment."));
+      toast.error(failureMessage(failure, "We couldn't delete that comment. Try again."));
     } finally {
       setBusy(null);
     }

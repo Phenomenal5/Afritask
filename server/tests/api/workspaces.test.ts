@@ -25,9 +25,9 @@ describe("POST /workspaces + GET /workspaces", () => {
     });
 
     it.each([
-        [{}, "Workspace name is required"],
-        [{ name: "   " }, "Workspace name is required"],
-        [{ name: "x".repeat(101) }, "Workspace name must be 100 characters or fewer"],
+        [{}, "Give the workspace a name."],
+        [{ name: "   " }, "Give the workspace a name."],
+        [{ name: "x".repeat(101) }, "Keep the name to 100 characters or fewer."],
     ])("rejects %p", async (body, message) => {
         const { client } = await createSignedInUser();
         const response = await client.post("/workspaces", body);
@@ -64,7 +64,7 @@ describe("GET /workspaces/:id", () => {
         const client = variant === "bad id" ? team.owner.client : team.outsider.client;
         const response = await client.get(path);
         expect(response.status).toBe(404);
-        expect(response.body.message).toBe("Workspace not found");
+        expect(response.body.message).toBe("We couldn't open this workspace. It may have been deleted, or you're no longer a member.");
     });
 });
 

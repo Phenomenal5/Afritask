@@ -25,7 +25,7 @@ const imageFileFilter: Options['fileFilter'] = (req, file, callback) => {
     const ext = path.extname(file.originalname).toLowerCase();
     if (!allowedExt.includes(ext) || !file.mimetype.startsWith('image/')) {
         // AppError (400), not a bare Error — the error handler turned that into a generic 500.
-        return callback(new AppError('Only image files (png, jpg, jpeg, gif) are allowed', 400));
+        return callback(new AppError('Choose a PNG, JPG or GIF image.', 400));
     }
     callback(null, true);
 };

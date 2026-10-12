@@ -119,10 +119,10 @@ export const getUnreadCount = catchAsync(async (req, res) => {
 export const markNotificationRead = catchAsync(async (req, res) => {
     const user = requireUser(req);
     const notificationId = routeParam(req, "notificationId");
-    if (!notificationId || !validator.isUUID(notificationId)) throw new AppError("Notification not found", 404);
+    if (!notificationId || !validator.isUUID(notificationId)) throw new AppError("That notification was removed. Refresh to see the latest.", 404);
 
     const notification = await prisma.notification.findFirst({ where: { id: notificationId, recipientId: user.id }, select: { readAt: true } });
-    if (!notification) throw new AppError("Notification not found", 404);
+    if (!notification) throw new AppError("That notification was removed. Refresh to see the latest.", 404);
     // Marking twice keeps the first read time.
     if (!notification.readAt) {
         await prisma.notification.update({ where: { id: notificationId }, data: { readAt: new Date() } });

@@ -29,7 +29,7 @@ export default function LabelsManager({ workspaceId, canManage }: { workspaceId:
     event.preventDefault();
     const trimmedName = newName.trim();
     if (!trimmedName) return setNameError("Name the label, e.g. Client or Bug.");
-    if (trimmedName.length > LABEL_NAME_MAX) return setNameError(`Keep it under ${LABEL_NAME_MAX} characters.`);
+    if (trimmedName.length > LABEL_NAME_MAX) return setNameError(`Keep the label name to ${LABEL_NAME_MAX} characters or fewer.`);
     setSaving(true);
     try {
       await createLabel(workspaceId, { name: trimmedName, color: newColor });
@@ -37,7 +37,7 @@ export default function LabelsManager({ workspaceId, canManage }: { workspaceId:
       setNewName("");
       await reloadLabels();
     } catch (error) {
-      setNameError(failureMessage(error, "Couldn't add the label."));
+      setNameError(failureMessage(error, "Couldn't add the label. Try again."));
     } finally {
       setSaving(false);
     }
@@ -48,7 +48,7 @@ export default function LabelsManager({ workspaceId, canManage }: { workspaceId:
       await updateLabel(label.id, { color });
       await reloadLabels();
     } catch (error) {
-      toast.error(failureMessage(error, "Couldn't change the colour."));
+      toast.error(failureMessage(error, "Couldn't change the colour. Try again."));
     }
   };
 
@@ -72,7 +72,7 @@ export default function LabelsManager({ workspaceId, canManage }: { workspaceId:
       toast.success(`Label “${label.name}” deleted`);
       await reloadLabels();
     } catch (error) {
-      toast.error(failureMessage(error, "Couldn't delete the label."));
+      toast.error(failureMessage(error, "Couldn't delete the label. Try again."));
     }
   };
 

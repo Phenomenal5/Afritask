@@ -138,7 +138,7 @@ export default function ProjectPage() {
       reloadProjects();
       toast.success(`Project is now ${PROJECT_STATE_LABELS[nextState].toLowerCase()}`);
     } catch (error) {
-      toast.error(failureMessage(error, "Couldn't change the project's state."));
+      toast.error(failureMessage(error, "Couldn't change the project's status. Try again."));
     } finally {
       setBusy(false);
     }
@@ -169,7 +169,7 @@ export default function ProjectPage() {
       reloadProjects();
       projectTasks.reload();
     } catch (error) {
-      toast.error(failureMessage(error, "Something went wrong. The project wasn't changed."));
+      toast.error(failureMessage(error, "Couldn't archive or restore the project. Nothing changed. Try again."));
     } finally {
       setBusy(false);
     }
@@ -184,7 +184,7 @@ export default function ProjectPage() {
       toast.success("Project saved");
       return null;
     } catch (error) {
-      return failureMessage(error, "Couldn't save the project.");
+      return failureMessage(error, "Couldn't save the project. Try again.");
     }
   };
 

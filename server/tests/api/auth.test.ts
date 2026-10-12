@@ -45,12 +45,12 @@ describe("POST /auth/signup", () => {
     });
 
     it.each([
-        [{ name: undefined }, 400, "Please provide all required fields"],
-        [{ password: undefined }, 400, "Please provide all required fields"],
-        [{ email: "not-an-email" }, 400, "Invalid email address"],
-        [{ password: "12345" }, 400, "Password must be at least 6 characters"],
-        [{ age: -4 }, 400, "Age must be a positive number"],
-        [{ timezone: "Mars/Base" }, 400, "Please provide a valid timezone"],
+        [{ name: undefined }, 400, "Enter your name, email and a password to create your account."],
+        [{ password: undefined }, 400, "Enter your name, email and a password to create your account."],
+        [{ email: "not-an-email" }, 400, "Enter a full email address, like name@example.com."],
+        [{ password: "12345" }, 400, "Use a password of at least 6 characters."],
+        [{ age: -4 }, 400, "Enter your age as a whole number, or leave it empty."],
+        [{ timezone: "Mars/Base" }, 400, "Choose your time zone from the list."],
     ])("rejects %p", async (overrides, status, message) => {
         const response = await createClient().post("/auth/signup", signupBody(overrides));
         expect(response.status).toBe(status);
@@ -61,7 +61,7 @@ describe("POST /auth/signup", () => {
         const existing = await createUser();
         const response = await createClient().post("/auth/signup", signupBody({ email: existing.email }));
         expect(response.status).toBe(400);
-        expect(response.body.message).toBe("Email already in use");
+        expect(response.body.message).toBe("There's already an account with this email. Sign in, or reset your password.");
     });
 
     it("rolls the account back if the verification email can't be sent", async () => {
@@ -71,7 +71,7 @@ describe("POST /auth/signup", () => {
 
         expect(response.status).toBe(502);
         await expect(prisma.user.findUnique({ where: { email: body.email } })).resolves.toBeNull();
-        // …so a retry can succeed instead of "Email already in use".
+        // …so a retry can succeed instead of "There's already an account with this email. Sign in, or reset your password.".
         await expect(createClient().post("/auth/signup", body)).resolves.toMatchObject({ status: 201 });
     });
 });

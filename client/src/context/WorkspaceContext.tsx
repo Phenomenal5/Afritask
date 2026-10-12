@@ -120,7 +120,7 @@ export function WorkspaceProvider({ children, isAuthenticated }: { children: Rea
       setWorkspaces((previous) => previous.map((workspace) => (workspace.id === workspaceId ? { ...workspace, name: savedName } : workspace)));
       return { success: true };
     } catch (error) {
-      return { success: false, message: failureMessage(error, "Couldn't rename the workspace.") };
+      return { success: false, message: failureMessage(error, "Couldn't rename the workspace. Try again.") };
     }
   }, []);
 

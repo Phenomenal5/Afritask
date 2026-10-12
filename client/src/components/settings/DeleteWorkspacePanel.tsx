@@ -57,7 +57,7 @@ export default function DeleteWorkspacePanel({ workspaceId, workspaceName }: { w
       const result = await refreshWorkspaces();
       router.replace(result.success && result.data && result.data.length > 0 ? "/dashboard" : "/onboarding");
     } catch (failure) {
-      setError(failureMessage(failure, "We couldn't delete the workspace."));
+      setError(failureMessage(failure, "We couldn't delete the workspace. Try again."));
       setDeleting(false);
     }
   };

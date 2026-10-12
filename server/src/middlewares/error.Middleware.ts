@@ -19,14 +19,11 @@ interface HandledError extends Error {
 // Input validation (bad ids, enums, dates) is done in the controllers before Prisma
 // runs, so only database-level conflicts are expected to reach here.
 const handlePrismaKnownError = (error: Prisma.PrismaClientKnownRequestError) => {
-  // P2002: unique constraint, e.g. two signups racing for the same email.
-  if (error.code === "P2002") {
-    const target = error.meta?.target;
-    const field = Array.isArray(target) ? target.join(", ") : "Value";
-    return new AppError(`${field} already exists`, 400);
-  }
+  // P2002: unique constraint, e.g. two signups racing for the same email. The field names
+  // in error.meta are database columns, so they stay out of the message.
+  if (error.code === "P2002") return new AppError("That's already taken. Try a different one.", 400);
   // P2025: the row an update/delete expected is gone.
-  if (error.code === "P2025") return new AppError("Resource not found", 404);
+  if (error.code === "P2025") return new AppError("We couldn't find that. It may have been deleted. Refresh to see the latest.", 404);
   return null;
 };
 
@@ -35,12 +32,12 @@ const globalErrorHandler: ErrorRequestHandler = (error: HandledError, req, res, 
   if (error instanceof Prisma.PrismaClientKnownRequestError) handledError = handlePrismaKnownError(error) ?? handledError;
   // Upload limits (e.g. file over 5 MB) are the client's mistake, not a server failure.
   if (error instanceof multer.MulterError) {
-    handledError = new AppError(error.code === "LIMIT_FILE_SIZE" ? "Image must be 5 MB or smaller" : `Upload failed: ${error.message}`, 400);
+    handledError = new AppError(error.code === "LIMIT_FILE_SIZE" ? "That image is over 5 MB. Choose a smaller one." : "That file couldn't be uploaded. Choose one PNG, JPG or GIF image under 5 MB.", 400);
   }
   // A malformed JSON body (express.json) is a 400 too.
-  if ((error as { type?: string }).type === "entity.parse.failed") handledError = new AppError("Request body is not valid JSON", 400);
+  if ((error as { type?: string }).type === "entity.parse.failed") handledError = new AppError("We couldn't read that request. Refresh the page and try again.", 400);
   // NOTE: body-parser's "too large" used to fall through to a generic 500.
-  if ((error as { type?: string }).type === "entity.too.large") handledError = new AppError("Request body is too large", 413);
+  if ((error as { type?: string }).type === "entity.too.large") handledError = new AppError("That's too much to send at once. Shorten it and try again.", 413);
 
   // NOTE: only our own AppErrors get to choose the status code. Third-party SDK
   // errors carry their own `statusCode` and the spread above copies it straight

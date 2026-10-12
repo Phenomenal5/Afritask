@@ -34,7 +34,7 @@ const ADMIN_POST_FIELDS = {
 } as const;
 
 const requirePostId = (postId: string | undefined) => {
-    if (!postId || !validator.isUUID(postId)) throw new AppError("Post not found", 404);
+    if (!postId || !validator.isUUID(postId)) throw new AppError("This post isn't available any more. See the latest news instead.", 404);
     return postId;
 };
 
@@ -49,7 +49,7 @@ const textField = (value: unknown, label: string, { required, maxLength }: { req
 
 const loadPost = async (postId: string) => {
     const post = await prisma.newsletterPost.findUnique({ where: { id: postId }, select: ADMIN_POST_FIELDS });
-    if (!post) throw new AppError("Post not found", 404);
+    if (!post) throw new AppError("This post isn't available any more. See the latest news instead.", 404);
     return post;
 };
 
@@ -99,7 +99,7 @@ export const updatePost = catchAsync(async (req, res) => {
 
     await prisma.$transaction(async (transaction) => {
         const { count } = await transaction.newsletterPost.updateMany({ where: { id: postId }, data: changes });
-        if (count === 0) throw new AppError("Post not found", 404);
+        if (count === 0) throw new AppError("This post isn't available any more. See the latest news instead.", 404);
         await recordAdminAudit(transaction, { actorId: operator.userId, action: "newsletter.edited", targetType: "newsletter_post", targetId: postId, ipAddress: requestIp(req) });
     });
     res.status(200).json({ status: "success", data: { post: await loadPost(postId) } });
@@ -120,7 +120,7 @@ export const publishPost = catchAsync(async (req, res) => {
         });
         if (count === 0) {
             const exists = await transaction.newsletterPost.count({ where: { id: postId } });
-            throw exists ? new AppError("This post is already published.", 409) : new AppError("Post not found", 404);
+            throw exists ? new AppError("This post is already published.", 409) : new AppError("This post isn't available any more. See the latest news instead.", 404);
         }
         await recordAdminAudit(transaction, {
             actorId: operator.userId,
@@ -145,7 +145,7 @@ export const deleteDraft = catchAsync(async (req, res) => {
         const { count } = await transaction.newsletterPost.deleteMany({ where: { id: postId, status: "draft" } });
         if (count === 0) {
             const exists = await transaction.newsletterPost.count({ where: { id: postId } });
-            throw exists ? new AppError("Published posts can't be deleted.", 409) : new AppError("Post not found", 404);
+            throw exists ? new AppError("Published posts can't be deleted.", 409) : new AppError("This post isn't available any more. See the latest news instead.", 404);
         }
         await recordAdminAudit(transaction, { actorId: operator.userId, action: "newsletter.deleted", targetType: "newsletter_post", targetId: postId, ipAddress: requestIp(req) });
     });

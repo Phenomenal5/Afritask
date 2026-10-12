@@ -69,7 +69,7 @@ export default function VerifyEmailPage() {
       {status === "error" && (
         <div className="flex flex-col gap-5">
           <FormAlert>
-            {errorMessage ?? "This verification link is invalid or has expired."} If you already verified, just sign in. Otherwise, sign up again to get a fresh link.
+            {errorMessage ?? "This link has expired or was replaced. Sign in to get a new one."} If you already verified, just sign in. Otherwise, sign up again to get a fresh link.
           </FormAlert>
           <div className="flex flex-col gap-3 sm:flex-row">
             <ButtonLink href="/login" size="lg" full>

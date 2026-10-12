@@ -136,7 +136,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const response = await verifyEmailRequest(token);
       return { success: true, message: response.data.message };
     } catch (error) {
-      return { success: false, message: failureMessage(error, "This verification link is invalid or has expired.") };
+      return { success: false, message: failureMessage(error, "This link has expired or was replaced. Sign in to get a new one.") };
     }
   }, []);
 
@@ -217,7 +217,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const response = await resetPasswordRequest({ token, password });
       return { success: true, message: response.data.message };
     } catch (error) {
-      return { success: false, message: failureMessage(error, "This reset link is invalid or has expired.") };
+      return { success: false, message: failureMessage(error, "This reset link has expired or was already used. Ask for a new one.") };
     }
   }, []);
 

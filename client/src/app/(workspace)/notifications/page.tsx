@@ -121,7 +121,7 @@ export default function NotificationsPage() {
       setNotifications((current) => [...(current ?? []), ...response.data.data.notifications]);
       setNextCursor(response.data.data.nextCursor);
     } catch (error) {
-      toast.error(failureMessage(error, "Couldn't load older notifications."));
+      toast.error(failureMessage(error, "Couldn't load older notifications. Try again."));
     } finally {
       setLoadingMore(false);
     }
@@ -136,7 +136,7 @@ export default function NotificationsPage() {
       setUnreadNotifications(response.data.data.unreadCount);
     } catch (error) {
       setNotifications((current) => (current ?? []).map((item) => (item.id === notification.id ? notification : item)));
-      toast.error(failureMessage(error, "Couldn't mark that as read."));
+      toast.error(failureMessage(error, "Couldn't mark that as read. Try again."));
     }
   };
 
@@ -148,7 +148,7 @@ export default function NotificationsPage() {
       toast.success("All caught up");
       await loadInbox();
     } catch (error) {
-      toast.error(failureMessage(error, "Couldn't mark everything as read."));
+      toast.error(failureMessage(error, "Couldn't mark everything as read. Try again."));
     } finally {
       setMarkingAll(false);
     }

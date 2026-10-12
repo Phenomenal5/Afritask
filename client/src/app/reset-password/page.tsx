@@ -55,7 +55,7 @@ function ResetPasswordForm() {
     event.preventDefault();
     const nextErrors: typeof errors = {};
     if (form.password.length < PASSWORD_MIN_LENGTH) nextErrors.password = `Use at least ${PASSWORD_MIN_LENGTH} characters.`;
-    else if (form.password.length > PASSWORD_MAX_LENGTH) nextErrors.password = `Keep your password under ${PASSWORD_MAX_LENGTH} characters.`;
+    else if (form.password.length > PASSWORD_MAX_LENGTH) nextErrors.password = `Keep your password to ${PASSWORD_MAX_LENGTH} characters or fewer.`;
     if (form.confirmPassword !== form.password) nextErrors.confirm = "This doesn't match the password above.";
     setErrors(nextErrors);
     if (Object.keys(nextErrors).length) return;
@@ -63,7 +63,7 @@ function ResetPasswordForm() {
     const result = await resetPassword({ token, password: form.password });
     setSubmitting(false);
     if (result.success) setComplete(true);
-    else setFormError(result.message ?? "This reset link is invalid or has expired.");
+    else setFormError(result.message ?? "This reset link has expired or was already used. Ask for a new one.");
   };
 
   return (

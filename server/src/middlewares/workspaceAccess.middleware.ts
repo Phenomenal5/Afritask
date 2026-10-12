@@ -26,9 +26,9 @@ export const WORKSPACE_SUSPENDED_MESSAGE = "This workspace has been suspended by
 // Membership for a workspace id, or an AppError: 404 for non-members (no existence leak),
 // 403 for members of a workspace an operator suspended — they're told why (SRS SR17).
 export const requireActiveMembership = async (workspaceId: string | undefined, userId: string): Promise<Membership> => {
-    if (!workspaceId || !validator.isUUID(workspaceId)) throw new AppError("Workspace not found", 404);
+    if (!workspaceId || !validator.isUUID(workspaceId)) throw new AppError("We couldn't open this workspace. It may have been deleted, or you're no longer a member.", 404);
     const found = await findActiveMembership(workspaceId, userId);
-    if (!found) throw new AppError("Workspace not found", 404);
+    if (!found) throw new AppError("We couldn't open this workspace. It may have been deleted, or you're no longer a member.", 404);
     const { workspace, ...membership } = found;
     if (workspace.suspendedAt) throw new AppError(WORKSPACE_SUSPENDED_MESSAGE, 403);
     return membership;
@@ -49,15 +49,15 @@ export const requireWorkspaceMember = catchAsync(async (req: Request, res: Respo
 // Role gate for workspace routes. NOTE: rest args — requireWorkspaceRole("owner", "admin").
 export const requireWorkspaceRole = (...allowedRoles: WorkspaceRole[]) =>
     (req: Request, res: Response, next: NextFunction) => {
-        if (!req.membership) return next(new AppError("Workspace not found", 404));
+        if (!req.membership) return next(new AppError("We couldn't open this workspace. It may have been deleted, or you're no longer a member.", 404));
         if (!allowedRoles.includes(req.membership.role)) {
-            return next(new AppError("You don't have permission to do that in this workspace", 403));
+            return next(new AppError("Only a workspace Owner or Admin can do that. Ask one of them.", 403));
         }
         next();
     };
 
 // Typed access to the membership `requireWorkspaceMember` attached.
 export const requireMembership = (req: Request): Membership => {
-    if (!req.membership) throw new AppError("Workspace not found", 404);
+    if (!req.membership) throw new AppError("We couldn't open this workspace. It may have been deleted, or you're no longer a member.", 404);
     return req.membership;
 };

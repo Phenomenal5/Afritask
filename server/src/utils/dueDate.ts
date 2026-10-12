@@ -68,11 +68,11 @@ export const parseDue = (body: Record<string, unknown>, profileTimezone: string)
     const hasDueAt = body.dueAt !== undefined;
     const legacyDeadline = body.deadline;
     if (!hasDueDate && !hasDueAt && legacyDeadline === undefined) return undefined;
-    if (hasDueDate && hasDueAt) throw new AppError("Send either dueDate or dueAt, not both", 400);
+    if (hasDueDate && hasDueAt) throw new AppError("We couldn't read the due date. Pick it again.", 400);
 
     const rawValue = hasDueDate ? body.dueDate : hasDueAt ? body.dueAt : legacyDeadline;
     if (rawValue === null || rawValue === "") return { dueAt: null, dueKind: null, dueTimezone: null };
-    if (typeof rawValue !== "string") throw new AppError("Please provide a valid due date", 400);
+    if (typeof rawValue !== "string") throw new AppError("That due date isn't a real date. Pick one from the calendar.", 400);
 
     const dueTimezone = parseTimezone(body.dueTimezone) ?? profileTimezone;
 
@@ -82,12 +82,12 @@ export const parseDue = (body: Record<string, unknown>, profileTimezone: string)
         // Reject impossible calendar dates like 2026-02-31 (Date.UTC would roll them over).
         const roundTrip = new Date(Date.UTC(year, month - 1, day));
         if (roundTrip.getUTCMonth() !== month - 1 || Number.isNaN(dueAt.getTime())) {
-            throw new AppError("Please provide a valid due date", 400);
+            throw new AppError("That due date isn't a real date. Pick one from the calendar.", 400);
         }
         return { dueAt, dueKind: "date", dueTimezone };
     }
 
     const dueAt = parseInstant(rawValue);
-    if (!dueAt) throw new AppError("Please provide a valid due date", 400);
+    if (!dueAt) throw new AppError("That due date isn't a real date. Pick one from the calendar.", 400);
     return { dueAt, dueKind: "datetime", dueTimezone };
 };
