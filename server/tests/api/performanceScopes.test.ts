@@ -71,7 +71,8 @@ describe("your performance for chosen workspaces", () => {
 describe("share links for chosen workspaces", () => {
     it("shares only the picked workspaces, hides their names unless asked, and ends when none are left", async () => {
         const { team, musa, own } = await buildTwoWorkspaces();
-        await expect(musa.client.post("/performance/shares", { month: "2026-09" })).resolves.toMatchObject({ status: 400 });
+        // The picker always sends a list; an empty one is refused.
+        await expect(musa.client.post("/performance/shares", { month: "2026-09", workspaceIds: [] })).resolves.toMatchObject({ status: 400 });
 
         const hidden = await musa.client.post("/performance/shares", { month: "2026-09", workspaceIds: [team.workspace.id] });
         expect(hidden.status).toBe(201);
@@ -92,6 +93,15 @@ describe("share links for chosen workspaces", () => {
         const afterLeaving = await anonymous().get(`/api/v1/performance/shared/${named.body.data.share.token}`);
         expect(afterLeaving.body.data.summary).toMatchObject({ completed: 1 });
         expect(afterLeaving.body.data.scope.workspaceNames).toEqual(["Musa's Side Work"]);
+    });
+
+    it("an app version without the picker (no list sent) gets a link to everything, as before", async () => {
+        const { musa } = await buildTwoWorkspaces();
+        const created = await musa.client.post("/performance/shares", { month: "2026-09" });
+        expect(created.status).toBe(201);
+        expect(created.body.data.share).toMatchObject({ allWorkspaces: true, workspaces: [] });
+        const view = await anonymous().get(`/api/v1/performance/shared/${created.body.data.share.token}`);
+        expect(view.body.data.summary).toMatchObject({ completed: 3 });
     });
 
     it("a link made before links had a list still covers everything", async () => {

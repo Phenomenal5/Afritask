@@ -75,8 +75,14 @@ export const listMyShares = catchAsync(async (req, res) => {
 export const createShare = catchAsync(async (req, res) => {
     const user = requireUser(req);
     const month = parseMonth(req.body.month, currentMonth(user.timezone));
-    const workspaceIds = await parseWorkspaceScope(req.body.workspaceIds, user.id);
-    if (!workspaceIds) throw new AppError("Choose at least one workspace to share.", 400);
+    // NOTE: a request with no workspaceIds at all comes from an app version without the
+    // workspace picker. It gets what that version always made: a link covering every
+    // workspace. (Without this, an older client still in someone's browser, or deployed
+    // behind the server, could only ever fail with "choose a workspace" and no list to
+    // choose from.) The picker always sends a list, and an empty one is refused.
+    const fromOlderApp = req.body.workspaceIds === undefined;
+    const workspaceIds = fromOlderApp ? [] : await parseWorkspaceScope(req.body.workspaceIds, user.id);
+    if (!fromOlderApp && !workspaceIds) throw new AppError("Choose at least one workspace to share.", 400);
     const showWorkspaceNames = req.body.showWorkspaceNames === true;
     const activeCount = await prisma.performanceShare.count({ where: { userId: user.id, revokedAt: null } });
     if (activeCount >= MAX_ACTIVE_SHARES) throw new AppError(`You can have ${MAX_ACTIVE_SHARES} active links. Revoke one you no longer need first.`, 409);
@@ -87,12 +93,13 @@ export const createShare = catchAsync(async (req, res) => {
             userId: user.id,
             month,
             tokenHash: hashSecureToken(token),
+            allWorkspaces: fromOlderApp,
             showWorkspaceNames,
-            workspaces: { create: workspaceIds.map((workspaceId) => ({ workspaceId })) },
+            workspaces: { create: (workspaceIds ?? []).map((workspaceId) => ({ workspaceId })) },
         },
         select: shareSelect,
     });
-    logger.info(`Performance share created shareId=${share.id} userId=${user.id} month=${month} workspaces=${workspaceIds.length}`);
+    logger.info(`Performance share created shareId=${share.id} userId=${user.id} month=${month} workspaces=${fromOlderApp ? "all" : workspaceIds!.length}`);
     res.status(201).json({ status: "success", data: { share: { ...toShareResponse(share), token } } });
 });
 
