@@ -75,3 +75,39 @@ describe("due date extensions", () => {
         await expect(team.owner.client.put(`/tasks/${task.id}`, { dueAt: inDays(6), dueChangeReason: { not: "" }, version: task.version })).resolves.toMatchObject({ status: 400 });
     });
 });
+
+describe("timing changes once work has started", () => {
+    const startWork = async (team: Awaited<ReturnType<typeof createTeam>>, task: { id: string; version: number }) => {
+        const moved = await team.member.client.patch(`/tasks/${task.id}/status`, { status: "in_progress", version: task.version });
+        expect(moved.status).toBe(200);
+        return moved.body.data.task as { id: string; version: number };
+    };
+
+    it("Members and Admins must say why; the reason shows in history", async () => {
+        const team = await createTeam();
+        const task = await startWork(team, await createTaskDueIn(team, 3));
+
+        const silentMember = await team.member.client.put(`/tasks/${task.id}`, { dueAt: inDays(6), version: task.version });
+        expect(silentMember.status).toBe(400);
+        expect(silentMember.body.code).toBe("timing_reason_required");
+        const silentAdmin = await team.admin.client.put(`/tasks/${task.id}`, { startAt: inDays(1), dueChangeReason: "   ", version: task.version });
+        expect(silentAdmin.body.code).toBe("timing_reason_required");
+
+        const explained = await team.member.client.put(`/tasks/${task.id}`, { dueAt: inDays(2), dueChangeReason: "Client moved the review up", version: task.version });
+        expect(explained.status).toBe(200);
+        const history = await team.owner.client.get(`/tasks/${task.id}/activity`);
+        expect(history.body.data.entries[0].changes.dueChangeReason).toEqual({ from: null, to: "Client moved the review up" });
+    });
+
+    it("the Owner doesn't need a reason, nor does anyone while the task is still To do", async () => {
+        const team = await createTeam();
+        const todo = await createTaskDueIn(team, 3);
+        await expect(team.member.client.put(`/tasks/${todo.id}`, { dueAt: inDays(4), version: todo.version })).resolves.toMatchObject({ status: 200 });
+
+        const started = await startWork(team, { id: todo.id, version: todo.version + 1 });
+        await expect(team.owner.client.put(`/tasks/${started.id}`, { dueAt: inDays(8), version: started.version })).resolves.toMatchObject({ status: 200 });
+        // Re-sending the same time, or editing something else, isn't a timing change.
+        const unchanged = await prisma.task.findUniqueOrThrow({ where: { id: started.id } });
+        await expect(team.member.client.put(`/tasks/${started.id}`, { title: "Quarterly report v2", dueAt: unchanged.dueAt!.toISOString(), version: unchanged.version })).resolves.toMatchObject({ status: 200 });
+    });
+});

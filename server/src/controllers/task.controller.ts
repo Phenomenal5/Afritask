@@ -1,6 +1,6 @@
 import validator from "validator";
 import prisma from "../config/prisma.js";
-import { Prisma, TaskPriority, TaskStatus, type Task } from "../generated/prisma/client.js";
+import { Prisma, TaskPriority, TaskStatus, WorkspaceRole, type Task } from "../generated/prisma/client.js";
 import catchAsync from "../utils/catchAsync.js";
 import AppError from "../utils/AppError.js";
 import logger from "../utils/logger.js";
@@ -272,10 +272,11 @@ const parseCompletionNote = (rawNote: unknown, isSubtask: boolean): string | nul
     return note || null;
 };
 
-// ─── Due-date extension reason ─────────────────────
+// ─── Reason for a timing change ─────────────────────
 const EXTENSION_REASON_MAX_LENGTH = 500;
 
-// Optional "why" sent with a due date moved later. Ignored for any other date change.
+// The "why" sent with a start or due change (`dueChangeReason`). Optional while the task is
+// still To do; required from Members and Admins once work has started (see editTask).
 const parseExtensionReason = (rawReason: unknown): string | null => {
     if (rawReason === undefined || rawReason === null) return null;
     if (typeof rawReason !== "string") throw new AppError("dueChangeReason must be text", 400);
@@ -658,9 +659,20 @@ export const editTask = catchAsync(async (req, res) => {
     }
     const movesProject = !existingTask.parentTaskId && projectId !== undefined && projectId !== existingTask.projectId;
 
+    // NOTE: once a task has left To do, moving its start or due time needs a reason from a
+    // Member or Admin, so the people relying on the plan know why it changed. The Owner is
+    // exempt. Sending the same time again isn't a change.
+    const sameInstant = (first: Date | null, second: Date | null) => (first?.getTime() ?? null) === (second?.getTime() ?? null);
+    const timingChanges = (start !== undefined && !sameInstant(start.startAt, existingTask.startAt))
+        || (due !== undefined && !sameInstant(due.dueAt, existingTask.dueAt));
+    const timingReason = timingChanges ? parseExtensionReason(req.body.dueChangeReason) : null;
+    if (timingChanges && !timingReason && existingTask.status !== TaskStatus.todo && membership.role !== WorkspaceRole.owner) {
+        throw new AppError("Work on this task has started, so say why its timing is changing.", 400, "timing_reason_required");
+    }
+
     // An extension = an existing due date moved LATER (not added, cleared or brought forward).
     const extension = due?.dueAt && existingTask.dueAt && due.dueAt.getTime() > existingTask.dueAt.getTime()
-        ? { fromDueAt: existingTask.dueAt, toDueAt: due.dueAt, reason: parseExtensionReason(req.body.dueChangeReason) }
+        ? { fromDueAt: existingTask.dueAt, toDueAt: due.dueAt, reason: timingReason }
         : null;
 
     const task = await updateWithVersionCheck(
@@ -706,8 +718,8 @@ export const editTask = catchAsync(async (req, res) => {
                 });
             }
         },
-        // The reason shows next to the due-date change in the task's history.
-        extension?.reason ? { dueChangeReason: { from: null, to: extension.reason } } : {}
+        // The reason shows next to the timing change in the task's history.
+        timingReason ? { dueChangeReason: { from: null, to: timingReason } } : {}
     );
 
     logger.info(`Task updated taskId=${id} userId=${membership.userId} version=${task?.version}`);

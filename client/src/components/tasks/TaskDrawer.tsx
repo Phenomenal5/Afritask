@@ -65,7 +65,8 @@ interface DetailForm {
   startTime: string;
   reminderOffset: ReminderChoice;
   labelIds: string[];
-  // Only asked when the deadline moves later; optional.
+  // Why the start or due time is changing. Optional for a deadline moved later while the
+  // task is To do; required from Members and Admins once work has started (server rule).
   dueChangeReason: string;
 }
 
@@ -217,6 +218,11 @@ export default function TaskDrawer({ taskId, onClose, onOpenTask }: TaskDrawerPr
   const activeProjects = useMemo(() => projects.filter((project) => project.state !== "archived"), [projects]);
   const dueError = form ? dueFieldError(form) : null;
   const startError = form ? startFieldError(form) : null;
+  const original = task ? formOf(task) : null;
+  const timingChanged = !!form && !!original
+    && (form.dueDate !== original.dueDate || form.dueTime !== original.dueTime || form.startDate !== original.startDate || form.startTime !== original.startTime);
+  const reasonRequired = timingChanged && task?.status !== "todo" && viewer.role !== "owner";
+  const reasonError = reasonRequired && !form?.dueChangeReason.trim() ? "Work on this task has started, so say why its timing is changing." : null;
   const titleError = form && !form.title.trim() ? "A task needs a title." : form && form.title.trim().length > 200 ? "Keep the title under 200 characters." : null;
 
   const handleSave = async (event?: FormEvent) => {
@@ -226,7 +232,7 @@ export default function TaskDrawer({ taskId, onClose, onOpenTask }: TaskDrawerPr
       titleRef.current?.focus();
       return;
     }
-    if (dueError || startError) return;
+    if (dueError || startError || reasonError) return;
 
     const original = formOf(task);
     const changes: TaskInput = {};
@@ -242,7 +248,7 @@ export default function TaskDrawer({ taskId, onClose, onOpenTask }: TaskDrawerPr
     // Sent whenever it differs, and always when a deadline is first added, so the server
     // never substitutes its default for what the picker showed.
     if (form.dueDate && (form.reminderOffset !== original.reminderOffset || !original.dueDate)) changes.reminderOffset = form.reminderOffset;
-    if (isDueExtension(original, form) && form.dueChangeReason.trim()) changes.dueChangeReason = form.dueChangeReason.trim();
+    if (timingChanged && form.dueChangeReason.trim()) changes.dueChangeReason = form.dueChangeReason.trim();
 
     setSaveState("saving");
     setSaveError(null);
@@ -495,16 +501,20 @@ export default function TaskDrawer({ taskId, onClose, onOpenTask }: TaskDrawerPr
             />
           </div>
 
-          {isDueExtension(dueFieldsOf(task), form) && (
+          {(reasonRequired || isDueExtension(dueFieldsOf(task), form)) && (
             <TextField
-              label="Why is the deadline moving?"
-              optional
+              label={reasonRequired ? "Why is the timing changing?" : "Why is the deadline moving?"}
+              optional={!reasonRequired}
               wrapperClassName="sm:col-span-2"
               maxLength={500}
               value={form.dueChangeReason}
               onChange={(event) => updateField("dueChangeReason", event.target.value)}
               placeholder="e.g. Waiting on the client's figures"
-              hint="Shown in the task's history. Extensions also count in your monthly summary."
+              hint={
+                reasonRequired
+                  ? "Work has started, so a reason is needed. It's shown in the task's history."
+                  : "Shown in the task's history. Extensions also count in your monthly summary."
+              }
             />
           )}
 
@@ -632,7 +642,7 @@ export default function TaskDrawer({ taskId, onClose, onOpenTask }: TaskDrawerPr
                 >
                   Discard
                 </Button>
-                <Button type="submit" form="task-detail-form" loading={saveState === "saving"} disabled={!online || !!titleError || !!dueError || !!startError}>
+                <Button type="submit" form="task-detail-form" loading={saveState === "saving"} disabled={!online || !!titleError || !!dueError || !!startError || !!reasonError}>
                   {saveState === "failed" ? "Try again" : "Save changes"}
                 </Button>
               </div>
