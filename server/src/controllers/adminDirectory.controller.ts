@@ -8,11 +8,16 @@ import routeParam from "../utils/routeParam.js";
 import { computeSchedule } from "../utils/reminderSchedule.js";
 import { requireOperatorContext } from "../middlewares/operatorAuth.middleware.js";
 import { recordAdminAudit, requestIp } from "../services/adminAuditService.js";
+import { issueAccountToken } from "../services/accountTokenService.js";
+import { revokeAllSessions } from "../services/sessionService.js";
+import { assertValidEmail, normalizeEmail, normalizeName, parseTimezone } from "../utils/userValidation.js";
+import { sendAccountSetupEmail, sendEmailChangedNotice } from "../utils/email.js";
+import { errorMessage } from "../utils/logger.js";
 
 // ─── Platform directory: accounts and workspaces (SRS SR17 / FR17) ─────────────────────
 // Operators see METADATA only — names, emails, status, membership, counts. Never a
-// workspace's projects, tasks or comments (SRS SR16). Every suspend/restore needs a reason
-// and is written to the audit trail in the same transaction.
+// workspace's projects, tasks or comments (SRS SR16). Every change (create, edit, suspend,
+// restore) needs a reason and is written to the audit trail in the same transaction.
 
 const DEFAULT_PAGE_SIZE = 25;
 const MAX_PAGE_SIZE = 100;
@@ -62,6 +67,7 @@ const loadAccountDetail = async (accountId: string) => {
             id: true,
             name: true,
             email: true,
+            timezone: true,
             isVerified: true,
             provider: true,
             createdAt: true,
@@ -75,9 +81,13 @@ const loadAccountDetail = async (accountId: string) => {
         },
     });
     if (!user) throw new AppError("Account not found", 404);
+    // NOTE: the password itself is never selected (omitted globally); only whether one is set,
+    // so the console can offer the set-password link to accounts that don't have one yet.
+    const hasPassword = (await prisma.user.count({ where: { id: accountId, password: { not: null } } })) > 0;
     const { memberships, _count, ...fields } = user;
     return {
         ...fields,
+        hasPassword,
         status: accountStatus(user),
         workspaceCount: _count.memberships,
         memberships: memberships.map((membership) => ({
@@ -165,6 +175,128 @@ export const restoreAccount = catchAsync(async (req, res) => {
     });
 
     logger.info(`Account restored accountId=${accountId} by operator=${operator.userId}`);
+    res.status(200).json({ status: "success", data: { account: await loadAccountDetail(accountId) } });
+});
+
+// ─── Creating and editing accounts ─────────────────────
+// An operator never chooses or sees a password. A new account has none; its owner gets a
+// link (the reset-password link, valid for SETUP_LINK_DAYS) to choose one. They accept the
+// terms at their first sign-in, like anyone who didn't sign up through the form.
+
+const SETUP_LINK_DAYS = 3;
+
+// The email isn't someone else's (case-insensitive: older accounts may have capitals).
+const assertEmailAvailable = async (email: string, exceptAccountId?: string) => {
+    const taken = await prisma.user.count({ where: { email: { equals: email, mode: "insensitive" }, ...(exceptAccountId && { id: { not: exceptAccountId } }) } });
+    if (taken) throw new AppError("There's already an account with this email.", 409);
+};
+
+// Sends the set-password link. Returns whether the email went out: the account change is
+// already saved, so a failed email is reported to the operator (who can resend), not thrown.
+const sendSetupLink = async (account: { id: string; name: string; email: string }) => {
+    try {
+        const token = await issueAccountToken(account.id, "reset_password", SETUP_LINK_DAYS * 24 * 60 * 60 * 1000);
+        await sendAccountSetupEmail(account.email, { name: account.name, token, validForDays: SETUP_LINK_DAYS });
+        return true;
+    } catch (error) {
+        logger.error(`Set-password email for accountId=${account.id} failed: ${errorMessage(error)}`);
+        return false;
+    }
+};
+
+// POST /api/v1/admin/accounts  { name, email, timezone?, reason }
+export const createAccount = catchAsync(async (req, res) => {
+    const { operator } = requireOperatorContext(req);
+    const name = normalizeName(req.body.name);
+    const email = assertValidEmail(normalizeEmail(req.body.email));
+    const timezone = parseTimezone(req.body.timezone);
+    const reason = parseReason(req.body.reason);
+    await assertEmailAvailable(email);
+
+    // isVerified: only the owner of the address can use the set-password link, and nobody
+    // can sign in before that, so the link doubles as the email check.
+    const account = await prisma.$transaction(async (transaction) => {
+        const created = await transaction.user.create({ data: { name, email, isVerified: true, ...(timezone && { timezone }) }, select: { id: true, name: true, email: true } });
+        await recordAdminAudit(transaction, { actorId: operator.userId, action: "account.created", targetType: "user", targetId: created.id, reason, metadata: { email }, ipAddress: requestIp(req) });
+        return created;
+    });
+
+    const setupEmailSent = await sendSetupLink(account);
+    logger.info(`Account created accountId=${account.id} by operator=${operator.userId}`);
+    res.status(201).json({ status: "success", data: { account: await loadAccountDetail(account.id), setupEmailSent } });
+});
+
+// PATCH /api/v1/admin/accounts/:accountId  { name?, email?, timezone?, reason }
+export const updateAccount = catchAsync(async (req, res) => {
+    const { operator } = requireOperatorContext(req);
+    const accountId = requireId(routeParam(req, "accountId"), "Account not found");
+    const reason = parseReason(req.body.reason);
+    const existing = await prisma.user.findUnique({ where: { id: accountId }, select: { name: true, email: true, timezone: true } });
+    if (!existing) throw new AppError("Account not found", 404);
+
+    const changes: Prisma.UserUpdateInput = {};
+    if (req.body.name !== undefined) {
+        const name = normalizeName(req.body.name);
+        if (name !== existing.name) changes.name = name;
+    }
+    if (req.body.email !== undefined) {
+        const email = assertValidEmail(normalizeEmail(req.body.email));
+        if (email !== existing.email.toLowerCase()) {
+            await assertEmailAvailable(email, accountId);
+            changes.email = email;
+        } else if (email !== existing.email) {
+            // Same address, just lowercased: tidy it without treating it as a change of owner.
+            changes.email = email;
+        }
+    }
+    if (req.body.timezone !== undefined) {
+        const timezone = parseTimezone(req.body.timezone);
+        if (timezone && timezone !== existing.timezone) changes.timezone = timezone;
+    }
+    const changedFields = Object.keys(changes);
+    if (changedFields.length === 0) throw new AppError("Nothing was changed. Edit a field first.", 400);
+
+    const emailChanged = typeof changes.email === "string" && changes.email !== existing.email.toLowerCase();
+    await prisma.$transaction(async (transaction) => {
+        await transaction.user.update({ where: { id: accountId }, data: changes });
+        await recordAdminAudit(transaction, {
+            actorId: operator.userId,
+            action: "account.updated",
+            targetType: "user",
+            targetId: accountId,
+            reason,
+            metadata: { fields: changedFields, ...(emailChanged && { previousEmail: existing.email, newEmail: changes.email as string }) },
+            ipAddress: requestIp(req),
+        });
+    });
+
+    if (emailChanged) {
+        // NOTE: signed-in sessions end, so the account is next used with the new address, and
+        // the old address hears about it (a change the owner didn't ask for gets noticed).
+        await revokeAllSessions(accountId);
+        sendEmailChangedNotice(existing.email, { newEmail: changes.email as string }).catch((error) =>
+            logger.error(`Email-changed notice for accountId=${accountId} failed: ${errorMessage(error)}`)
+        );
+    }
+    logger.info(`Account updated accountId=${accountId} fields=${changedFields.join(",")} by operator=${operator.userId}`);
+    res.status(200).json({ status: "success", data: { account: await loadAccountDetail(accountId) } });
+});
+
+// POST /api/v1/admin/accounts/:accountId/setup-link
+// Emails a fresh set-password link (an earlier unused one stops working). For accounts
+// created here whose first link expired, or anyone locked out of their password.
+export const resendSetupLink = catchAsync(async (req, res) => {
+    const { operator } = requireOperatorContext(req);
+    const accountId = requireId(routeParam(req, "accountId"), "Account not found");
+    const account = await prisma.user.findUnique({ where: { id: accountId }, select: { id: true, name: true, email: true, suspendedAt: true } });
+    if (!account) throw new AppError("Account not found", 404);
+    if (account.suspendedAt) throw new AppError("This account is suspended. Restore it before sending a link.", 409);
+
+    const setupEmailSent = await sendSetupLink(account);
+    if (!setupEmailSent) throw new AppError("The email couldn't be sent. Try again in a moment.", 502);
+    await prisma.$transaction((transaction) =>
+        recordAdminAudit(transaction, { actorId: operator.userId, action: "account.setup_link_sent", targetType: "user", targetId: accountId, ipAddress: requestIp(req) })
+    );
     res.status(200).json({ status: "success", data: { account: await loadAccountDetail(accountId) } });
 });
 

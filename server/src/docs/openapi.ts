@@ -400,6 +400,9 @@ const schemas = {
             id: { type: "string", format: "uuid" },
             name: { type: "string" },
             email: { type: "string" },
+            timezone: { type: "string" },
+            // Detail only: false for an account created in the console that hasn't set one yet.
+            hasPassword: { type: "boolean" },
             isVerified: { type: "boolean" },
             status: { type: "string", enum: ["active", "suspended"] },
             createdAt: { type: "string", format: "date-time" },
@@ -1356,6 +1359,13 @@ const adminDirectoryPaths = {
             parameters: [...pagingParams, { name: "status", in: "query", schema: { type: "string", enum: ["active", "suspended"] } }],
             responses: { 200: jsonResponse("Accounts", pageEnvelope(ref("AdminAccount"))), ...errorResponses(400, 401) },
         },
+        post: {
+            tags: ["Admin"],
+            summary: "Create an account. It has no password: its owner is emailed a set-password link (valid 3 days). setupEmailSent says whether that email went out.",
+            security: operatorSession,
+            requestBody: jsonBody({ type: "object", required: ["name", "email", "reason"], properties: { name: { type: "string", maxLength: 80 }, email: { type: "string", format: "email" }, timezone: { type: "string" }, reason: { type: "string", minLength: 5, maxLength: 500 } } }),
+            responses: { 201: jsonResponse("Created", { type: "object", properties: { data: { type: "object", properties: { account: ref("AdminAccount"), setupEmailSent: { type: "boolean" } } } } }), ...errorResponses(400, 401, 409) },
+        },
     },
     "/admin/accounts/{accountId}": {
         parameters: [pathParam("accountId", "Account id")],
@@ -1364,6 +1374,22 @@ const adminDirectoryPaths = {
             summary: "An account with its membership metadata",
             security: operatorSession,
             responses: { 200: jsonResponse("Account", dataEnvelope("account", ref("AdminAccount"))), ...errorResponses(401, 404) },
+        },
+        patch: {
+            tags: ["Admin"],
+            summary: "Edit name, email or time zone. A new email signs them out everywhere and notifies the old address.",
+            security: operatorSession,
+            requestBody: jsonBody({ type: "object", required: ["reason"], properties: { name: { type: "string", maxLength: 80 }, email: { type: "string", format: "email" }, timezone: { type: "string" }, reason: { type: "string", minLength: 5, maxLength: 500 } } }),
+            responses: { 200: jsonResponse("Updated", dataEnvelope("account", ref("AdminAccount"))), ...errorResponses(400, 401, 404, 409) },
+        },
+    },
+    "/admin/accounts/{accountId}/setup-link": {
+        parameters: [pathParam("accountId", "Account id")],
+        post: {
+            tags: ["Admin"],
+            summary: "Email a fresh set-password link (rate-limited; refused for suspended accounts)",
+            security: operatorSession,
+            responses: { 200: jsonResponse("Sent", dataEnvelope("account", ref("AdminAccount"))), ...errorResponses(401, 404, 409, 429, 502) },
         },
     },
     "/admin/accounts/{accountId}/suspend": {

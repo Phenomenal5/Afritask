@@ -1,16 +1,19 @@
 import express from "express";
-import { credentialLimiter } from "../middlewares/rateLimiter.js";
+import { credentialLimiter, emailActionLimiter } from "../middlewares/rateLimiter.js";
 import { requireOperator, requireOperatorSession } from "../middlewares/operatorAuth.middleware.js";
 import { operatorLogin, operatorLogout, operatorMe, operatorMfaSetup, operatorMfaVerify } from "../controllers/adminAuth.controller.js";
 import {
+    createAccount,
     getAccount,
     getWorkspace,
+    resendSetupLink,
     restoreAccount,
     restoreWorkspace,
     searchAccounts,
     searchWorkspaces,
     suspendAccount,
     suspendWorkspace,
+    updateAccount,
 } from "../controllers/adminDirectory.controller.js";
 import { getOperationsHealth, listAudit, listDeliveries, retryDelivery } from "../controllers/adminOperations.controller.js";
 import { createPost, deleteDraft, getPost, getSubscriberSummary, listPosts, publishPost, updatePost } from "../controllers/adminNewsletter.controller.js";
@@ -33,7 +36,10 @@ router.post("/auth/logout", requireOperatorSession, operatorLogout);
 // ─── Everything below: a fully signed-in operator (password + MFA) ─────────────────────
 // Directory: metadata only, never workspace content (SRS SR16/SR17).
 router.get("/accounts", requireOperator, searchAccounts);
+router.post("/accounts", requireOperator, createAccount);
 router.get("/accounts/:accountId", requireOperator, getAccount);
+router.patch("/accounts/:accountId", requireOperator, updateAccount);
+router.post("/accounts/:accountId/setup-link", requireOperator, emailActionLimiter(), resendSetupLink);
 router.post("/accounts/:accountId/suspend", requireOperator, suspendAccount);
 router.post("/accounts/:accountId/restore", requireOperator, restoreAccount);
 router.get("/workspaces", requireOperator, searchWorkspaces);

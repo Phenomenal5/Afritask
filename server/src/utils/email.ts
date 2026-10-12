@@ -162,6 +162,63 @@ This link expires soon. If you did not request this, you can ignore this email.`
   });
 };
 
+// ─── Accounts created or changed from the admin console ─────────────────────
+// An account made by Afritask support has no password: this link (the same one a password
+// reset uses) is how its owner sets one. Until then nobody can sign in to it.
+export const sendAccountSetupEmail = async (to: string, { name, token, validForDays }: { name: string; token: string; validForDays: number }) => {
+  const setupUrl = `${CLIENT_URL}/reset-password?token=${token}`;
+  const lifetime = `${validForDays} day${validForDays === 1 ? "" : "s"}`;
+
+  await emailService.sendEmail({
+    to,
+    subject: "Your Afritask account is ready",
+    text: `Hi ${name},
+
+Afritask support set up an account for you. Choose a password to start using it:
+
+${setupUrl}
+
+The link works for ${lifetime}. If you weren't expecting this, you can ignore this email.`,
+    html: emailTemplate({
+      title: "Your Afritask account is ready",
+      badge: "Account",
+      message: `
+        <p>Hi ${escapeHtml(name)},</p>
+        <p>Afritask support set up an account for you. Choose a password to start using it.</p>
+        <p>The link works for ${lifetime}. If you weren't expecting this, you can ignore this email.</p>
+      `,
+      buttonText: "Choose a password",
+      buttonUrl: setupUrl,
+    }),
+  });
+};
+
+// Sent to the OLD address when support changes an account's email, so a change the owner
+// didn't ask for never goes unnoticed.
+export const sendEmailChangedNotice = async (to: string, { newEmail }: { newEmail: string }) => {
+  const contactUrl = `${CLIENT_URL}/contact`;
+
+  await emailService.sendEmail({
+    to,
+    subject: "The email on your Afritask account was changed",
+    text: `Afritask support changed the email on your account to ${newEmail}. From now on, sign in with that address.
+
+If you didn't ask for this, tell us straight away:
+
+${contactUrl}`,
+    html: emailTemplate({
+      title: "Your account email was changed",
+      badge: "Security",
+      message: `
+        <p>Afritask support changed the email on your account to <strong>${escapeHtml(newEmail)}</strong>. From now on, sign in with that address.</p>
+        <p>If you didn't ask for this, tell us straight away.</p>
+      `,
+      buttonText: "Contact Afritask",
+      buttonUrl: contactUrl,
+    }),
+  });
+};
+
 export const sendEmailVerificationCode = async (to: string, token: string) => {
   const verificationUrl = `${CLIENT_URL}/verify-email/${token}`;
 
