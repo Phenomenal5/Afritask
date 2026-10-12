@@ -149,6 +149,8 @@ const taskInclude = {
     labels: { select: { label: { select: { id: true, name: true, color: true } } }, orderBy: { label: { name: "asc" } } },
     parent: { select: { id: true, title: true, startAt: true, dueAt: true, assigneeMembershipId: true } },
     subtasks: { select: { status: true } },
+    // Live comments only, for the comment button on list rows and board cards.
+    _count: { select: { comments: { where: { deletedAt: null } } } },
 } as const satisfies Prisma.TaskInclude;
 
 // The include's relations, whatever scalar fields the query returned (the global omit
@@ -156,14 +158,16 @@ const taskInclude = {
 interface TaskRelations {
     labels: { label: { id: string; name: string; color: string } }[];
     subtasks: { status: TaskStatus }[];
+    _count: { comments: number };
 }
 
 // API shape: labels flattened, subtask list replaced by counts (the detail route adds the list).
 const toTaskResponse = <TaskRow extends TaskRelations>(task: TaskRow) => {
-    const { labels, subtasks, ...fields } = task;
+    const { labels, subtasks, _count, ...fields } = task;
     return {
         ...fields,
         labels: labels.map((taskLabel) => taskLabel.label),
+        commentCount: _count.comments,
         subtaskCounts: {
             total: subtasks.length,
             completed: subtasks.filter((subtask) => subtask.status === TaskStatus.completed).length,

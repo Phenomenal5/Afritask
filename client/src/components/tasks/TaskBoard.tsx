@@ -14,7 +14,7 @@ import { STATUS_LABELS, TASK_STATUSES } from "@/utils/taskMeta";
 import { cx } from "@/lib/cx";
 import { DueLabel, StartLabel, PriorityBadge, STATUS_META } from "@/components/ui/Badges";
 import StatusSelect from "./StatusSelect";
-import { AssigneeChip, LabelChips, ParentContext, ProjectTag, SubtaskProgress } from "./TaskMeta";
+import { AssigneeChip, CommentButton, LabelChips, ParentContext, ProjectTag, SubtaskProgress } from "./TaskMeta";
 import type { Task, TaskStatus } from "@/types/models";
 
 const DRAG_TYPE = "application/x-afritask-task";
@@ -133,10 +133,10 @@ function BoardCard({ task, now, showProject }: { task: Task; now: Date | null; s
       </div>
       <div className="mt-2.5 flex flex-wrap items-center justify-between gap-2">
         <StartLabel task={task} now={now} />
-          <DueLabel task={task} now={now} />
+        <DueLabel task={task} now={now} />
         <AssigneeChip task={task} />
       </div>
-      <div className="mt-3 border-t border-line-soft pt-2.5">
+      <div className="mt-3 flex items-center justify-between gap-2 border-t border-line-soft pt-2.5">
         <StatusSelect
           status={task.status}
           taskTitle={task.title}
@@ -144,6 +144,7 @@ function BoardCard({ task, now, showProject }: { task: Task; now: Date | null; s
           disabledReason={online ? editBlockedReason(viewer, task) : "You're offline."}
           onChange={(nextStatus) => changeStatus(task, nextStatus)}
         />
+        <CommentButton task={task} />
       </div>
     </li>
   );

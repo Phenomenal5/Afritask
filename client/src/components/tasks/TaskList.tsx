@@ -13,7 +13,7 @@ import { canEditTask, editBlockedReason } from "@/utils/permissions";
 import { cx } from "@/lib/cx";
 import { DueLabel, StartLabel, PriorityBadge, StatusBadge } from "@/components/ui/Badges";
 import StatusSelect from "./StatusSelect";
-import { AssigneeChip, LabelChips, ParentContext, ProjectTag, SubtaskProgress } from "./TaskMeta";
+import { AssigneeChip, CommentButton, LabelChips, ParentContext, ProjectTag, SubtaskProgress } from "./TaskMeta";
 import type { Task } from "@/types/models";
 
 interface TaskListProps {
@@ -84,6 +84,7 @@ function TaskRow({ task, now, showProject }: { task: Task; now: Date | null; sho
             {showProject && <ProjectTag task={task} />}
             <SubtaskProgress task={task} />
             <LabelChips task={task} />
+            <CommentButton task={task} />
           </div>
         </div>
 

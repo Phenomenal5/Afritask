@@ -1,7 +1,9 @@
 /**
- * Opens the two task surfaces from anywhere in the workspace:
+ * Opens the task surfaces from anywhere in the workspace:
  *  - the task drawer, addressed by `?task=<id>` in the URL so a refresh, the back button
  *    and links from Notifications all reopen the same task;
+ *  - the comments panel, `?comments=<id>`: the task's thread on its own, so people can
+ *    comment or reply without going through the task's settings;
  *  - the "New task" composer, with optional defaults (e.g. the project you're looking at).
  */
 "use client";
@@ -10,6 +12,7 @@ import { createContext, useCallback, useContext, useMemo, useState, type ReactNo
 import { usePathname, useSearchParams } from "next/navigation";
 import TaskComposer from "@/components/tasks/TaskComposer";
 import TaskDrawer from "@/components/tasks/TaskDrawer";
+import TaskDiscussion from "@/components/tasks/TaskDiscussion";
 
 export interface ComposerDefaults {
   projectId?: string;
@@ -17,6 +20,7 @@ export interface ComposerDefaults {
 
 interface TaskPanels {
   openTask: (taskId: string) => void;
+  openComments: (taskId: string) => void;
   closeTask: () => void;
   openComposer: (defaults?: ComposerDefaults) => void;
 }
@@ -27,14 +31,18 @@ export function TaskPanelProvider({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const openTaskId = searchParams.get("task");
+  const commentsTaskId = searchParams.get("comments");
+  const panelOpen = !!(openTaskId || commentsTaskId);
   const [composer, setComposer] = useState<{ open: boolean; defaults: ComposerDefaults }>({ open: false, defaults: {} });
 
   // Built from window.location at call time so other params (filters, view) are never lost.
-  const withTaskParam = useCallback(
-    (taskId: string | null) => {
+  // Only one panel is open at a time, so setting one clears the other.
+  const withPanelParam = useCallback(
+    (panel: "task" | "comments" | null, taskId?: string) => {
       const nextParams = new URLSearchParams(window.location.search);
-      if (taskId) nextParams.set("task", taskId);
-      else nextParams.delete("task");
+      nextParams.delete("task");
+      nextParams.delete("comments");
+      if (panel && taskId) nextParams.set(panel, taskId);
       const query = nextParams.toString();
       return query ? `${pathname}?${query}` : pathname;
     },
@@ -44,23 +52,25 @@ export function TaskPanelProvider({ children }: { children: ReactNode }) {
   // Opening pushes (Back closes the drawer); moving between tasks inside it replaces.
   // NOTE: native history calls (see useTaskFilters) — opening a drawer needs no server
   // round-trip, and router navigations issued during page load could be dropped.
-  const openTask = useCallback(
-    (taskId: string) => {
-      if (openTaskId) window.history.replaceState(null, "", withTaskParam(taskId));
-      else window.history.pushState(null, "", withTaskParam(taskId));
+  const openPanel = useCallback(
+    (panel: "task" | "comments", taskId: string) => {
+      if (panelOpen) window.history.replaceState(null, "", withPanelParam(panel, taskId));
+      else window.history.pushState(null, "", withPanelParam(panel, taskId));
     },
-    [withTaskParam, openTaskId]
+    [withPanelParam, panelOpen]
   );
+  const openTask = useCallback((taskId: string) => openPanel("task", taskId), [openPanel]);
+  const openComments = useCallback((taskId: string) => openPanel("comments", taskId), [openPanel]);
 
   const closeTask = useCallback(() => {
-    window.history.replaceState(null, "", withTaskParam(null));
-  }, [withTaskParam]);
+    window.history.replaceState(null, "", withPanelParam(null));
+  }, [withPanelParam]);
 
   const openComposer = useCallback((defaults: ComposerDefaults = {}) => {
     setComposer({ open: true, defaults });
   }, []);
 
-  const value = useMemo(() => ({ openTask, closeTask, openComposer }), [openTask, closeTask, openComposer]);
+  const value = useMemo(() => ({ openTask, openComments, closeTask, openComposer }), [openTask, openComments, closeTask, openComposer]);
 
   return (
     <TaskPanelContext.Provider value={value}>
@@ -71,6 +81,9 @@ export function TaskPanelProvider({ children }: { children: ReactNode }) {
         onClose={() => setComposer((current) => ({ ...current, open: false }))}
       />
       {openTaskId && <TaskDrawer key={openTaskId} taskId={openTaskId} onClose={closeTask} onOpenTask={openTask} />}
+      {!openTaskId && commentsTaskId && (
+        <TaskDiscussion key={commentsTaskId} taskId={commentsTaskId} onClose={closeTask} onOpenTask={openTask} onOpenComments={openComments} />
+      )}
     </TaskPanelContext.Provider>
   );
 }

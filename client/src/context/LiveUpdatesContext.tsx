@@ -22,6 +22,9 @@ import type { ActionResult } from "@/types/models";
 // Fired on window when someone adds/edits/deletes a comment on a task — TaskComments
 // listens and reloads its thread if it's showing that task.
 export const COMMENT_CHANGED_EVENT = "afritask:comment-changed";
+// Fired by TaskComments with { taskId, count } whenever a thread loads or changes, so the
+// comment buttons on list rows and board cards show the new count without a refetch.
+export const COMMENT_COUNT_EVENT = "afritask:comment-count";
 
 const EVENTS_URL = "/api/v1/events";
 // After an unexpected drop, wait before reconnecting (EventSource retries by itself for

@@ -81,6 +81,10 @@ describe("comments", () => {
         expect(stored.body).toBe("");
 
         await expect(team.admin.client.delete(`/comments/${byMember.body.data.comment.id}`)).resolves.toMatchObject({ status: 409 });
+
+        // The task's comment count (the comment button on rows and cards) skips deleted ones.
+        const taskResponse = await team.member.client.get(`/tasks/${task.id}`);
+        expect(taskResponse.body.data.task.commentCount).toBe(1);
     });
 });
 

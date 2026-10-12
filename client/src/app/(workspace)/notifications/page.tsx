@@ -84,7 +84,7 @@ export default function NotificationsPage() {
   const router = useRouter();
   const { activeWorkspace, switchWorkspace, workspaces } = useWorkspaces();
   const { myTasks, myTasksStatus, myTasksFailure, reloadMyTasks, invitations, invitationsStatus, removeInvitation, setUnreadNotifications } = useMyWork();
-  const { openTask } = useTaskPanels();
+  const { openTask, openComments } = useTaskPanels();
   const { timezone } = useViewer();
   const now = useNow();
 
@@ -171,7 +171,9 @@ export default function NotificationsPage() {
     if (targetWorkspaceId && targetWorkspaceId !== activeWorkspace?.id && workspaces.some((workspace) => workspace.id === targetWorkspaceId)) {
       switchWorkspace(targetWorkspaceId);
     }
-    openTask(notification.taskId);
+    // A mention is about the conversation: open the comments, not the task's settings.
+    if (notification.type === "comment_mention") openComments(notification.taskId);
+    else openTask(notification.taskId);
   };
 
   // A push notification links to /notifications?open=<id>: open that one once the inbox has

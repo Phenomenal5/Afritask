@@ -81,6 +81,8 @@ export interface Task {
   // For a subtask: its task's title, time window and assignee (who also controls this subtask).
   parent: { id: string; title: string; startAt: string | null; dueAt: string | null; assigneeMembershipId: string | null } | null;
   subtaskCounts: { total: number; completed: number };
+  // Comments that aren't deleted (the comment button on list rows and board cards).
+  commentCount?: number;
   subtasks?: Task[];
 }
 

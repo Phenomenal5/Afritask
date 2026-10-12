@@ -7,7 +7,7 @@
 // - A failed post keeps the draft (per task, this tab) and says why; nothing is shown as
 //   posted until the server confirms it.
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
-import { COMMENT_CHANGED_EVENT } from "@/context/LiveUpdatesContext";
+import { COMMENT_CHANGED_EVENT, COMMENT_COUNT_EVENT } from "@/context/LiveUpdatesContext";
 import { AtSign, MessageSquare, Pencil, Trash2 } from "lucide-react";
 import toast from "react-hot-toast";
 import { createComment, deleteComment, editComment, getTaskComments } from "@/lib/services/commentService";
@@ -67,7 +67,9 @@ interface MentionInputProps {
   label: string;
   value: string;
   onChange: (body: string) => void;
-  onPick: (membershipId: string) => void;
+  // Picking a member sends the new text and who was picked together. NOTE: one update, not
+  // onChange then onPick: two updates built from the same draft overwrote the inserted name.
+  onPick: (membershipId: string, nextBody: string) => void;
   members: Member[];
   disabled?: boolean;
   autoFocus?: boolean;
@@ -100,8 +102,7 @@ function MentionInput({ label, value, onChange, onPick, members, disabled, autoF
     const caret = mention.start + 1 + mention.query.length;
     const inserted = `@${member.user.name} `;
     const nextBody = value.slice(0, mention.start) + inserted + value.slice(caret);
-    onChange(nextBody);
-    onPick(member.id);
+    onPick(member.id, nextBody);
     setMention(null);
     const nextCaret = mention.start + inserted.length;
     requestAnimationFrame(() => {
@@ -307,7 +308,10 @@ function CommentItem({ comment, now, members, readOnly, onChanged }: CommentItem
               label="Edit comment"
               value={draftBody}
               onChange={setDraftBody}
-              onPick={(membershipId) => setPickedIds((ids) => [...new Set([...ids, membershipId])])}
+              onPick={(membershipId, nextBody) => {
+                setDraftBody(nextBody);
+                setPickedIds((ids) => [...new Set([...ids, membershipId])]);
+              }}
               members={members}
               autoFocus
               onSubmitShortcut={save}
@@ -440,6 +444,10 @@ export default function TaskComments({ taskId, readOnlyReason, heading }: TaskCo
 
   const visibleCount = comments?.filter((comment) => !comment.deletedAt).length ?? 0;
 
+  useEffect(() => {
+    if (comments) window.dispatchEvent(new CustomEvent(COMMENT_COUNT_EVENT, { detail: { taskId, count: visibleCount } }));
+  }, [comments, taskId, visibleCount]);
+
   return (
     <section aria-labelledby={`comments-heading-${taskId}`}>
       <h3 id={`comments-heading-${taskId}`} className="mb-2 flex items-center gap-2 text-[16px] font-semibold text-ink">
@@ -475,7 +483,7 @@ export default function TaskComments({ taskId, readOnlyReason, heading }: TaskCo
             label="Write a comment"
             value={draft.body}
             onChange={(body) => updateDraft({ ...draft, body })}
-            onPick={(membershipId) => updateDraft({ ...draft, pickedMembershipIds: [...new Set([...draft.pickedMembershipIds, membershipId])] })}
+            onPick={(membershipId, nextBody) => updateDraft({ body: nextBody, pickedMembershipIds: [...new Set([...draft.pickedMembershipIds, membershipId])] })}
             members={members}
             disabled={posting}
             onSubmitShortcut={post}
